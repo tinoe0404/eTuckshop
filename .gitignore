@@ -1,0 +1,65 @@
+# ---------------------------
+# eTuckshop Global Gitignore
+# ---------------------------
+
+# Node & Bun dependencies
+node_modules/
+bun.lockb
+bun.lock
+package-lock.json
+yarn.lock
+.pnpm-debug.log
+
+# Build output
+dist/
+build/
+.next/
+out/
+public/build/
+coverage/
+.cache/
+
+# Environment files (API keys, secrets)
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+bun-debug.log*
+pnpm-debug.log*
+logs/
+*.log
+
+# OS/system files
+.DS_Store
+Thumbs.db
+
+# IDE/editor folders
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Uploaded/generated files
+uploads/
+*.bak
+
+# Chatbot / Twilio configs (local)
+*.local.json
+webhook_secret.txt
+
+# Ignore build artifacts for frontend/backend
+frontend/.next/
+frontend/out/
+backend/dist/
+chatbot/dist/
