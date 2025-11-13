@@ -7,18 +7,90 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// =====================================
+// USER MODEL (Admin & Customer)
+// =====================================
 model User {
-  id        Int      @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
+  name       String
+  email      String    @unique
+  password   String
+  role       Role      @default(CUSTOMER)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  orders     Order[]
+}
+
+// =====================================
+// ENUMS (Roles, Order Status, etc.)
+// =====================================
+enum Role {
+  ADMIN
+  CUSTOMER
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  COMPLETED
+  CANCELLED
+}
+
+// =====================================
+// PRODUCT MANAGEMENT
+// =====================================
+model Category {
+  id        Int        @id @default(autoincrement())
   name      String
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
+  createdAt DateTime   @default(now())
+  products  Product[]
 }
 
 model Product {
+  id          Int        @id @default(autoincrement())
+  name        String
+  description String?
+  price       Float
+  stock       Int        @default(0)
+  stockLevel  StockLevel @default(MEDIUM)
+  categoryId  Int
+  category    Category   @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+  createdAt   DateTime   @default(now())
+}
+
+enum StockLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// =====================================
+// ORDER MANAGEMENT
+// =====================================
+model Order {
+  id          Int         @id @default(autoincrement())
+  userId      Int
+  user        User        @relation(fields: [userId], references: [id])
+  totalAmount Float
+  paymentType PaymentType @default(CASH)
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+  orderItems  OrderItem[]
+}
+
+model OrderItem {
   id        Int      @id @default(autoincrement())
-  name      String
-  price     Float
-  stock     Int
-  createdAt DateTime @default(now())
+  orderId   Int
+  productId Int
+  quantity  Int
+  subtotal  Float
+  product   Product  @relation(fields: [productId], references: [id])
+  order     Order    @relation(fields: [orderId], references: [id])
+}
+
+enum PaymentType {
+  CASH
+  PAYNOW
 }
