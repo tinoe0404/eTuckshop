@@ -1,6 +1,6 @@
 import { Context, Next } from "hono";
 import jwt from "jsonwebtoken";
-import { prisma } from "../utils/index";
+import { prisma } from "../utils/db";
 
 export const protectRoute = async (c: Context, next: Next) => {
   try {
