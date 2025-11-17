@@ -67,4 +67,17 @@ export const signup = async (c: Context) => {
     });
   };
   
- 
+ // LOGOUT
+ export const logout = async (c: Context) => {
+    const refresh = c.req.cookie("refreshToken");
+  
+    if (refresh) {
+      const decoded = jwt.verify(refresh, process.env.REFRESH_TOKEN_SECRET!) as any;
+      await redis.del(`refresh:${decoded.userId}`);
+    }
+  
+    c.cookie("accessToken", "", { maxAge: 0 });
+    c.cookie("refreshToken", "", { maxAge: 0 });
+  
+    return c.json({ message: "Logged out successfully" });
+  }; 
