@@ -22,3 +22,27 @@ const setCookies = (c: Context, accessToken: string, refreshToken: string) => {
 };
 
 
+// SIGNUP
+export const signup = async (c: Context) => {
+    const { name, email, password, role } = await c.req.json();
+  
+    const exists = await prisma.user.findUnique({ where: { email } });
+    if (exists) return c.json({ message: "User already exists" }, 400);
+  
+    const hashed = await bcrypt.hash(password, 10);
+  
+    const user = await prisma.user.create({
+      data: { name, email, password: hashed, role },
+    });
+  
+    const { accessToken, refreshToken } = generateTokens(user.id);
+    await redis.set(`refresh:${user.id}`, refreshToken, { ex: 7 * 24 * 60 * 60 });
+  
+    setCookies(c, accessToken, refreshToken);
+  
+    return c.json({
+      user,
+      redirectTo: user.role === "ADMIN" ? "/admin" : "/customer",
+    });
+  };
+  
