@@ -46,3 +46,25 @@ export const signup = async (c: Context) => {
     });
   };
   
+ // LOGIN
+ export const login = async (c: Context) => {
+    const { email, password } = await c.req.json();
+  
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return c.json({ message: "Invalid email or password" }, 400);
+  
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return c.json({ message: "Invalid email or password" }, 400);
+  
+    const { accessToken, refreshToken } = generateTokens(user.id);
+    await redis.set(`refresh:${user.id}`, refreshToken, { ex: 7 * 24 * 60 * 60 });
+  
+    setCookies(c, accessToken, refreshToken);
+  
+    return c.json({
+      user,
+      redirectTo: user.role === "ADMIN" ? "/admin" : "/customer",
+    });
+  };
+  
+ 
