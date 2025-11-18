@@ -19,4 +19,23 @@ export const getAllProducts = async (c: Context) => {
   
     return c.json(updated);
   };
+
+// ==============================
+// GET PRODUCT BY ID
+// ==============================
+export const getProductById = async (c: Context) => {
+    const id = Number(c.req.param("id"));
+  
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: { category: true },
+    });
+  
+    if (!product) return c.json({ error: "Product not found" }, 404);
+  
+    return c.json({
+      ...product,
+      stockLevel: getStockLevel(product.stock),
+    });
+  };
   
