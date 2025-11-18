@@ -4,8 +4,9 @@ import { prisma } from "../utils/db";
 import { redis } from "../utils/redis";
 import { generateTokens } from "../utils/tokens";
 import jwt from "jsonwebtoken";
+import { serverError } from "../utils/serverError";
 
-// Save refresh token in Redis
+// ------------------- HELPER -------------------
 const storeRefreshToken = async (userId: string, refreshToken: string) => {
   await redis.set(`refresh_token:${userId}`, refreshToken, {
     ex: 7 * 24 * 60 * 60,
@@ -18,7 +19,8 @@ export const signup = async (c: Context) => {
     const { name, email, password, role } = await c.req.json();
 
     const exists = await prisma.user.findUnique({ where: { email } });
-    if (exists) return c.json({ message: "User already exists" }, 400);
+    if (exists)
+      return c.json({ success: false, message: "User already exists" }, 400);
 
     const hashed = await bcrypt.hash(password, 10);
 
@@ -32,13 +34,14 @@ export const signup = async (c: Context) => {
     const { password: _, ...safeUser } = user;
 
     return c.json({
+      success: true,
+      message: "User created successfully",
       user: safeUser,
       accessToken,
       refreshToken,
-      message: "User created successfully",
-    });
-  } catch (error: any) {
-    return c.json({ message: "Server error", error: error.message }, 500);
+    }, 201);
+  } catch (error) {
+    return serverError(c, error);
   }
 };
 
@@ -48,10 +51,12 @@ export const login = async (c: Context) => {
     const { email, password } = await c.req.json();
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return c.json({ message: "Invalid email or password" }, 400);
+    if (!user)
+      return c.json({ success: false, message: "Invalid email or password" }, 400);
 
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return c.json({ message: "Invalid email or password" }, 400);
+    if (!valid)
+      return c.json({ success: false, message: "Invalid email or password" }, 400);
 
     const { accessToken, refreshToken } = generateTokens(user.id.toString());
     await storeRefreshToken(user.id.toString(), refreshToken);
@@ -59,16 +64,18 @@ export const login = async (c: Context) => {
     const { password: _, ...safeUser } = user;
 
     return c.json({
+      success: true,
+      message: "Logged in successfully",
       user: safeUser,
       accessToken,
       refreshToken,
-      message: "Logged in successfully",
     });
-  } catch (error: any) {
-    return c.json({ message: "Server error", error: error.message }, 500);
+  } catch (error) {
+    return serverError(c, error);
   }
 };
 
+// ------------------- LOGOUT -------------------
 export const logout = async (c: Context) => {
   try {
     const { refreshToken } = await c.req.json();
@@ -82,19 +89,13 @@ export const logout = async (c: Context) => {
 
         await redis.del(`refresh_token:${decoded.userId}`);
       } catch {
-        // silently ignore invalid/expired token (best practice)
+        // silently ignore invalid/expired token
       }
     }
 
-    return c.json({ message: "Logged out successfully" });
-  } catch (error: any) {
-    return c.json(
-      {
-        message: "Server error",
-        error: process.env.NODE_ENV === "development" ? error.message : undefined,
-      },
-      500
-    );
+    return c.json({ success: true, message: "Logged out successfully" });
+  } catch (error) {
+    return serverError(c, error);
   }
 };
 
@@ -102,9 +103,8 @@ export const logout = async (c: Context) => {
 export const refreshToken = async (c: Context) => {
   try {
     const { refreshToken } = await c.req.json();
-
     if (!refreshToken)
-      return c.json({ message: "No refresh token provided" }, 401);
+      return c.json({ success: false, message: "No refresh token provided" }, 401);
 
     const decoded = jwt.verify(
       refreshToken,
@@ -113,7 +113,7 @@ export const refreshToken = async (c: Context) => {
 
     const storedToken = await redis.get(`refresh_token:${decoded.userId}`);
     if (storedToken !== refreshToken)
-      return c.json({ message: "Invalid refresh token" }, 401);
+      return c.json({ success: false, message: "Invalid refresh token" }, 401);
 
     const accessToken = jwt.sign(
       { userId: decoded.userId },
@@ -121,17 +121,29 @@ export const refreshToken = async (c: Context) => {
       { expiresIn: "15m" }
     );
 
-    return c.json({ accessToken, message: "Token refreshed successfully" });
-  } catch (error: any) {
-    return c.json({ message: "Server error", error: error.message }, 500);
+    return c.json({
+      success: true,
+      message: "Token refreshed successfully",
+      accessToken,
+    });
+  } catch (error) {
+    return serverError(c, error);
   }
 };
 
 // ------------------- GET PROFILE -------------------
 export const getProfile = async (c: Context) => {
   try {
-    return c.json(c.get("user"));
-  } catch (error: any) {
-    return c.json({ message: "Server error", error: error.message }, 500);
+    const user = c.get("user");
+    if (!user)
+      return c.json({ success: false, message: "Unauthorized" }, 401);
+
+    return c.json({
+      success: true,
+      message: "Profile retrieved successfully",
+      user,
+    });
+  } catch (error) {
+    return serverError(c, error);
   }
 };
