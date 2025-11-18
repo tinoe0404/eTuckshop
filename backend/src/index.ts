@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { serve } from "bun";
 import { prisma } from "./utils/db";
 import { router as authRoutes } from "./routes/auth.route";
+import productRoutes from "./routes/products.route";
 
 const app = new Hono();
 
@@ -23,6 +24,7 @@ async function checkDbConnection() {
 
 // Attach routes
 app.route("/api/auth", authRoutes);
+app.route("/api/products", productRoutes);
 
 // Start server
 (async () => {
