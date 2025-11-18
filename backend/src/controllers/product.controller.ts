@@ -105,4 +105,20 @@ export const updateProduct = async (c: Context) => {
   
     return c.json(updated);
   };
+
+// ==============================
+// DELETE PRODUCT (ADMIN ONLY)
+// ==============================
+export const deleteProduct = async (c: Context) => {
+    const user = c.get("user");
+    if (!user || user.role !== "ADMIN")
+      return c.json({ error: "Unauthorized" }, 401);
   
+    const id = Number(c.req.param("id"));
+  
+    await prisma.product.delete({
+      where: { id },
+    });
+  
+    return c.json({ message: "Product deleted successfully" });
+  };
