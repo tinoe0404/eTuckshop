@@ -81,4 +81,28 @@ export const createProduct = async (c: Context) => {
   
     return c.json(product, 201);
   };
+
+// ==============================
+// UPDATE PRODUCT (ADMIN ONLY)
+// ==============================
+export const updateProduct = async (c: Context) => {
+    const user = c.get("user");
+    if (!user || user.role !== "ADMIN")
+      return c.json({ error: "Unauthorized" }, 401);
+  
+    const id = Number(c.req.param("id"));
+    const data = await c.req.json();
+  
+    // If stock is updated → recalc stockLevel
+    if (data.stock !== undefined) {
+      data.stockLevel = getStockLevel(data.stock);
+    }
+  
+    const updated = await prisma.product.update({
+      where: { id },
+      data,
+    });
+  
+    return c.json(updated);
+  };
   
