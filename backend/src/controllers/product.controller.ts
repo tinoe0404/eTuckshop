@@ -57,4 +57,28 @@ export const getProductsByCategory = async (c: Context) => {
       }))
     );
   };
+
+// ==============================
+// CREATE PRODUCT (ADMIN ONLY)
+// ==============================
+export const createProduct = async (c: Context) => {
+    const user = c.get("user"); // assuming auth middleware
+    if (!user || user.role !== "ADMIN")
+      return c.json({ error: "Unauthorized" }, 401);
+  
+    const { name, description, price, stock, categoryId } = await c.req.json();
+  
+    const product = await prisma.product.create({
+      data: {
+        name,
+        description,
+        price,
+        stock,
+        categoryId,
+        stockLevel: getStockLevel(stock),
+      },
+    });
+  
+    return c.json(product, 201);
+  };
   
