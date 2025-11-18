@@ -5,79 +5,133 @@ import { redis } from "../utils/redis";
 import { generateTokens } from "../utils/tokens";
 import jwt from "jsonwebtoken";
 
-const setCookies = (c: Context, accessToken: string, refreshToken: string) => {
-  c.cookie("accessToken", accessToken, {
-    httpOnly: true,
-    sameSite: "Strict",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 15 * 60 * 1000,
-  });
-
-  c.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    sameSite: "Strict",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+// Save refresh token in Redis
+const storeRefreshToken = async (userId: string, refreshToken: string) => {
+  await redis.set(`refresh_token:${userId}`, refreshToken, {
+    ex: 7 * 24 * 60 * 60,
   });
 };
 
-
-// SIGNUP
+// ------------------- SIGNUP -------------------
 export const signup = async (c: Context) => {
+  try {
     const { name, email, password, role } = await c.req.json();
-  
+
     const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) return c.json({ message: "User already exists" }, 400);
-  
+
     const hashed = await bcrypt.hash(password, 10);
-  
+
     const user = await prisma.user.create({
       data: { name, email, password: hashed, role },
     });
-  
-    const { accessToken, refreshToken } = generateTokens(user.id);
-    await redis.set(`refresh:${user.id}`, refreshToken, { ex: 7 * 24 * 60 * 60 });
-  
-    setCookies(c, accessToken, refreshToken);
-  
+
+    const { accessToken, refreshToken } = generateTokens(user.id.toString());
+    await storeRefreshToken(user.id.toString(), refreshToken);
+
+    const { password: _, ...safeUser } = user;
+
     return c.json({
-      user,
-      redirectTo: user.role === "ADMIN" ? "/admin" : "/customer",
+      user: safeUser,
+      accessToken,
+      refreshToken,
+      message: "User created successfully",
     });
-  };
-  
- // LOGIN
- export const login = async (c: Context) => {
+  } catch (error: any) {
+    return c.json({ message: "Server error", error: error.message }, 500);
+  }
+};
+
+// ------------------- LOGIN -------------------
+export const login = async (c: Context) => {
+  try {
     const { email, password } = await c.req.json();
-  
+
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return c.json({ message: "Invalid email or password" }, 400);
-  
+
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return c.json({ message: "Invalid email or password" }, 400);
-  
-    const { accessToken, refreshToken } = generateTokens(user.id);
-    await redis.set(`refresh:${user.id}`, refreshToken, { ex: 7 * 24 * 60 * 60 });
-  
-    setCookies(c, accessToken, refreshToken);
-  
+
+    const { accessToken, refreshToken } = generateTokens(user.id.toString());
+    await storeRefreshToken(user.id.toString(), refreshToken);
+
+    const { password: _, ...safeUser } = user;
+
     return c.json({
-      user,
-      redirectTo: user.role === "ADMIN" ? "/admin" : "/customer",
+      user: safeUser,
+      accessToken,
+      refreshToken,
+      message: "Logged in successfully",
     });
-  };
-  
- // LOGOUT
- export const logout = async (c: Context) => {
-    const refresh = c.req.cookie("refreshToken");
-  
-    if (refresh) {
-      const decoded = jwt.verify(refresh, process.env.REFRESH_TOKEN_SECRET!) as any;
-      await redis.del(`refresh:${decoded.userId}`);
+  } catch (error: any) {
+    return c.json({ message: "Server error", error: error.message }, 500);
+  }
+};
+
+export const logout = async (c: Context) => {
+  try {
+    const { refreshToken } = await c.req.json();
+
+    if (refreshToken) {
+      try {
+        const decoded = jwt.verify(
+          refreshToken,
+          process.env.REFRESH_TOKEN_SECRET!
+        ) as { userId: string };
+
+        await redis.del(`refresh_token:${decoded.userId}`);
+      } catch {
+        // silently ignore invalid/expired token (best practice)
+      }
     }
-  
-    c.cookie("accessToken", "", { maxAge: 0 });
-    c.cookie("refreshToken", "", { maxAge: 0 });
-  
+
     return c.json({ message: "Logged out successfully" });
-  }; 
+  } catch (error: any) {
+    return c.json(
+      {
+        message: "Server error",
+        error: process.env.NODE_ENV === "development" ? error.message : undefined,
+      },
+      500
+    );
+  }
+};
+
+// ------------------- REFRESH ACCESS TOKEN -------------------
+export const refreshToken = async (c: Context) => {
+  try {
+    const { refreshToken } = await c.req.json();
+
+    if (!refreshToken)
+      return c.json({ message: "No refresh token provided" }, 401);
+
+    const decoded = jwt.verify(
+      refreshToken,
+      process.env.REFRESH_TOKEN_SECRET!
+    ) as { userId: string };
+
+    const storedToken = await redis.get(`refresh_token:${decoded.userId}`);
+    if (storedToken !== refreshToken)
+      return c.json({ message: "Invalid refresh token" }, 401);
+
+    const accessToken = jwt.sign(
+      { userId: decoded.userId },
+      process.env.ACCESS_TOKEN_SECRET!,
+      { expiresIn: "15m" }
+    );
+
+    return c.json({ accessToken, message: "Token refreshed successfully" });
+  } catch (error: any) {
+    return c.json({ message: "Server error", error: error.message }, 500);
+  }
+};
+
+// ------------------- GET PROFILE -------------------
+export const getProfile = async (c: Context) => {
+  try {
+    return c.json(c.get("user"));
+  } catch (error: any) {
+    return c.json({ message: "Server error", error: error.message }, 500);
+  }
+};
