@@ -52,18 +52,12 @@ model Product {
   name        String
   description String?
   price       Float
-  stock       Int        @default(0)
-  stockLevel  StockLevel @default(MEDIUM)
+  stock       Int        @default(0)   // this is enough
   categoryId  Int
   category    Category   @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
   createdAt   DateTime   @default(now())
-}
-
-enum StockLevel {
-  LOW
-  MEDIUM
-  HIGH
+  updatedAt   DateTime   @updatedAt
 }
 
 // =====================================
