@@ -2,17 +2,18 @@ import { Hono } from "hono";
 import {
   getAllProducts,
   getProductById,
+  getProductsByCategory,
   createProduct,
   updateProduct,
   deleteProduct,
-  getProductsByCategory,
 } from "../controllers/product.controller";
 
 const productRoutes = new Hono();
 
-// Public routes
 productRoutes.get("/", getAllProducts);
 productRoutes.get("/:id", getProductById);
+
+// Category-based fetching
 productRoutes.get("/category/:categoryId", getProductsByCategory);
 
 // Admin routes
