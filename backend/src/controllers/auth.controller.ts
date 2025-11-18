@@ -47,10 +47,13 @@ export const signup = async (c: Context) => {
 
 // ------------------- LOGIN -------------------
 export const login = async (c: Context) => {
+
   try {
     const { email, password } = await c.req.json();
 
+
     const user = await prisma.user.findUnique({ where: { email } });
+
     if (!user)
       return c.json({ success: false, message: "Invalid email or password" }, 400);
 

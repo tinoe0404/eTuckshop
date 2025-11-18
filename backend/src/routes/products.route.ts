@@ -8,17 +8,17 @@ import {
   deleteProduct,
 } from "../controllers/product.controller";
 
-const productRoutes = new Hono();
+const router = new Hono();
 
-productRoutes.get("/", getAllProducts);
-productRoutes.get("/:id", getProductById);
+router.get("/", getAllProducts);
+router.get("/:id", getProductById);
 
 // Category-based fetching
-productRoutes.get("/category/:categoryId", getProductsByCategory);
+router.get("/category/:categoryId", getProductsByCategory);
 
 // Admin routes
-productRoutes.post("/", createProduct);
-productRoutes.put("/:id", updateProduct);
-productRoutes.delete("/:id", deleteProduct);
+router.post("/", createProduct);
+router.put("/:id", updateProduct);
+router.delete("/:id", deleteProduct);
 
-export default productRoutes;
+export default router;
