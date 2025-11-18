@@ -38,4 +38,23 @@ export const getProductById = async (c: Context) => {
       stockLevel: getStockLevel(product.stock),
     });
   };
+
+// ==============================
+// GET PRODUCTS BY CATEGORY
+// ==============================
+export const getProductsByCategory = async (c: Context) => {
+    const categoryId = Number(c.req.param("categoryId"));
+  
+    const products = await prisma.product.findMany({
+      where: { categoryId },
+      include: { category: true },
+    });
+  
+    return c.json(
+      products.map((p) => ({
+        ...p,
+        stockLevel: getStockLevel(p.stock),
+      }))
+    );
+  };
   
