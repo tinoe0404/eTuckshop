@@ -12,7 +12,6 @@
     "hono": "^4.10.6",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.16.3",
-    "prisma": "^6.19.0",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {

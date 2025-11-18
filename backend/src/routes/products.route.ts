@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import {
-  getAllProducts,
-  getProductById,
-  getProductsByCategory,
-  createProduct,
-  updateProduct,
-  deleteProduct,
-} from "../controllers/product.controller";
+    getAllProducts,
+    getProductById,
+    getProductsByCategory,
+    createProduct,
+    updateProduct,
+    deleteProduct
+  } from "../controllers/product.controller";
+  
 
 const router = new Hono();
 

@@ -85,22 +85,22 @@ export const getProductsByCategory = async (c: Context) => {
 // CREATE PRODUCT (ADMIN ONLY)
 // ==============================
 export const createProduct = async (c: Context) => {
-    const user = c.get("user");
-    if (!user) return c.json({ message: "Unauthorized" }, 401);
-  
-    // optional extra check if not using protectAdmin middleware
-    if (user.role.toUpperCase() !== "ADMIN") return c.json({ message: "Forbidden" }, 403);
-  
-    try {
-      const { name, description, price, stock, categoryId } = await c.req.json();
-      const product = await prisma.product.create({
-        data: { name, description, price, stock, categoryId },
-      });
-      return c.json({ success: true, message: "Product created", product });
-    } catch (error) {
-      return c.json({ success: false, message: "Failed to create product", error });
-    }
-  };
+  const user = c.get("user");
+  if (!user) return c.json({ message: "Unauthorized" }, 401);
+
+  // optional extra check if not using protectAdmin middleware
+  if (user.role.toUpperCase() !== "ADMIN") return c.json({ message: "Forbidden" }, 403);
+
+  try {
+    const { name, description, price, stock, categoryId } = await c.req.json();
+    const product = await prisma.product.create({
+      data: { name, description, price, stock, categoryId },
+    });
+    return c.json({ success: true, message: "Product created", product });
+  } catch (error) {
+    return c.json({ success: false, message: "Failed to create product", error });
+  }
+};
 
 // ==============================
 // UPDATE PRODUCT (ADMIN ONLY)
