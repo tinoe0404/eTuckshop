@@ -1,11 +1,15 @@
 import "dotenv/config";
 import { Hono } from "hono";
+import { logger } from 'hono/logger'
 import { serve } from "bun";
 import { prisma } from "./utils/db";
 import  authRoutes  from "./routes/auth.route";
 import productRoutes from "./routes/products.route";
 
+
 const app = new Hono();
+
+app.use(logger())
 
 app.get("/", (c) => {
   return c.text("Hello World!");
