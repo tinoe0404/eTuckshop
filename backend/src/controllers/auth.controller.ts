@@ -1,9 +1,7 @@
 import { Context } from "hono";
-import bcrypt from "bcryptjs";
 import { prisma } from "../utils/db";
 import { redis } from "../utils/redis";
-import { generateTokens } from "../utils/tokens";
-import jwt from "jsonwebtoken";
+import { generateTokens, verifyRefreshToken } from "../utils/tokens";
 import { serverError } from "../utils/serverError";
 
 // ------------------- HELPER -------------------
@@ -22,24 +20,31 @@ export const signup = async (c: Context) => {
     if (exists)
       return c.json({ success: false, message: "User already exists" }, 400);
 
-    const hashed = await bcrypt.hash(password, 10);
+    // Use Bun's built-in password hashing (faster than bcrypt)
+    const hashed = await Bun.password.hash(password, {
+      algorithm: "bcrypt",
+      cost: 10,
+    });
 
     const user = await prisma.user.create({
       data: { name, email, password: hashed, role },
     });
 
-    const { accessToken, refreshToken } = generateTokens(user.id.toString());
+    const { accessToken, refreshToken } = await generateTokens(user.id.toString());
     await storeRefreshToken(user.id.toString(), refreshToken);
 
     const { password: _, ...safeUser } = user;
 
-    return c.json({
-      success: true,
-      message: "User created successfully",
-      user: safeUser,
-      accessToken,
-      refreshToken,
-    }, 201);
+    return c.json(
+      {
+        success: true,
+        message: "User created successfully",
+        user: safeUser,
+        accessToken,
+        refreshToken,
+      },
+      201
+    );
   } catch (error) {
     return serverError(c, error);
   }
@@ -47,24 +52,25 @@ export const signup = async (c: Context) => {
 
 // ------------------- LOGIN -------------------
 export const login = async (c: Context) => {
-
   try {
     const { email, password } = await c.req.json();
-
 
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user)
       return c.json({ success: false, message: "Invalid email or password" }, 400);
 
-    const valid = await bcrypt.compare(password, user.password);
+    // Use Bun's built-in password verification
+    const valid = await Bun.password.verify(password, user.password);
     if (!valid)
       return c.json({ success: false, message: "Invalid email or password" }, 400);
 
-    const { accessToken, refreshToken } = generateTokens(user.id.toString());
+    const { accessToken, refreshToken } = await generateTokens(user.id.toString());
     await storeRefreshToken(user.id.toString(), refreshToken);
 
     const { password: _, ...safeUser } = user;
+
+    console.log("✅ Login successful for:", user.email, "| Role:", user.role);
 
     return c.json({
       success: true,
@@ -84,15 +90,10 @@ export const logout = async (c: Context) => {
     const { refreshToken } = await c.req.json();
 
     if (refreshToken) {
-      try {
-        const decoded = jwt.verify(
-          refreshToken,
-          process.env.REFRESH_TOKEN_SECRET!
-        ) as { userId: string };
-
+      const decoded = await verifyRefreshToken(refreshToken);
+      
+      if (decoded && decoded.userId) {
         await redis.del(`refresh_token:${decoded.userId}`);
-      } catch {
-        // silently ignore invalid/expired token
       }
     }
 
@@ -109,20 +110,17 @@ export const refreshToken = async (c: Context) => {
     if (!refreshToken)
       return c.json({ success: false, message: "No refresh token provided" }, 401);
 
-    const decoded = jwt.verify(
-      refreshToken,
-      process.env.REFRESH_TOKEN_SECRET!
-    ) as { userId: string };
+    const decoded = await verifyRefreshToken(refreshToken);
+    
+    if (!decoded || !decoded.userId) {
+      return c.json({ success: false, message: "Invalid refresh token" }, 401);
+    }
 
     const storedToken = await redis.get(`refresh_token:${decoded.userId}`);
     if (storedToken !== refreshToken)
       return c.json({ success: false, message: "Invalid refresh token" }, 401);
 
-    const accessToken = jwt.sign(
-      { userId: decoded.userId },
-      process.env.ACCESS_TOKEN_SECRET!,
-      { expiresIn: "15m" }
-    );
+    const { accessToken } = await generateTokens(decoded.userId as string);
 
     return c.json({
       success: true,

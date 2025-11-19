@@ -1,18 +1,30 @@
 import "dotenv/config";
 import { Hono } from "hono";
-import { logger } from 'hono/logger'
+import { logger } from "hono/logger";
+import { cors } from "hono/cors";
 import { serve } from "bun";
 import { prisma } from "./utils/db";
-import  authRoutes  from "./routes/auth.route";
+import authRoutes from "./routes/auth.route";
 import productRoutes from "./routes/products.route";
-
 
 const app = new Hono();
 
-app.use(logger())
+// Middleware
+app.use(logger());
+app.use(
+  "*",
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    credentials: true,
+  })
+);
 
 app.get("/", (c) => {
-  return c.text("Hello World!");
+  return c.json({ 
+    success: true, 
+    message: "ETUCKSHOP API is running",
+    version: "1.0.0"
+  });
 });
 
 // Check DB connection
@@ -29,6 +41,19 @@ async function checkDbConnection() {
 // Attach routes
 app.route("/api/auth", authRoutes);
 app.route("/api/products", productRoutes);
+
+// Global error handler
+app.onError((err, c) => {
+  console.error("🔥 Global Error:", err);
+  return c.json(
+    {
+      success: false,
+      message: "Internal server error",
+      error: err.message,
+    },
+    500
+  );
+});
 
 // Start server
 (async () => {

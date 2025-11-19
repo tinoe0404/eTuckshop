@@ -4,7 +4,7 @@ import { getStockLevel } from "../utils/stock";
 import { serverError } from "../utils/serverError";
 
 // ==============================
-// GET ALL PRODUCTS
+// GET ALL PRODUCTS (Public)
 // ==============================
 export const getAllProducts = async (c: Context) => {
   try {
@@ -26,7 +26,7 @@ export const getAllProducts = async (c: Context) => {
 };
 
 // ==============================
-// GET PRODUCT BY ID
+// GET PRODUCT BY ID (Public)
 // ==============================
 export const getProductById = async (c: Context) => {
   try {
@@ -57,7 +57,7 @@ export const getProductById = async (c: Context) => {
 };
 
 // ==============================
-// GET PRODUCT BY CATEGORY
+// GET PRODUCTS BY CATEGORY (Public)
 // ==============================
 export const getProductsByCategory = async (c: Context) => {
   try {
@@ -82,54 +82,86 @@ export const getProductsByCategory = async (c: Context) => {
 };
 
 // ==============================
-// CREATE PRODUCT (ADMIN ONLY)
+// CREATE PRODUCT (Admin Only)
 // ==============================
 export const createProduct = async (c: Context) => {
-  const user = c.get("user");
-  if (!user) return c.json({ message: "Unauthorized" }, 401);
-
-  // optional extra check if not using protectAdmin middleware
-  if (user.role.toUpperCase() !== "ADMIN") return c.json({ message: "Forbidden" }, 403);
-
   try {
+    const user = c.get("user");
     const { name, description, price, stock, categoryId } = await c.req.json();
-    const product = await prisma.product.create({
-      data: { name, description, price, stock, categoryId },
+
+    const parsedCategoryId = Number(categoryId);
+
+    // 1️⃣ Validate categoryId
+    if (!parsedCategoryId || isNaN(parsedCategoryId)) {
+      return c.json({ error: "Invalid categoryId" }, 400);
+    }
+
+    // 2️⃣ Check if category exists
+    const category = await prisma.category.findUnique({
+      where: { id: parsedCategoryId },
     });
-    return c.json({ success: true, message: "Product created", product });
+
+    if (!category) {
+      return c.json({ error: "Category does not exist" }, 404);
+    }
+
+    // 3️⃣ Create the product
+    const product = await prisma.product.create({
+      data: {
+        name,
+        description,
+        price: Number(price),
+        stock: Number(stock),
+        categoryId: parsedCategoryId,
+      },
+      include: { category: true },
+    });
+
+    return c.json(
+      {
+        success: true,
+        message: "Product created successfully",
+        data: {
+          ...product,
+          stockLevel: getStockLevel(product.stock),
+        },
+      },
+      201
+    );
+
   } catch (error) {
-    return c.json({ success: false, message: "Failed to create product", error });
+    return serverError(c, error);
   }
 };
 
+
 // ==============================
-// UPDATE PRODUCT (ADMIN ONLY)
+// UPDATE PRODUCT (Admin Only)
 // ==============================
 export const updateProduct = async (c: Context) => {
   try {
-    const user = c.get("user");
-    if (!user || user.role !== "ADMIN")
-      return c.json(
-        { success: false, message: "Unauthorized" },
-        401
-      );
-
+    // User is already verified as ADMIN by middleware
     const id = Number(c.req.param("id"));
     const data = await c.req.json();
 
-    if (data.stock !== undefined) {
-      data.stockLevel = getStockLevel(data.stock);
-    }
+    // Convert types if present
+    if (data.price) data.price = parseFloat(data.price);
+    if (data.stock) data.stock = parseInt(data.stock);
+    if (data.categoryId) data.categoryId = parseInt(data.categoryId);
 
     const updated = await prisma.product.update({
       where: { id },
       data,
+      include: { category: true },
     });
 
     return c.json({
       success: true,
       message: "Product updated successfully",
-      data: updated,
+      data: {
+        ...updated,
+        stockLevel: getStockLevel(updated.stock),
+      },
     });
   } catch (error) {
     return serverError(c, error);
@@ -137,24 +169,28 @@ export const updateProduct = async (c: Context) => {
 };
 
 // ==============================
-// DELETE PRODUCT (ADMIN ONLY)
+// DELETE PRODUCT (Admin Only)
 // ==============================
 export const deleteProduct = async (c: Context) => {
   try {
-    const user = c.get("user");
-    if (!user || user.role !== "ADMIN")
-      return c.json(
-        { success: false, message: "Unauthorized" },
-        401
-      );
-
+    // User is already verified as ADMIN by middleware
     const id = Number(c.req.param("id"));
+
+    const product = await prisma.product.findUnique({ where: { id } });
+    
+    if (!product) {
+      return c.json(
+        { success: false, message: "Product not found" },
+        404
+      );
+    }
 
     await prisma.product.delete({ where: { id } });
 
     return c.json({
       success: true,
       message: "Product deleted successfully",
+      data: { id },
     });
   } catch (error) {
     return serverError(c, error);
