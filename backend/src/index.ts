@@ -7,7 +7,7 @@ import { prisma } from "./utils/db";
 import authRoutes from "./routes/auth.route";
 import productRoutes from "./routes/products.route";
 import categoryRoutes from "./routes/category.route";
-import cartRoutes from "./routes/category.route";
+import cartRoutes from "./routes/cart.route";
 
 const app = new Hono();
 
