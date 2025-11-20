@@ -181,4 +181,53 @@ try {
 }
 };
 
+// ==============================
+// DELETE CATEGORY (Admin Only)
+// ==============================
+export const deleteCategory = async (c: Context) => {
+    try {
+      const id = Number(c.req.param("id"));
+  
+      // Check if category exists
+      const category = await prisma.category.findUnique({
+        where: { id },
+        include: {
+          _count: {
+            select: { products: true },
+          },
+        },
+      });
+  
+      if (!category) {
+        return c.json(
+          { success: false, message: "Category not found" },
+          404
+        );
+      }
+  
+      // Check if category has products
+      if (category._count.products > 0) {
+        return c.json(
+          {
+            success: false,
+            message: `Cannot delete category. It has ${category._count.products} product(s) associated with it.`,
+          },
+          400
+        );
+      }
+  
+      // Delete category
+      await prisma.category.delete({ where: { id } });
+  
+      return c.json({
+        success: true,
+        message: "Category deleted successfully",
+        data: { id },
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
+  
+
   
