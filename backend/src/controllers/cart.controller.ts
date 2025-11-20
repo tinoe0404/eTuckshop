@@ -326,4 +326,33 @@ export const removeFromCart = async (c: Context) => {
       return serverError(c, error);
     }
   };
+
+// ==============================
+// CLEAR CART (Protected)
+// ==============================
+export const clearCart = async (c: Context) => {
+    try {
+      const user = c.get("user");
+      const cart = await getOrCreateCart(user.id);
+  
+      // Delete all cart items
+      await prisma.cartItem.deleteMany({
+        where: { cartId: cart.id },
+      });
+  
+      return c.json({
+        success: true,
+        message: "Cart cleared successfully",
+        data: {
+          id: cart.id,
+          userId: cart.userId,
+          items: [],
+          totalItems: 0,
+          totalAmount: 0,
+        },
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
   
