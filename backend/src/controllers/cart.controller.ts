@@ -90,4 +90,110 @@ export const getCart = async (c: Context) => {
       return serverError(c, error);
     }
   };
+
+
+// ==============================
+// ADD TO CART (Protected)
+// ==============================
+export const addToCart = async (c: Context) => {
+    try {
+      const user = c.get("user");
+      const { productId, quantity = 1 } = await c.req.json();
+  
+      // Validate input
+      if (!productId || quantity < 1) {
+        return c.json(
+          { success: false, message: "Invalid product ID or quantity" },
+          400
+        );
+      }
+  
+      // Check if product exists and has stock
+      const product = await prisma.product.findUnique({
+        where: { id: parseInt(productId) },
+      });
+  
+      if (!product) {
+        return c.json(
+          { success: false, message: "Product not found" },
+          404
+        );
+      }
+  
+      if (product.stock < quantity) {
+        return c.json(
+          {
+            success: false,
+            message: `Insufficient stock. Only ${product.stock} available`,
+          },
+          400
+        );
+      }
+  
+      // Get or create cart
+      const cart = await getOrCreateCart(user.id);
+  
+      // Check if item already in cart
+      const existingItem = await prisma.cartItem.findFirst({
+        where: {
+          cartId: cart.id,
+          productId: parseInt(productId),
+        },
+      });
+  
+      if (existingItem) {
+        // Update quantity
+        const newQuantity = existingItem.quantity + parseInt(quantity);
+  
+        if (product.stock < newQuantity) {
+          return c.json(
+            {
+              success: false,
+              message: `Cannot add ${quantity} more. Only ${product.stock - existingItem.quantity} available`,
+            },
+            400
+          );
+        }
+  
+        await prisma.cartItem.update({
+          where: { id: existingItem.id },
+          data: { quantity: newQuantity },
+        });
+      } else {
+        // Add new item
+        await prisma.cartItem.create({
+          data: {
+            cartId: cart.id,
+            productId: parseInt(productId),
+            quantity: parseInt(quantity),
+          },
+        });
+      }
+  
+      // Fetch updated cart
+      const updatedCart = await prisma.cart.findUnique({
+        where: { id: cart.id },
+        include: {
+          items: {
+            include: {
+              product: {
+                include: { category: true },
+              },
+            },
+          },
+        },
+      });
+  
+      const cartWithTotals = calculateCartTotals(updatedCart);
+  
+      return c.json({
+        success: true,
+        message: "Product added to cart successfully",
+        data: cartWithTotals,
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
+  
   
