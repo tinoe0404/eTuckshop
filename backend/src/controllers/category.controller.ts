@@ -28,3 +28,48 @@ export const getAllCategories = async (c: Context) => {
     return serverError(c, error);
   }
 };
+
+// ==============================
+// GET CATEGORY BY ID (Public)
+// ==============================
+export const getCategoryById = async (c: Context) => {
+    try {
+      const id = Number(c.req.param("id"));
+  
+      const category = await prisma.category.findUnique({
+        where: { id },
+        include: {
+          products: {
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              stock: true,
+              description: true,
+            },
+          },
+          _count: {
+            select: { products: true },
+          },
+        },
+      });
+  
+      if (!category) {
+        return c.json(
+          { success: false, message: "Category not found" },
+          404
+        );
+      }
+  
+      return c.json({
+        success: true,
+        message: "Category retrieved successfully",
+        data: {
+          ...category,
+          productCount: category._count.products,
+        },
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
