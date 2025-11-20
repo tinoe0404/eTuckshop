@@ -71,3 +71,23 @@ const calculateCartTotals = (cart: any) => {
       updatedAt: cart.updatedAt,
     };
   };
+
+// ==============================
+// GET CART (Protected)
+// ==============================
+export const getCart = async (c: Context) => {
+    try {
+      const user = c.get("user");
+      const cart = await getOrCreateCart(user.id);
+      const cartWithTotals = calculateCartTotals(cart);
+  
+      return c.json({
+        success: true,
+        message: "Cart retrieved successfully",
+        data: cartWithTotals,
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
+  
