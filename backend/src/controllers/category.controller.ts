@@ -73,3 +73,52 @@ export const getCategoryById = async (c: Context) => {
       return serverError(c, error);
     }
   };
+
+// ==============================
+// CREATE CATEGORY (Admin Only)
+// ==============================
+export const createCategory = async (c: Context) => {
+    try {
+      const { name, description } = await c.req.json();
+  
+      // Validate required fields
+      if (!name || name.trim() === "") {
+        return c.json(
+          { success: false, message: "Category name is required" },
+          400
+        );
+      }
+  
+      // Check if category already exists
+      const existingCategory = await prisma.category.findUnique({
+        where: { name: name.trim() },
+      });
+  
+      if (existingCategory) {
+        return c.json(
+          { success: false, message: "Category already exists" },
+          400
+        );
+      }
+  
+      const category = await prisma.category.create({
+        data: {
+          name: name.trim(),
+          description: description?.trim() || null,
+        },
+      });
+  
+      return c.json(
+        {
+          success: true,
+          message: "Category created successfully",
+          data: category,
+        },
+        201
+      );
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
+
+  
