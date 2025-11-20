@@ -48,6 +48,7 @@ async function checkDbConnection() {
 app.route("/api/auth", authRoutes);
 app.route("/api/products", productRoutes);
 app.route("/api/categories", categoryRoutes);
+app.route("/api/cart", authRoutes);
 
 // Global error handler
 app.onError((err, c) => {
