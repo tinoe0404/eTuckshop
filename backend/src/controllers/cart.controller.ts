@@ -271,5 +271,59 @@ export const updateCartItem = async (c: Context) => {
       return serverError(c, error);
     }
   };
+
+// ==============================
+// REMOVE FROM CART (Protected)
+// ==============================
+export const removeFromCart = async (c: Context) => {
+    try {
+      const user = c.get("user");
+      const productId = Number(c.req.param("productId"));
   
+      const cart = await getOrCreateCart(user.id);
+  
+      // Find and delete cart item
+      const cartItem = await prisma.cartItem.findFirst({
+        where: {
+          cartId: cart.id,
+          productId,
+        },
+      });
+  
+      if (!cartItem) {
+        return c.json(
+          { success: false, message: "Item not found in cart" },
+          404
+        );
+      }
+  
+      await prisma.cartItem.delete({
+        where: { id: cartItem.id },
+      });
+  
+      // Fetch updated cart
+      const updatedCart = await prisma.cart.findUnique({
+        where: { id: cart.id },
+        include: {
+          items: {
+            include: {
+              product: {
+                include: { category: true },
+              },
+            },
+          },
+        },
+      });
+  
+      const cartWithTotals = calculateCartTotals(updatedCart);
+  
+      return c.json({
+        success: true,
+        message: "Item removed from cart successfully",
+        data: cartWithTotals,
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
   
