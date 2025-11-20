@@ -37,3 +37,37 @@ const getOrCreateCart = async (userId: number) => {
 
   return cart;
 };
+
+// ==============================
+// HELPER: CALCULATE CART TOTALS
+// ==============================
+const calculateCartTotals = (cart: any) => {
+    const items = cart.items.map((item: any) => ({
+      id: item.id,
+      productId: item.productId,
+      name: item.product.name,
+      description: item.product.description,
+      price: item.product.price,
+      quantity: item.quantity,
+      subtotal: parseFloat((item.product.price * item.quantity).toFixed(2)),
+      stock: item.product.stock,
+      stockLevel: getStockLevel(item.product.stock),
+      category: item.product.category,
+      image: item.product.image || null,
+    }));
+  
+    const totalItems = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
+    const totalAmount = parseFloat(
+      items.reduce((sum: number, item: any) => sum + item.subtotal, 0).toFixed(2)
+    );
+  
+    return {
+      id: cart.id,
+      userId: cart.userId,
+      items,
+      totalItems,
+      totalAmount,
+      createdAt: cart.createdAt,
+      updatedAt: cart.updatedAt,
+    };
+  };
