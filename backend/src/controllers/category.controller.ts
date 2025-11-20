@@ -228,6 +228,55 @@ export const deleteCategory = async (c: Context) => {
       return serverError(c, error);
     }
   };
+
+// ==============================
+// GET CATEGORY STATISTICS (Admin Only)
+// ==============================
+export const getCategoryStats = async (c: Context) => {
+    try {
+      const stats = await prisma.category.findMany({
+        include: {
+          _count: {
+            select: { products: true },
+          },
+          products: {
+            select: {
+              price: true,
+              stock: true,
+            },
+          },
+        },
+      });
+  
+      const categoryStats = stats.map((cat) => {
+        const totalProducts = cat._count.products;
+        const totalStock = cat.products.reduce((sum, p) => sum + p.stock, 0);
+        const avgPrice =
+          totalProducts > 0
+            ? cat.products.reduce((sum, p) => sum + p.price, 0) / totalProducts
+            : 0;
+  
+        return {
+          id: cat.id,
+          name: cat.name,
+          description: cat.description,
+          totalProducts,
+          totalStock,
+          averagePrice: parseFloat(avgPrice.toFixed(2)),
+          createdAt: cat.createdAt,
+          updatedAt: cat.updatedAt,
+        };
+      });
+  
+      return c.json({
+        success: true,
+        message: "Category statistics retrieved successfully",
+        data: categoryStats,
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
   
 
   
