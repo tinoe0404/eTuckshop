@@ -195,5 +195,81 @@ export const addToCart = async (c: Context) => {
       return serverError(c, error);
     }
   };
+
+// ==============================
+// UPDATE CART ITEM (Protected)
+// ==============================
+export const updateCartItem = async (c: Context) => {
+    try {
+      const user = c.get("user");
+      const { productId, quantity } = await c.req.json();
+  
+      if (!productId || quantity < 1) {
+        return c.json(
+          { success: false, message: "Invalid product ID or quantity" },
+          400
+        );
+      }
+  
+      const cart = await getOrCreateCart(user.id);
+  
+      // Find cart item
+      const cartItem = await prisma.cartItem.findFirst({
+        where: {
+          cartId: cart.id,
+          productId: parseInt(productId),
+        },
+        include: { product: true },
+      });
+  
+      if (!cartItem) {
+        return c.json(
+          { success: false, message: "Item not found in cart" },
+          404
+        );
+      }
+  
+      // Check stock
+      if (cartItem.product.stock < quantity) {
+        return c.json(
+          {
+            success: false,
+            message: `Insufficient stock. Only ${cartItem.product.stock} available`,
+          },
+          400
+        );
+      }
+  
+      // Update quantity
+      await prisma.cartItem.update({
+        where: { id: cartItem.id },
+        data: { quantity: parseInt(quantity) },
+      });
+  
+      // Fetch updated cart
+      const updatedCart = await prisma.cart.findUnique({
+        where: { id: cart.id },
+        include: {
+          items: {
+            include: {
+              product: {
+                include: { category: true },
+              },
+            },
+          },
+        },
+      });
+  
+      const cartWithTotals = calculateCartTotals(updatedCart);
+  
+      return c.json({
+        success: true,
+        message: "Cart updated successfully",
+        data: cartWithTotals,
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
   
   
