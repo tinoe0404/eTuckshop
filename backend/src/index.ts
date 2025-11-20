@@ -6,6 +6,7 @@ import { serve } from "bun";
 import { prisma } from "./utils/db";
 import authRoutes from "./routes/auth.route";
 import productRoutes from "./routes/products.route";
+import categoryRoutes from "./routes/category.route";
 
 const app = new Hono();
 
@@ -23,7 +24,12 @@ app.get("/", (c) => {
   return c.json({ 
     success: true, 
     message: "ETUCKSHOP API is running",
-    version: "1.0.0"
+    version: "1.0.0",
+    endpoints: {
+      auth: "/api/auth",
+      products: "/api/products",
+      categories: "/api/categories",
+    }
   });
 });
 
@@ -41,6 +47,7 @@ async function checkDbConnection() {
 // Attach routes
 app.route("/api/auth", authRoutes);
 app.route("/api/products", productRoutes);
+app.route("/api/categories", categoryRoutes);
 
 // Global error handler
 app.onError((err, c) => {
@@ -67,4 +74,8 @@ app.onError((err, c) => {
   });
 
   console.log(`🚀 Server running on http://localhost:${port}`);
+  console.log(`📚 API Documentation:`);
+  console.log(`   Auth: http://localhost:${port}/api/auth`);
+  console.log(`   Products: http://localhost:${port}/api/products`);
+  console.log(`   Categories: http://localhost:${port}/api/categories`);
 })();
