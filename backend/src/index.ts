@@ -7,6 +7,7 @@ import { prisma } from "./utils/db";
 import authRoutes from "./routes/auth.route";
 import productRoutes from "./routes/products.route";
 import categoryRoutes from "./routes/category.route";
+import cartRoutes from "./routes/category.route";
 
 const app = new Hono();
 
@@ -29,6 +30,7 @@ app.get("/", (c) => {
       auth: "/api/auth",
       products: "/api/products",
       categories: "/api/categories",
+      cart: "/api/cart", // ADD THIS LINE
     }
   });
 });
@@ -48,7 +50,7 @@ async function checkDbConnection() {
 app.route("/api/auth", authRoutes);
 app.route("/api/products", productRoutes);
 app.route("/api/categories", categoryRoutes);
-app.route("/api/cart", authRoutes);
+app.route("/api/cart", cartRoutes);
 
 // Global error handler
 app.onError((err, c) => {
@@ -79,4 +81,6 @@ app.onError((err, c) => {
   console.log(`   Auth: http://localhost:${port}/api/auth`);
   console.log(`   Products: http://localhost:${port}/api/products`);
   console.log(`   Categories: http://localhost:${port}/api/categories`);
+  console.log(`   Cart: http://localhost:${port}/api/cart`);
+
 })();
