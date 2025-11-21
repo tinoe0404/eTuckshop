@@ -364,6 +364,59 @@ export const generatePayNowQR = async (c: Context) => {
       return serverError(c, error);
     }
   };
+
+// ==============================
+// GET PAYMENT STATUS
+// ==============================
+export const getPaymentStatus = async (c: Context) => {
+    try {
+      const user = c.get("user");
+      const orderId = Number(c.req.param("orderId"));
+  
+      const order = await prisma.order.findFirst({
+        where: { id: orderId, userId: user.id },
+        include: {
+          paymentQR: true,
+        },
+      });
+  
+      if (!order) {
+        return c.json({ success: false, message: "Order not found" }, 404);
+      }
+  
+      let qrStatus = "NOT_GENERATED";
+      let isExpired = false;
+  
+      if (order.paymentQR) {
+        if (order.paymentQR.isUsed) {
+          qrStatus = "USED";
+        } else if (order.paymentQR.expiresAt && new Date() > order.paymentQR.expiresAt) {
+          qrStatus = "EXPIRED";
+          isExpired = true;
+        } else {
+          qrStatus = "ACTIVE";
+        }
+      }
+  
+      return c.json({
+        success: true,
+        message: "Payment status retrieved",
+        data: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          orderStatus: order.status,
+          paymentType: order.paymentType,
+          totalAmount: order.totalAmount,
+          qrStatus,
+          isExpired,
+          paidAt: order.paidAt,
+          completedAt: order.completedAt,
+        },
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
   
 
 
