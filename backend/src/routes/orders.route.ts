@@ -21,8 +21,6 @@ const router = new Hono();
 
 // ========== CUSTOMER ROUTES ==========
 router.post("/checkout", protectRoute, checkout);
-router.get("/", protectRoute, getUserOrders);
-router.get("/:id", protectRoute, getOrderById);
 router.post("/pay/cash/:orderId", protectRoute, generateCashQR);
 router.post("/pay/paynow/:orderId", protectRoute, generatePayNowQR);
 router.get("/payment-status/:orderId", protectRoute, getPaymentStatus);
@@ -36,5 +34,9 @@ router.patch("/admin/approve-payment/:orderId", protectRoute, adminRoute, approv
 router.patch("/admin/complete/:orderId", protectRoute, adminRoute, completeOrder);
 router.patch("/admin/reject/:orderId", protectRoute, adminRoute, rejectOrder);
 router.post("/admin/scan-qr", protectRoute, adminRoute, scanQRCode);
+
+// These routes with generic params should come LAST
+router.get("/", protectRoute, getUserOrders);
+router.get("/:id", protectRoute, getOrderById);
 
 export default router;
