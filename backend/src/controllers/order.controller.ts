@@ -296,4 +296,74 @@ export const generateCashQR = async (c: Context) => {
     }
   };
 
+// ==============================
+// GENERATE PAYNOW QR (NO EXPIRY)
+// ==============================
+export const generatePayNowQR = async (c: Context) => {
+    try {
+      const user = c.get("user");
+      const orderId = Number(c.req.param("orderId"));
+  
+      const order = await prisma.order.findFirst({
+        where: { id: orderId, userId: user.id },
+      });
+  
+      if (!order) {
+        return c.json({ success: false, message: "Order not found" }, 404);
+      }
+  
+      if (order.status !== "PENDING") {
+        return c.json(
+          { success: false, message: `Order is already ${order.status.toLowerCase()}` },
+          400
+        );
+      }
+  
+      const qrPayload = {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        amount: order.totalAmount,
+        paymentType: "PAYNOW" as const,
+        timestamp: new Date().toISOString(),
+      };
+  
+      const qrCode = await generateQRCode(qrPayload);
+  
+      // Save or update QR in database (no expiry for PayNow)
+      await prisma.paymentQR.upsert({
+        where: { orderId: order.id },
+        update: {
+          qrCode,
+          qrData: JSON.stringify(qrPayload),
+          paymentType: "PAYNOW",
+          expiresAt: null,
+          isUsed: false,
+        },
+        create: {
+          orderId: order.id,
+          qrCode,
+          qrData: JSON.stringify(qrPayload),
+          paymentType: "PAYNOW",
+          expiresAt: null,
+        },
+      });
+  
+      return c.json({
+        success: true,
+        message: "PayNow QR code generated (does not expire)",
+        data: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          amount: order.totalAmount,
+          qrCode,
+          expiresAt: null,
+          note: "Show this QR to admin for payment verification",
+        },
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
+  
+
 
