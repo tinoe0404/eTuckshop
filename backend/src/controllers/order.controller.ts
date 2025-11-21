@@ -671,5 +671,69 @@ export const completeOrder = async (c: Context) => {
     }
   };
 
+// ==============================
+// ADMIN: REJECT ORDER
+// ==============================
+export const rejectOrder = async (c: Context) => {
+    try {
+      const orderId = Number(c.req.param("orderId"));
+      const { reason } = await c.req.json();
+  
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { orderItems: true },
+      });
+  
+      if (!order) {
+        return c.json({ success: false, message: "Order not found" }, 404);
+      }
+  
+      if (order.status === "COMPLETED" || order.status === "REJECTED") {
+        return c.json(
+          { success: false, message: `Cannot reject ${order.status.toLowerCase()} order` },
+          400
+        );
+      }
+  
+      // Restore stock and reject order
+      await prisma.$transaction(async (tx) => {
+        // Only restore stock if order wasn't already cancelled
+        if (order.status !== "CANCELLED") {
+          for (const item of order.orderItems) {
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { increment: item.quantity } },
+            });
+          }
+        }
+  
+        if (order.paymentQR) {
+          await tx.paymentQR.update({
+            where: { orderId: order.id },
+            data: { isUsed: true },
+          });
+        }
+  
+        await tx.order.update({
+          where: { id: orderId },
+          data: { status: "REJECTED" },
+        });
+      });
+  
+      return c.json({
+        success: true,
+        message: "Order rejected successfully",
+        data: {
+          orderId,
+          status: "REJECTED",
+          reason: reason || "No reason provided",
+        },
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
+  
+
 
 
