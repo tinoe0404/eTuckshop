@@ -564,3 +564,62 @@ export const getOrderByIdAdmin = async (c: Context) => {
     }
   };
 
+// ==============================
+// ADMIN: APPROVE PAYMENT (PayNow)
+// ==============================
+export const approvePayment = async (c: Context) => {
+    try {
+      const orderId = Number(c.req.param("orderId"));
+  
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { paymentQR: true },
+      });
+  
+      if (!order) {
+        return c.json({ success: false, message: "Order not found" }, 404);
+      }
+  
+      if (order.status !== "PENDING") {
+        return c.json(
+          { success: false, message: `Order is already ${order.status.toLowerCase()}` },
+          400
+        );
+      }
+  
+      // Update order status to PAID
+      const updatedOrder = await prisma.$transaction(async (tx) => {
+        if (order.paymentQR) {
+          await tx.paymentQR.update({
+            where: { orderId: order.id },
+            data: { isUsed: true },
+          });
+        }
+  
+        return await tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: "PAID",
+            paidAt: new Date(),
+          },
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+            orderItems: {
+              include: {
+                product: { select: { id: true, name: true, price: true } },
+              },
+            },
+          },
+        });
+      });
+  
+      return c.json({
+        success: true,
+        message: "Payment approved successfully",
+        data: updatedOrder,
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
+
