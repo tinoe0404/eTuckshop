@@ -623,3 +623,53 @@ export const approvePayment = async (c: Context) => {
     }
   };
 
+// ==============================
+// ADMIN: COMPLETE ORDER
+// ==============================
+export const completeOrder = async (c: Context) => {
+    try {
+      const orderId = Number(c.req.param("orderId"));
+  
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+      });
+  
+      if (!order) {
+        return c.json({ success: false, message: "Order not found" }, 404);
+      }
+  
+      if (order.status !== "PAID") {
+        return c.json(
+          { success: false, message: "Only paid orders can be marked as completed" },
+          400
+        );
+      }
+  
+      const updatedOrder = await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          status: "COMPLETED",
+          completedAt: new Date(),
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          orderItems: {
+            include: {
+              product: { select: { id: true, name: true, price: true } },
+            },
+          },
+        },
+      });
+  
+      return c.json({
+        success: true,
+        message: "Order marked as completed",
+        data: updatedOrder,
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
+
+
+
