@@ -223,4 +223,77 @@ export const getOrderById = async (c: Context) => {
     }
   };
 
+// ==============================
+// GENERATE CASH QR (1 MINUTE EXPIRY)
+// ==============================
+export const generateCashQR = async (c: Context) => {
+    try {
+      const user = c.get("user");
+      const orderId = Number(c.req.param("orderId"));
+  
+      const order = await prisma.order.findFirst({
+        where: { id: orderId, userId: user.id },
+      });
+  
+      if (!order) {
+        return c.json({ success: false, message: "Order not found" }, 404);
+      }
+  
+      if (order.status !== "PENDING") {
+        return c.json(
+          { success: false, message: `Order is already ${order.status.toLowerCase()}` },
+          400
+        );
+      }
+  
+      // Set expiry to 1 minute from now
+      const expiresAt = new Date(Date.now() + 60 * 1000);
+  
+      const qrPayload = {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        amount: order.totalAmount,
+        paymentType: "CASH" as const,
+        expiresAt: expiresAt.toISOString(),
+        timestamp: new Date().toISOString(),
+      };
+  
+      const qrCode = await generateQRCode(qrPayload);
+  
+      // Save or update QR in database
+      await prisma.paymentQR.upsert({
+        where: { orderId: order.id },
+        update: {
+          qrCode,
+          qrData: JSON.stringify(qrPayload),
+          paymentType: "CASH",
+          expiresAt,
+          isUsed: false,
+        },
+        create: {
+          orderId: order.id,
+          qrCode,
+          qrData: JSON.stringify(qrPayload),
+          paymentType: "CASH",
+          expiresAt,
+        },
+      });
+  
+      return c.json({
+        success: true,
+        message: "Cash QR code generated (valid for 1 minute)",
+        data: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          amount: order.totalAmount,
+          qrCode,
+          expiresAt,
+          expiresIn: "60 seconds",
+        },
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
+
 
