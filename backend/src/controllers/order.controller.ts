@@ -466,5 +466,64 @@ export const cancelOrder = async (c: Context) => {
       return serverError(c, error);
     }
   };
+// ==============================
+// ADMIN: GET ALL ORDERS
+// ==============================
+export const getAllOrders = async (c: Context) => {
+    try {
+      const { status, paymentType, page = "1", limit = "10" } = c.req.query();
+  
+      const where: any = {};
+      if (status) where.status = status.toUpperCase();
+      if (paymentType) where.paymentType = paymentType.toUpperCase();
+  
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+      const [orders, total] = await Promise.all([
+        prisma.order.findMany({
+          where,
+          include: {
+            user: {
+              select: { id: true, name: true, email: true },
+            },
+            orderItems: {
+              include: {
+                product: {
+                  select: { id: true, name: true, price: true },
+                },
+              },
+            },
+            paymentQR: {
+              select: {
+                paymentType: true,
+                expiresAt: true,
+                isUsed: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: parseInt(limit),
+        }),
+        prisma.order.count({ where }),
+      ]);
+  
+      return c.json({
+        success: true,
+        message: "Orders retrieved successfully",
+        data: {
+          orders,
+          pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            totalPages: Math.ceil(total / parseInt(limit)),
+          },
+        },
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
 
 
