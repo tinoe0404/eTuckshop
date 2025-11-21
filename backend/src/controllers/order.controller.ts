@@ -836,7 +836,76 @@ export const scanQRCode = async (c: Context) => {
     }
   };
 
+// ==============================
+// ADMIN: GET ORDER STATISTICS
+// ==============================
+export const getOrderStats = async (c: Context) => {
+    try {
+      const [
+        totalOrders,
+        pendingOrders,
+        paidOrders,
+        completedOrders,
+        cancelledOrders,
+        rejectedOrders,
+        revenueData,
+      ] = await Promise.all([
+        prisma.order.count(),
+        prisma.order.count({ where: { status: "PENDING" } }),
+        prisma.order.count({ where: { status: "PAID" } }),
+        prisma.order.count({ where: { status: "COMPLETED" } }),
+        prisma.order.count({ where: { status: "CANCELLED" } }),
+        prisma.order.count({ where: { status: "REJECTED" } }),
+        prisma.order.aggregate({
+          where: { status: { in: ["PAID", "COMPLETED"] } },
+          _sum: { totalAmount: true },
+        }),
+      ]);
   
+      // Today's orders
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+  
+      const todayOrders = await prisma.order.count({
+        where: { createdAt: { gte: today } },
+      });
+  
+      const todayRevenue = await prisma.order.aggregate({
+        where: {
+          status: { in: ["PAID", "COMPLETED"] },
+          paidAt: { gte: today },
+        },
+        _sum: { totalAmount: true },
+      });
+  
+      return c.json({
+        success: true,
+        message: "Order statistics retrieved",
+        data: {
+          overview: {
+            totalOrders,
+            pendingOrders,
+            paidOrders,
+            completedOrders,
+            cancelledOrders,
+            rejectedOrders,
+          },
+          revenue: {
+            totalRevenue: revenueData._sum.totalAmount || 0,
+            todayRevenue: todayRevenue._sum.totalAmount || 0,
+          },
+          today: {
+            orders: todayOrders,
+            revenue: todayRevenue._sum.totalAmount || 0,
+          },
+        },
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
+
+
   
 
 
