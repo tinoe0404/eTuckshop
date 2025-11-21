@@ -418,5 +418,53 @@ export const getPaymentStatus = async (c: Context) => {
     }
   };
   
+// ==============================
+// CANCEL ORDER (Customer)
+// ==============================
+export const cancelOrder = async (c: Context) => {
+    try {
+      const user = c.get("user");
+      const orderId = Number(c.req.param("orderId"));
+  
+      const order = await prisma.order.findFirst({
+        where: { id: orderId, userId: user.id },
+        include: { orderItems: true },
+      });
+  
+      if (!order) {
+        return c.json({ success: false, message: "Order not found" }, 404);
+      }
+  
+      if (order.status !== "PENDING") {
+        return c.json(
+          { success: false, message: "Only pending orders can be cancelled" },
+          400
+        );
+      }
+  
+      // Restore stock and cancel order
+      await prisma.$transaction(async (tx) => {
+        for (const item of order.orderItems) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
+  
+        await tx.order.update({
+          where: { id: orderId },
+          data: { status: "CANCELLED" },
+        });
+      });
+  
+      return c.json({
+        success: true,
+        message: "Order cancelled successfully",
+        data: { orderId, status: "CANCELLED" },
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
 
 
