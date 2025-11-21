@@ -168,3 +168,59 @@ try {
     return serverError(c, error);
 }
 };
+
+// ==============================
+// GET SINGLE ORDER BY ID
+// ==============================
+export const getOrderById = async (c: Context) => {
+    try {
+      const user = c.get("user");
+      const orderId = Number(c.req.param("id"));
+  
+      const order = await prisma.order.findFirst({
+        where: {
+          id: orderId,
+          userId: user.id,
+        },
+        include: {
+          orderItems: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                  description: true,
+                },
+              },
+            },
+          },
+          paymentQR: {
+            select: {
+              paymentType: true,
+              expiresAt: true,
+              isUsed: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+  
+      if (!order) {
+        return c.json(
+          { success: false, message: "Order not found" },
+          404
+        );
+      }
+  
+      return c.json({
+        success: true,
+        message: "Order retrieved successfully",
+        data: order,
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
+
+
