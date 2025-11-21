@@ -526,4 +526,41 @@ export const getAllOrders = async (c: Context) => {
     }
   };
 
+// ==============================
+// ADMIN: GET ORDER BY ID
+// ==============================
+export const getOrderByIdAdmin = async (c: Context) => {
+    try {
+      const orderId = Number(c.req.param("orderId"));
+  
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+          orderItems: {
+            include: {
+              product: {
+                select: { id: true, name: true, price: true, description: true },
+              },
+            },
+          },
+          paymentQR: true,
+        },
+      });
+  
+      if (!order) {
+        return c.json({ success: false, message: "Order not found" }, 404);
+      }
+  
+      return c.json({
+        success: true,
+        message: "Order retrieved successfully",
+        data: order,
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
 
