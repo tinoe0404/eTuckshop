@@ -133,3 +133,38 @@ export const checkout = async (c: Context) => {
       return serverError(c, error);
     }
   };
+
+// GET USER'S ORDERS
+// ==============================
+export const getUserOrders = async (c: Context) => {
+try {
+    const user = c.get("user");
+
+    const orders = await prisma.order.findMany({
+    where: { userId: user.id },
+    include: {
+        orderItems: {
+        include: {
+            product: {
+            select: {
+                id: true,
+                name: true,
+                price: true,
+                description: true,
+            },
+            },
+        },
+        },
+    },
+    orderBy: { createdAt: "desc" },
+    });
+
+    return c.json({
+    success: true,
+    message: "Orders retrieved successfully",
+    data: orders,
+    });
+} catch (error) {
+    return serverError(c, error);
+}
+};
