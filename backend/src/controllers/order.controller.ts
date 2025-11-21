@@ -733,6 +733,110 @@ export const rejectOrder = async (c: Context) => {
       return serverError(c, error);
     }
   };
+
+// ==============================
+// ADMIN: SCAN QR CODE
+// ==============================
+export const scanQRCode = async (c: Context) => {
+    try {
+      const { qrData } = await c.req.json();
+  
+      if (!qrData) {
+        return c.json({ success: false, message: "QR data is required" }, 400);
+      }
+  
+      // Decode QR data
+      const decoded = decodeQRData(qrData);
+  
+      if (!decoded) {
+        return c.json({ success: false, message: "Invalid QR code format" }, 400);
+      }
+  
+      // Find order
+      const order = await prisma.order.findUnique({
+        where: { id: decoded.orderId },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          orderItems: {
+            include: {
+              product: { select: { id: true, name: true, price: true } },
+            },
+          },
+          paymentQR: true,
+        },
+      });
+  
+      if (!order) {
+        return c.json({ success: false, message: "Order not found" }, 404);
+      }
+  
+      // Check if QR is already used
+      if (order.paymentQR?.isUsed) {
+        return c.json(
+          {
+            success: false,
+            message: "QR code has already been used",
+            data: {
+              orderId: order.id,
+              orderNumber: order.orderNumber,
+              status: order.status,
+            },
+          },
+          400
+        );
+      }
+  
+      // Check expiry for CASH payments
+      if (decoded.paymentType === "CASH" && decoded.expiresAt) {
+        if (new Date() > new Date(decoded.expiresAt)) {
+          return c.json(
+            {
+              success: false,
+              message: "QR code has expired",
+              data: {
+                orderId: order.id,
+                orderNumber: order.orderNumber,
+                expiredAt: decoded.expiresAt,
+              },
+            },
+            400
+          );
+        }
+      }
+  
+      // Return order details for admin to process
+      return c.json({
+        success: true,
+        message: "QR code scanned successfully",
+        data: {
+          order: {
+            id: order.id,
+            orderNumber: order.orderNumber,
+            status: order.status,
+            totalAmount: order.totalAmount,
+            paymentType: decoded.paymentType,
+            customer: order.user,
+            items: order.orderItems,
+          },
+          qrInfo: {
+            paymentType: decoded.paymentType,
+            amount: decoded.amount,
+            expiresAt: decoded.expiresAt || "No expiry",
+            timestamp: decoded.timestamp,
+          },
+          actions: {
+            approve: `/api/admin/orders/approve-payment/${order.id}`,
+            complete: `/api/admin/orders/complete/${order.id}`,
+            reject: `/api/admin/orders/reject/${order.id}`,
+          },
+        },
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
+
+  
   
 
 
