@@ -294,4 +294,37 @@ const handleBrowseProducts = async (
 
   return MESSAGES.PRODUCT_DETAIL(products[index]);
 };
+
+// ==========================================
+// PRODUCT DETAIL HANDLER
+// ==========================================
+const handleProductDetail = async (
+    phoneNumber: string,
+    input: string,
+    session: ChatSession
+  ): Promise<string> => {
+    if (input === "0") {
+      session.step = "BROWSE_PRODUCTS";
+      await setSession(phoneNumber, session);
+      const category = await prisma.category.findUnique({
+        where: { id: session.selectedCategoryId },
+      });
+      return await showProducts(session.selectedCategoryId!, category?.name || "Products");
+    }
+  
+    if (input === "1") {
+      const product = await prisma.product.findUnique({
+        where: { id: session.selectedProductId },
+      });
+      if (!product || product.stock <= 0) {
+        return "❌ Sorry, this product is out of stock.";
+      }
+      session.step = "ADD_QUANTITY";
+      await setSession(phoneNumber, session);
+      return MESSAGES.ADD_QUANTITY(product.name);
+    }
+  
+    return MESSAGES.INVALID_INPUT;
+  };
+  
   
