@@ -11,31 +11,27 @@ import cartRoutes from "./routes/cart.route";
 import orderRoutes from "./routes/orders.route";
 import chatbotRoutes from "./routes/chatbot.routes";
 
-
-
 const app = new Hono();
 
 // Middleware
 app.use(logger());
-app.use(
-  "*",
-  cors({
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    credentials: true,
-  })
-);
+app.use("*", cors({
+  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  credentials: true,
+}));
 
 app.get("/", (c) => {
   return c.json({ 
     success: true, 
-    message: "ETUCKSHOP API is running",
+    message: "eTuckshop API is running",
     version: "1.0.0",
     endpoints: {
       auth: "/api/auth",
       products: "/api/products",
       categories: "/api/categories",
-      cart: "/api/cart", 
-      order:"/api/order"
+      cart: "/api/cart",
+      orders: "/api/orders",
+      chatbot: "/api/chatbot",
     }
   });
 });
@@ -62,32 +58,14 @@ app.route("/api/chatbot", chatbotRoutes);
 // Global error handler
 app.onError((err, c) => {
   console.error("🔥 Global Error:", err);
-  return c.json(
-    {
-      success: false,
-      message: "Internal server error",
-      error: err.message,
-    },
-    500
-  );
+  return c.json({ success: false, message: "Internal server error", error: err.message }, 500);
 });
 
 // Start server
 (async () => {
   await checkDbConnection();
-
   const port = process.env.PORT ? +process.env.PORT : 5000;
-
-  serve({
-    port,
-    fetch: app.fetch,
-  });
-
+  serve({ port, fetch: app.fetch });
   console.log(`🚀 Server running on http://localhost:${port}`);
-  console.log(`📚 API Documentation:`);
-  console.log(`   Auth: http://localhost:${port}/api/auth`);
-  console.log(`   Products: http://localhost:${port}/api/products`);
-  console.log(`   Categories: http://localhost:${port}/api/categories`);
-  console.log(`   Cart: http://localhost:${port}/api/cart`);
-
+  console.log(`🤖 Chatbot webhook: http://localhost:${port}/api/chatbot/webhook`);
 })();
