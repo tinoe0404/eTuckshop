@@ -125,3 +125,22 @@ export const handlePayNowSuccess = async (c: Context) => {
       return serverError(c, error);
     }
   };
+
+  // ==========================================
+  // SEND MESSAGE TO CUSTOMER (Utility)
+  // ==========================================
+  export const sendMessageToCustomer = async (c: Context) => {
+    try {
+      const { phoneNumber, message } = await c.req.json();
+  
+      if (!phoneNumber || !message) {
+        return c.json({ success: false, message: "Phone number and message required" }, 400);
+      }
+  
+      await sendWhatsAppMessage(`whatsapp:${phoneNumber}`, message);
+  
+      return c.json({ success: true, message: "Message sent" });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
