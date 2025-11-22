@@ -263,4 +263,35 @@ const handleBrowseCategories = async (
   
     return await showProducts(categories[index].id, categories[index].name);
   };
+
+// ==========================================
+// BROWSE PRODUCTS HANDLER
+// ==========================================
+const handleBrowseProducts = async (
+  phoneNumber: string,
+  input: string,
+  session: ChatSession
+): Promise<string> => {
+  if (input === "0") {
+    session.step = "BROWSE_CATEGORIES";
+    await setSession(phoneNumber, session);
+    return await showCategories();
+  }
+
+  const products = await prisma.product.findMany({
+    where: { categoryId: session.selectedCategoryId },
+    orderBy: { id: "asc" },
+  });
+
+  const index = parseInt(input) - 1;
+  if (isNaN(index) || index < 0 || index >= products.length) {
+    return MESSAGES.INVALID_INPUT;
+  }
+
+  session.selectedProductId = products[index].id;
+  session.step = "PRODUCT_DETAIL";
+  await setSession(phoneNumber, session);
+
+  return MESSAGES.PRODUCT_DETAIL(products[index]);
+};
   
