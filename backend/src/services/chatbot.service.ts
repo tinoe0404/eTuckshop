@@ -721,6 +721,79 @@ const handleTrackOrder = async (
   });
 };
 
+// ==========================================
+// GENERATE QR FOR PAYNOW (After Payment)
+// Called by payment webhook
+// ==========================================
+export const generatePayNowQRAfterPayment = async (
+  orderId: number
+): Promise<{ qrCode: string; message: string } | null> => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        user: { select: { name: true, email: true } },
+        orderItems: { include: { product: true } },
+        paymentQR: true,
+      },
+    });
+
+    if (!order) return null;
+
+    const qrPayload: QRPayload = {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      paymentType: "PAYNOW",
+      paymentStatus: "PAID",
+      customer: { name: order.user.name, email: order.user.email },
+      orderSummary: {
+        items: order.orderItems.map((item) => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          price: item.product.price,
+          subtotal: item.subtotal,
+        })),
+        totalItems: order.orderItems.reduce((sum, item) => sum + item.quantity, 0),
+        totalAmount: order.totalAmount,
+      },
+      paidAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+
+    const qrCode = await generateQRCode(qrPayload);
+
+    // Update order and QR
+    await prisma.$transaction([
+      prisma.order.update({
+        where: { id: orderId },
+        data: { status: "PAID", paidAt: new Date() },
+      }),
+      prisma.paymentQR.update({
+        where: { orderId },
+        data: { qrCode, qrData: JSON.stringify(qrPayload) },
+      }),
+    ]);
+
+    return {
+      qrCode,
+      message: MESSAGES.QR_CODE_PAYNOW(order.orderNumber),
+    };
+  } catch (error) {
+    console.error("❌ Failed to generate PayNow QR:", error);
+    return null;
+  }
+};
+
+// ==========================================
+// GET USER PHONE FROM ORDER (For notifications)
+// ==========================================
+export const getUserPhoneFromOrder = async (orderId: number): Promise<string | null> => {
+  // In a real app, you'd store phone numbers with users
+  // For now, we'll search Redis sessions
+  // This is a placeholder - implement based on your needs
+  return null;
+};
+
 
 
 
