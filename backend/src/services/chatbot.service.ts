@@ -644,6 +644,84 @@ const handleCheckoutPayment = async (
   }
 };
 
+// ==========================================
+// MY ORDERS HANDLER
+// ==========================================
+const handleMyOrders = async (
+  phoneNumber: string,
+  input: string,
+  session: ChatSession
+): Promise<string> => {
+  if (input === "0") {
+    session.step = "MAIN_MENU";
+    await setSession(phoneNumber, session);
+    return MESSAGES.MAIN_MENU(session.userName || "Customer");
+  }
+
+  const orderIndex = parseInt(input) - 1;
+  if (isNaN(orderIndex) || orderIndex < 0 || orderIndex >= 5) {
+    return MESSAGES.INVALID_INPUT;
+  }
+
+  const orders = await prisma.order.findMany({
+    where: { userId: session.userId },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    include: { orderItems: true },
+  });
+
+  if (orderIndex >= orders.length) {
+    return MESSAGES.INVALID_INPUT;
+  }
+
+  const order = orders[orderIndex];
+
+  return MESSAGES.ORDER_STATUS({
+    orderNumber: order.orderNumber,
+    status: order.status,
+    total: order.totalAmount,
+    items: order.orderItems.reduce((sum, item) => sum + item.quantity, 0),
+  });
+};
+
+// ==========================================
+// TRACK ORDER HANDLER
+// ==========================================
+const handleTrackOrder = async (
+  phoneNumber: string,
+  input: string,
+  session: ChatSession
+): Promise<string> => {
+  if (input === "0") {
+    session.step = "MAIN_MENU";
+    await setSession(phoneNumber, session);
+    return MESSAGES.MAIN_MENU(session.userName || "Customer");
+  }
+
+  const order = await prisma.order.findFirst({
+    where: {
+      orderNumber: input.toUpperCase(),
+      userId: session.userId,
+    },
+    include: { orderItems: true },
+  });
+
+  if (!order) {
+    return `❌ Order not found. Please check the order number and try again.\n\n0️⃣ Back to Menu`;
+  }
+
+  session.step = "MAIN_MENU";
+  await setSession(phoneNumber, session);
+
+  return MESSAGES.ORDER_STATUS({
+    orderNumber: order.orderNumber,
+    status: order.status,
+    total: order.totalAmount,
+    items: order.orderItems.reduce((sum, item) => sum + item.quantity, 0),
+  });
+};
+
+
 
 
 // Export for use in controller
