@@ -57,7 +57,6 @@ enum OrderStatus {
   PAID
   COMPLETED
   CANCELLED
-  REJECTED
 }
 
 // =====================================
@@ -120,7 +119,7 @@ model PaymentQR {
   orderId     Int         @unique
   order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
   qrCode      String      @db.Text
-  qrData      String      
+  qrData      String      @db.Text
   paymentType PaymentType
   expiresAt   DateTime?
   isUsed      Boolean     @default(false)
