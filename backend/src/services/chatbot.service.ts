@@ -442,6 +442,48 @@ const formattedOrders = orders.map((o) => ({
 
 return MESSAGES.MY_ORDERS(formattedOrders);
 };
+// ==========================================
+// VIEW CART HANDLER
+// ==========================================
+const handleViewCart = async (
+  phoneNumber: string,
+  input: string,
+  session: ChatSession
+): Promise<string> => {
+  if (input === "0") {
+    session.step = "MAIN_MENU";
+    await setSession(phoneNumber, session);
+    return MESSAGES.MAIN_MENU(session.userName || "Customer");
+  }
+
+  if (input === "1") {
+    // Checkout
+    const cart = await prisma.cart.findUnique({
+      where: { userId: session.userId },
+      include: { items: true },
+    });
+    if (!cart || cart.items.length === 0) {
+      return MESSAGES.CART_EMPTY;
+    }
+    session.step = "CHECKOUT_PAYMENT";
+    await setSession(phoneNumber, session);
+    const total = await getCartTotal(session.userId!);
+    return MESSAGES.CHECKOUT_PAYMENT(total);
+  }
+
+  if (input === "2") {
+    // Clear cart
+    const cart = await prisma.cart.findUnique({ where: { userId: session.userId } });
+    if (cart) {
+      await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+    }
+    session.step = "MAIN_MENU";
+    await setSession(phoneNumber, session);
+    return "🗑️ Cart cleared!\n\n" + MESSAGES.MAIN_MENU(session.userName!);
+  }
+
+  return await showCart(session.userId!);
+};
 
 // Export for use in controller
 export { showCart, getCartTotal };
