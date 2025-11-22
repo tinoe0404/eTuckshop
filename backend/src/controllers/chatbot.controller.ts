@@ -2,6 +2,7 @@ import { Context } from "hono";
 import { handleIncomingMessage, generatePayNowQRAfterPayment } from "../services/chatbot.service";
 import { sendWhatsAppMessage, sendWhatsAppMedia } from "../services/twilio.service";
 import { serverError } from "../utils/serverError";
+import { prisma } from "../utils/db";
 
 // ==========================================
 // TWILIO WEBHOOK - RECEIVE MESSAGES
