@@ -90,13 +90,18 @@ model Product {
 // =====================================
 model Order {
   id          Int         @id @default(autoincrement())
+  orderNumber String      @unique @default(cuid())
   userId      Int
   user        User        @relation(fields: [userId], references: [id])
   totalAmount Float
   paymentType PaymentType @default(CASH)
   status      OrderStatus @default(PENDING)
+  paidAt      DateTime?
+  completedAt DateTime?
   createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
   orderItems  OrderItem[]
+  paymentQR   PaymentQR?
 }
 
 model OrderItem {
@@ -107,6 +112,18 @@ model OrderItem {
   subtotal  Float
   product   Product  @relation(fields: [productId], references: [id])
   order     Order    @relation(fields: [orderId], references: [id])
+}
+
+model PaymentQR {
+  id          Int         @id @default(autoincrement())
+  orderId     Int         @unique
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  qrCode      String      @db.Text
+  qrData      String      @db.Text
+  paymentType PaymentType
+  expiresAt   DateTime?
+  isUsed      Boolean     @default(false)
+  createdAt   DateTime    @default(now())
 }
 
 enum PaymentType {
