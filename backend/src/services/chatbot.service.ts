@@ -88,3 +88,25 @@ export const handleIncomingMessage = async (
     return MESSAGES.ERROR;
   }
 };
+
+
+// WELCOME HANDLER
+// ==========================================
+const handleWelcome = async (
+  phoneNumber: string,
+  input: string,
+  session: ChatSession
+): Promise<string> => {
+  if (input === "1") {
+    session.step = "REGISTER_NAME";
+    await setSession(phoneNumber, session);
+    return MESSAGES.REGISTER_NAME;
+  } else if (input === "2") {
+    session.step = "LOGIN_EMAIL";
+    await setSession(phoneNumber, session);
+    return MESSAGES.LOGIN_EMAIL;
+  } else if (input === "hi" || input === "hello" || input === "start") {
+    return MESSAGES.WELCOME;
+  }
+  return MESSAGES.WELCOME;
+};
