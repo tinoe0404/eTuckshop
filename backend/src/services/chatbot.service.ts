@@ -380,4 +380,69 @@ const handleAddQuantity = async (
   
     return MESSAGES.ADDED_TO_CART(product.name, quantity) + "\n\n" + MESSAGES.MAIN_MENU(session.userName!);
   };
+
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
+const showCategories = async (): Promise<string> => {
+    const categories = await prisma.category.findMany({ orderBy: { id: "asc" } });
+    return MESSAGES.CATEGORIES(categories);
+  };
+  
+const showProducts = async (categoryId: number, categoryName: string): Promise<string> => {
+const products = await prisma.product.findMany({
+    where: { categoryId },
+    orderBy: { id: "asc" },
+});
+return MESSAGES.PRODUCTS(categoryName, products);
+};
+
+const showCart = async (userId: number): Promise<string> => {
+const cart = await prisma.cart.findUnique({
+    where: { userId },
+    include: { items: { include: { product: true } } },
+});
+
+if (!cart || cart.items.length === 0) {
+    return MESSAGES.CART_EMPTY;
+}
+
+const items = cart.items.map((item) => ({
+    name: item.product.name,
+    quantity: item.quantity,
+    subtotal: item.product.price * item.quantity,
+}));
+
+const total = items.reduce((sum, item) => sum + item.subtotal, 0);
+return MESSAGES.CART(items, total);
+};
+
+const getCartTotal = async (userId: number): Promise<number> => {
+const cart = await prisma.cart.findUnique({
+    where: { userId },
+    include: { items: { include: { product: true } } },
+});
+if (!cart) return 0;
+return cart.items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+};
+
+const showOrders = async (userId: number): Promise<string> => {
+const orders = await prisma.order.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+});
+
+const formattedOrders = orders.map((o) => ({
+    orderNumber: o.orderNumber,
+    total: o.totalAmount,
+    status: o.status,
+    date: o.createdAt.toLocaleDateString(),
+}));
+
+return MESSAGES.MY_ORDERS(formattedOrders);
+};
+
+// Export for use in controller
+export { showCart, getCartTotal };
   
