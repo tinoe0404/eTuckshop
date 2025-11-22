@@ -189,7 +189,7 @@ export const generateCashQR = async (c: Context) => {
 
     return c.json({
       success: true,
-      message: "Cash QR code generated (expires in 1 minute)",
+      message: "Cash QR code generated (expires in 2 minutes)",
       data: {
         orderId: order.id,
         orderNumber: order.orderNumber,
@@ -199,7 +199,7 @@ export const generateCashQR = async (c: Context) => {
         orderSummary: qrPayload.orderSummary,
         qrCode,
         expiresAt,
-        expiresIn: "60 seconds",
+        expiresIn: "120 seconds",
       },
     });
   } catch (error) {
@@ -670,7 +670,10 @@ export const rejectOrder = async (c: Context) => {
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { orderItems: true },
+      include: { 
+        orderItems: true,
+        paymentQR: true
+      },
     });
 
     if (!order) {
