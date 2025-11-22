@@ -485,6 +485,167 @@ const handleViewCart = async (
   return await showCart(session.userId!);
 };
 
+// ==========================================
+// CHECKOUT PAYMENT HANDLER
+// ==========================================
+const handleCheckoutPayment = async (
+  phoneNumber: string,
+  input: string,
+  session: ChatSession
+): Promise<string> => {
+  if (input === "0") {
+    session.step = "MAIN_MENU";
+    await setSession(phoneNumber, session);
+    return MESSAGES.MAIN_MENU(session.userName || "Customer");
+  }
+
+  const paymentType = input === "1" ? "CASH" : input === "2" ? "PAYNOW" : null;
+  if (!paymentType) {
+    return MESSAGES.INVALID_INPUT;
+  }
+
+  // Get cart
+  const cart = await prisma.cart.findUnique({
+    where: { userId: session.userId },
+    include: { items: { include: { product: true } } },
+  });
+
+  if (!cart || cart.items.length === 0) {
+    session.step = "MAIN_MENU";
+    await setSession(phoneNumber, session);
+    return MESSAGES.CART_EMPTY;
+  }
+
+  // Validate stock
+  for (const item of cart.items) {
+    if (item.product.stock < item.quantity) {
+      return `❌ Sorry, *${item.product.name}* only has ${item.product.stock} in stock. Please update your cart.`;
+    }
+  }
+
+  // Calculate total
+  const totalAmount = cart.items.reduce(
+    (sum, item) => sum + item.product.price * item.quantity,
+    0
+  );
+
+  // Generate order number
+  const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+  // Create order with transaction
+  const order = await prisma.$transaction(async (tx) => {
+    // Create order
+    const newOrder = await tx.order.create({
+      data: {
+        orderNumber,
+        userId: session.userId!,
+        totalAmount: parseFloat(totalAmount.toFixed(2)),
+        paymentType,
+        status: "PENDING",
+        orderItems: {
+          create: cart.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            subtotal: parseFloat((item.product.price * item.quantity).toFixed(2)),
+          })),
+        },
+      },
+      include: {
+        user: { select: { name: true, email: true } },
+        orderItems: { include: { product: true } },
+      },
+    });
+
+    // Reduce stock
+    for (const item of cart.items) {
+      await tx.product.update({
+        where: { id: item.productId },
+        data: { stock: { decrement: item.quantity } },
+      });
+    }
+
+    // Clear cart
+    await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+
+    return newOrder;
+  });
+
+  session.pendingOrderId = order.id;
+
+  if (paymentType === "CASH") {
+    // Generate Cash QR (1 minute expiry)
+    const expiresAt = new Date(Date.now() + 60 * 1000);
+    
+    const qrPayload: QRPayload = {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      paymentType: "CASH",
+      paymentStatus: "PENDING",
+      customer: { name: order.user.name, email: order.user.email },
+      orderSummary: {
+        items: order.orderItems.map((item) => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          price: item.product.price,
+          subtotal: item.subtotal,
+        })),
+        totalItems: order.orderItems.reduce((sum, item) => sum + item.quantity, 0),
+        totalAmount: order.totalAmount,
+      },
+      expiresAt: expiresAt.toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+
+    const qrCode = await generateQRCode(qrPayload);
+
+    // Save QR
+    await prisma.paymentQR.create({
+      data: {
+        orderId: order.id,
+        qrCode,
+        qrData: JSON.stringify(qrPayload),
+        paymentType: "CASH",
+        expiresAt,
+      },
+    });
+
+    session.step = "MAIN_MENU";
+    await setSession(phoneNumber, session);
+
+    // Return order confirmation + QR data (will be sent as media)
+    return JSON.stringify({
+      type: "CASH_ORDER",
+      message: MESSAGES.ORDER_CREATED_CASH(order.orderNumber, order.totalAmount),
+      qrMessage: MESSAGES.QR_CODE_CASH(order.orderNumber),
+      qrCode,
+      orderNumber: order.orderNumber,
+    });
+
+  } else {
+    // PayNow - Generate payment link
+    const paymentRef = `PAY-${order.orderNumber}-${Date.now().toString(36).toUpperCase()}`;
+    const baseUrl = process.env.WEBHOOK_BASE_URL || "http://localhost:5000";
+    const paymentUrl = `${baseUrl}/api/orders/pay/paynow/process/${order.id}?ref=${paymentRef}`;
+
+    // Save payment reference
+    await prisma.paymentQR.create({
+      data: {
+        orderId: order.id,
+        qrCode: "",
+        qrData: paymentRef,
+        paymentType: "PAYNOW",
+      },
+    });
+
+    session.step = "MAIN_MENU";
+    await setSession(phoneNumber, session);
+
+    return MESSAGES.ORDER_CREATED_PAYNOW(order.orderNumber, order.totalAmount, paymentUrl);
+  }
+};
+
+
+
 // Export for use in controller
 export { showCart, getCartTotal };
   
