@@ -110,3 +110,78 @@ const handleWelcome = async (
   }
   return MESSAGES.WELCOME;
 };
+
+// ==========================================
+// REGISTRATION HANDLERS
+// ==========================================
+const handleRegisterName = async (
+    phoneNumber: string,
+    input: string,
+    session: ChatSession
+  ): Promise<string> => {
+    if (input.length < 2) {
+      return "Please enter a valid name (at least 2 characters).";
+    }
+    session.tempName = input;
+    session.step = "REGISTER_EMAIL";
+    await setSession(phoneNumber, session);
+    return MESSAGES.REGISTER_EMAIL;
+  };
+  
+  const handleRegisterEmail = async (
+    phoneNumber: string,
+    input: string,
+    session: ChatSession
+  ): Promise<string> => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(input)) {
+      return "Please enter a valid email address.";
+    }
+  
+    // Check if email exists
+    const existingUser = await prisma.user.findUnique({ where: { email: input } });
+    if (existingUser) {
+      return "This email is already registered. Please login or use a different email.";
+    }
+  
+    session.tempEmail = input;
+    session.step = "REGISTER_PASSWORD";
+    await setSession(phoneNumber, session);
+    return MESSAGES.REGISTER_PASSWORD;
+  };
+  
+  const handleRegisterPassword = async (
+    phoneNumber: string,
+    input: string,
+    session: ChatSession
+  ): Promise<string> => {
+    if (input.length < 6) {
+      return "Password must be at least 6 characters.";
+    }
+  
+    // Create user
+    const hashedPassword = await Bun.password.hash(input);
+    const user = await prisma.user.create({
+      data: {
+        name: session.tempName!,
+        email: session.tempEmail!,
+        password: hashedPassword,
+        role: "CUSTOMER",
+      },
+    });
+  
+    // Create cart for user
+    await prisma.cart.create({ data: { userId: user.id } });
+  
+    // Update session
+    session.isLoggedIn = true;
+    session.userId = user.id;
+    session.userName = user.name;
+    session.userEmail = user.email;
+    session.step = "MAIN_MENU";
+    session.tempName = undefined;
+    session.tempEmail = undefined;
+    await setSession(phoneNumber, session);
+  
+    return MESSAGES.REGISTER_SUCCESS(user.name) + "\n\n" + MESSAGES.MAIN_MENU(user.name);
+  };
