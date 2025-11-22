@@ -142,3 +142,43 @@ const handleLoginEmail = async (
     return MESSAGES.LOGIN_PASSWORD;
   };
   
+const handleLoginPassword = async (
+phoneNumber: string,
+input: string,
+session: ChatSession
+): Promise<string> => {
+const user = await prisma.user.findUnique({
+    where: { email: session.tempEmail },
+});
+
+if (!user) {
+    session.step = "WELCOME";
+    await setSession(phoneNumber, session);
+    return MESSAGES.LOGIN_FAILED;
+}
+
+const validPassword = await Bun.password.verify(input, user.password);
+if (!validPassword) {
+    session.step = "WELCOME";
+    await setSession(phoneNumber, session);
+    return MESSAGES.LOGIN_FAILED;
+}
+
+// Ensure user has a cart
+const cart = await prisma.cart.findUnique({ where: { userId: user.id } });
+if (!cart) {
+    await prisma.cart.create({ data: { userId: user.id } });
+}
+
+// Update session
+session.isLoggedIn = true;
+session.userId = user.id;
+session.userName = user.name;
+session.userEmail = user.email;
+session.step = "MAIN_MENU";
+session.tempEmail = undefined;
+await setSession(phoneNumber, session);
+
+return MESSAGES.LOGIN_SUCCESS(user.name) + "\n\n" + MESSAGES.MAIN_MENU(user.name);
+};
+  
