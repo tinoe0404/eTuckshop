@@ -181,4 +181,58 @@ await setSession(phoneNumber, session);
 
 return MESSAGES.LOGIN_SUCCESS(user.name) + "\n\n" + MESSAGES.MAIN_MENU(user.name);
 };
+
+// ==========================================
+// MAIN MENU HANDLER
+// ==========================================
+const handleMainMenu = async (
+    phoneNumber: string,
+    input: string,
+    session: ChatSession
+  ): Promise<string> => {
+    switch (input) {
+      case "1": // Browse Products
+        session.step = "BROWSE_CATEGORIES";
+        await setSession(phoneNumber, session);
+        return await showCategories();
+  
+      case "2": // View Cart
+        session.step = "VIEW_CART";
+        await setSession(phoneNumber, session);
+        return await showCart(session.userId!);
+  
+      case "3": // Checkout
+        const cart = await prisma.cart.findUnique({
+          where: { userId: session.userId },
+          include: { items: true },
+        });
+        if (!cart || cart.items.length === 0) {
+          return MESSAGES.CART_EMPTY;
+        }
+        session.step = "CHECKOUT_PAYMENT";
+        await setSession(phoneNumber, session);
+        const total = await getCartTotal(session.userId!);
+        return MESSAGES.CHECKOUT_PAYMENT(total);
+  
+      case "4": // My Orders
+        session.step = "MY_ORDERS";
+        await setSession(phoneNumber, session);
+        return await showOrders(session.userId!);
+  
+      case "5": // Track Order
+        session.step = "TRACK_ORDER";
+        await setSession(phoneNumber, session);
+        return MESSAGES.TRACK_ORDER;
+  
+      case "6": // Logout
+        await deleteSession(phoneNumber);
+        return MESSAGES.LOGOUT;
+  
+      case "0": // Help
+        return MESSAGES.HELP;
+  
+      default:
+        return MESSAGES.MAIN_MENU(session.userName || "Customer");
+    }
+  };
   
