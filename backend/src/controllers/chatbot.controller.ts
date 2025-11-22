@@ -77,3 +77,51 @@ export const twilioStatusCallback = async (c: Context) => {
       return c.text("OK");
     }
   };
+
+// ==========================================
+// PAYNOW PAYMENT SUCCESS - SEND QR TO CUSTOMER
+// ==========================================
+export const handlePayNowSuccess = async (c: Context) => {
+    try {
+      const orderId = Number(c.req.param("orderId"));
+      const ref = c.req.query("ref");
+  
+      // Verify payment ref
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { paymentQR: true, user: true },
+      });
+  
+      if (!order || order.paymentQR?.qrData !== ref) {
+        return c.json({ success: false, message: "Invalid payment reference" }, 400);
+      }
+  
+      if (order.status === "PAID") {
+        return c.json({ success: false, message: "Order already paid" }, 400);
+      }
+  
+      // Generate QR after payment
+      const result = await generatePayNowQRAfterPayment(orderId);
+  
+      if (!result) {
+        return c.json({ success: false, message: "Failed to generate QR" }, 500);
+      }
+  
+      // TODO: Send QR to customer via WhatsApp
+      // You need to store customer's phone number with their user record
+      // const phoneNumber = order.user.phoneNumber;
+      // await sendWhatsAppMessage(`whatsapp:${phoneNumber}`, result.message);
+  
+      return c.json({
+        success: true,
+        message: "Payment successful! QR code generated.",
+        data: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          qrCode: result.qrCode,
+        },
+      });
+    } catch (error) {
+      return serverError(c, error);
+    }
+  };
