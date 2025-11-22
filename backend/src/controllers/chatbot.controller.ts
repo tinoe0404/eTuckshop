@@ -6,7 +6,7 @@ import { serverError } from "../utils/serverError";
 // ==========================================
 // TWILIO WEBHOOK - RECEIVE MESSAGES
 // ==========================================
-export const = async (c: Context) => {
+export const twilioWebhook = async (c: Context) => {
   try {
     // Parse Twilio webhook data
     const body = await c.req.parseBody();
@@ -58,3 +58,22 @@ export const = async (c: Context) => {
     return serverError(c, error);
   }
 };
+
+// ==========================================
+// TWILIO WEBHOOK - STATUS CALLBACK
+// ==========================================
+export const twilioStatusCallback = async (c: Context) => {
+    try {
+      const body = await c.req.parseBody();
+      
+      const messageSid = body.MessageSid as string;
+      const status = body.MessageStatus as string;
+      
+      console.log(`📊 Message ${messageSid} status: ${status}`);
+  
+      return c.text("OK");
+    } catch (error) {
+      console.error("❌ Status callback error:", error);
+      return c.text("OK");
+    }
+  };
