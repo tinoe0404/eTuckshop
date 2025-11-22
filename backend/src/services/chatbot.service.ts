@@ -235,4 +235,32 @@ const handleMainMenu = async (
         return MESSAGES.MAIN_MENU(session.userName || "Customer");
     }
   };
+
+// ==========================================
+// BROWSE CATEGORIES HANDLER
+// ==========================================
+const handleBrowseCategories = async (
+    phoneNumber: string,
+    input: string,
+    session: ChatSession
+  ): Promise<string> => {
+    if (input === "0") {
+      session.step = "MAIN_MENU";
+      await setSession(phoneNumber, session);
+      return MESSAGES.MAIN_MENU(session.userName || "Customer");
+    }
+  
+    const categories = await prisma.category.findMany({ orderBy: { id: "asc" } });
+    const index = parseInt(input) - 1;
+  
+    if (isNaN(index) || index < 0 || index >= categories.length) {
+      return MESSAGES.INVALID_INPUT;
+    }
+  
+    session.selectedCategoryId = categories[index].id;
+    session.step = "BROWSE_PRODUCTS";
+    await setSession(phoneNumber, session);
+  
+    return await showProducts(categories[index].id, categories[index].name);
+  };
   
