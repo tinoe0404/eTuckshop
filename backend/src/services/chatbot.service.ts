@@ -53,7 +53,7 @@ export const handleIncomingMessage = async (
       case "REGISTER_NAME":
         return handleRegisterName(phoneNumber, message, session);
       case "REGISTER_EMAIL":
-        return handleRegisterEmail(phoneNumber, message, session);
+        return handleRegisterName(phoneNumber, message, session);
       case "REGISTER_PASSWORD":
         return handleRegisterPassword(phoneNumber, message, session);
       case "LOGIN_EMAIL":
@@ -331,55 +331,55 @@ const handleProductDetail = async (
 // ADD QUANTITY HANDLER
 // ==========================================
 const handleAddQuantity = async (
-    phoneNumber: string,
-    input: string,
-    session: ChatSession
-  ): Promise<string> => {
-    if (input === "0") {
-      session.step = "PRODUCT_DETAIL";
-      await setSession(phoneNumber, session);
-      const product = await prisma.product.findUnique({
-        where: { id: session.selectedProductId },
-      });
-      return MESSAGES.PRODUCT_DETAIL(product!);
-    }
-  
-    const quantity = parseInt(input);
-    if (isNaN(quantity) || quantity < 1 || quantity > 10) {
-      return "Please enter a valid quantity (1-10).";
-    }
-  
+  phoneNumber: string,
+  input: string,
+  session: ChatSession
+): Promise<string> => {
+  if (input === "0") {
+    session.step = "PRODUCT_DETAIL";
+    await setSession(phoneNumber, session);
     const product = await prisma.product.findUnique({
       where: { id: session.selectedProductId },
     });
+    return MESSAGES.PRODUCT_DETAIL(product!);
+  }
+
+  const quantity = parseInt(input);
+  if (isNaN(quantity) || quantity < 1 || quantity > 10) {
+    return "Please enter a valid quantity (1-10).";
+  }
+
+  const product = await prisma.product.findUnique({
+    where: { id: session.selectedProductId },
+  });
+
+  if (!product || product.stock < quantity) {
+    return `❌ Sorry, only ${product?.stock || 0} available.`;
+  }
+
+  // Add to cart
+  const cart = await prisma.cart.findUnique({ where: { userId: session.userId } });
   
-    if (!product || product.stock < quantity) {
-      return `❌ Sorry, only ${product?.stock || 0} available.`;
-    }
-  
-    // Add to cart
-    const cart = await prisma.cart.findUnique({ where: { userId: session.userId } });
-    
-    const existingItem = await prisma.cartItem.findFirst({
-      where: { cartId: cart!.id, productId: product.id },
+  const existingItem = await prisma.cartItem.findFirst({
+    where: { cartId: cart!.id, productId: product.id },
+  });
+
+  if (existingItem) {
+    await prisma.cartItem.update({
+      where: { id: existingItem.id },
+      data: { quantity: existingItem.quantity + quantity },
     });
-  
-    if (existingItem) {
-      await prisma.cartItem.update({
-        where: { id: existingItem.id },
-        data: { quantity: existingItem.quantity + quantity },
-      });
-    } else {
-      await prisma.cartItem.create({
-        data: { cartId: cart!.id, productId: product.id, quantity },
-      });
-    }
-  
-    session.step = "MAIN_MENU";
-    await setSession(phoneNumber, session);
-  
-    return MESSAGES.ADDED_TO_CART(product.name, quantity) + "\n\n" + MESSAGES.MAIN_MENU(session.userName!);
-  };
+  } else {
+    await prisma.cartItem.create({
+      data: { cartId: cart!.id, productId: product.id, quantity },
+    });
+  }
+
+  session.step = "MAIN_MENU";
+  await setSession(phoneNumber, session);
+
+  return MESSAGES.ADDED_TO_CART(product.name, quantity) + "\n\n" + MESSAGES.MAIN_MENU(session.userName!);
+};
 
 // ==========================================
 // HELPER FUNCTIONS
@@ -800,3 +800,7 @@ export const getUserPhoneFromOrder = async (orderId: number): Promise<string | n
 // Export for use in controller
 export { showCart, getCartTotal };
   
+  function handleRegisterPassword(phoneNumber: string, message: string, session: ChatSession): string | PromiseLike<string> {
+    throw new Error("Function not implemented.");
+  }
+
