@@ -1,10 +1,9 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { User, AuthState, LoginCredentials, RegisterData } from "@/types/auth.types";
+import { persist, createJSONStorage } from "zustand/middleware";
+import type { User, AuthState, LoginCredentials, RegisterData } from "@/types/auth.types";
 import { authService } from "@/lib/api/services/auth.service";
 
 interface AuthStore extends AuthState {
-  // Actions
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
@@ -17,13 +16,11 @@ interface AuthStore extends AuthState {
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
-      // Initial state
       user: null,
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
 
-      // Actions
       login: async (credentials: LoginCredentials) => {
         try {
           const response = await authService.login(credentials);
@@ -35,7 +32,6 @@ export const useAuthStore = create<AuthStore>()(
             isAuthenticated: true,
           });
 
-          // Save to localStorage
           if (typeof window !== "undefined") {
             localStorage.setItem("accessToken", response.accessToken);
             localStorage.setItem("refreshToken", response.refreshToken);
@@ -62,7 +58,6 @@ export const useAuthStore = create<AuthStore>()(
             isAuthenticated: true,
           });
 
-          // Save to localStorage
           if (typeof window !== "undefined") {
             localStorage.setItem("accessToken", response.accessToken);
             localStorage.setItem("refreshToken", response.refreshToken);
@@ -78,7 +73,6 @@ export const useAuthStore = create<AuthStore>()(
         } catch (error) {
           console.error("Logout error:", error);
         } finally {
-          // Clear state regardless of API success
           set({
             user: null,
             accessToken: null,
@@ -86,7 +80,6 @@ export const useAuthStore = create<AuthStore>()(
             isAuthenticated: false,
           });
 
-          // Clear localStorage
           if (typeof window !== "undefined") {
             localStorage.removeItem("accessToken");
             localStorage.removeItem("refreshToken");
@@ -139,7 +132,6 @@ export const useAuthStore = create<AuthStore>()(
             localStorage.setItem("accessToken", newAccessToken);
           }
         } catch (error) {
-          // Refresh failed - clear auth
           get().clearAuth();
           throw error;
         }
@@ -147,12 +139,7 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: "auth-storage",
-      partialize: (state) => ({
-        user: state.user,
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
-        isAuthenticated: state.isAuthenticated,
-      }),
+      storage: createJSONStorage(() => localStorage),
     }
   )
 );

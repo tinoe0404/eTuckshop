@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css";
+import "../styles/globals.css";
+
 import { QueryProvider } from "@/lib/providers/QueryProvider";
 import { ToastProvider } from "@/lib/providers/ToastProvider";
+
+// OR if you use shadcn toaster:
+// import { Toaster } from "@/components/ui/toaster";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,7 +25,12 @@ export default function RootLayout({
       <body className={inter.className}>
         <QueryProvider>
           {children}
+
+          {/* If you use your own ToastProvider from /lib/providers */}
           <ToastProvider />
+
+          {/* If instead you want shadcn toaster, uncomment this: */}
+          {/* <Toaster /> */}
         </QueryProvider>
       </body>
     </html>

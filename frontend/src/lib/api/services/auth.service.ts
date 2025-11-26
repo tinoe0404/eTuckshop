@@ -1,12 +1,12 @@
 import apiClient from "../client";
 import { API_ENDPOINTS } from "../endpoints";
-import { 
+import type { 
   AuthResponse, 
   LoginCredentials, 
   RegisterData, 
   User,
-  ApiResponse 
 } from "@/types/auth.types";
+import type { ApiResponse } from "@/types/api.types"; // Changed import
 
 class AuthService {
   async signup(data: RegisterData): Promise<AuthResponse> {
