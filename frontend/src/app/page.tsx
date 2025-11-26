@@ -1,96 +1,133 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
+import { useAuthStore } from "@/lib/stores/authStore";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { UserMenu } from "@/components/auth/UserMenu";
 
 export default function Home() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["api-status"],
-    queryFn: async () => {
-      const response = await fetch("http://localhost:5000");
-      if (!response.ok) throw new Error("API connection failed");
-      return response.json();
-    },
-  });
+  const { isAuthenticated, user } = useAuthStore();
+  const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-blue-50 to-white">
-      <div className="container mx-auto px-4 py-16">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            Welcome to eTuckshop
-          </h1>
-          <p className="text-xl text-gray-600 mb-8">
-            Your One-Stop Shop for Everything You Need
-          </p>
-
-          {/* API Connection Status */}
-          <div className="max-w-md mx-auto mb-8">
-            {isLoading && (
-              <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
-                Connecting to API...
+    <div className="min-h-screen bg-futuristic">
+      {/* Header */}
+      <header className="relative z-20 border-b border-glow-purple/10 bg-navy-deep/50 backdrop-blur-xl">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 bg-glow-purple/30 blur-lg rounded-full" />
+              <div className="relative h-10 w-10 rounded-full bg-linear-to-br from-glow-purple to-glow-magenta flex items-center justify-center">
+                <span className="text-lg font-bold text-white">eTuckshop</span>
               </div>
-            )}
-
-            {error && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                <p className="font-bold">❌ API Connection Failed</p>
-                <p className="text-sm">{error.message}</p>
-              </div>
-            )}
-
-            {data && (
-              <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-                <p className="font-bold">✅ API Connected Successfully</p>
-                <p className="text-sm">Version: {data.version}</p>
-              </div>
-            )}
+            </div>
+            <span className="font-bold text-xl text-white">eTuckshop</span>
           </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-4 justify-center">
-            <Link
-              href="/products"
-              className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-            >
-              Browse Products
-            </Link>
-            <Link
-              href="/test-api"
-              className="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg font-semibold hover:bg-gray-300 transition"
-            >
-              Test API
-            </Link>
-          </div>
+          
+          <UserMenu />
         </div>
+      </header>
 
-        {/* Available Endpoints */}
-        {data?.endpoints && (
-          <div className="max-w-2xl mx-auto mt-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">
-              Available API Endpoints
-            </h2>
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <ul className="space-y-2">
-                {Object.entries(data.endpoints).map(([key, value]) => (
-                  <li
-                    key={key}
-                    className="flex justify-between items-center py-2 border-b last:border-b-0"
+      {/* Hero Section */}
+      <main className="relative">
+        <div className="container mx-auto px-4 py-24 md:py-32">
+          <div className="max-w-4xl mx-auto">
+            {/* Hero Content */}
+            <div className="text-center space-y-8 mb-16">
+              <div className="space-y-4">
+                <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight">
+                  <span className="text-gradient">Welcome to</span>
+                  <br />
+                  <span className="text-white">eTuckshop</span>
+                </h1>
+                
+                <p className="text-xl md:text-2xl text-gray-400 max-w-2xl mx-auto">
+                  Your one-stop shop for all your needs
+                </p>
+              </div>
+
+              {/* CTA based on auth state */}
+              {isAuthenticated && user ? (
+                <div className="space-y-6">
+                  <div className="glass-card inline-block px-8 py-6 mx-auto">
+                    <p className="text-xl text-white mb-2">
+                      Hello, <span className="text-gradient font-semibold">{user.name}</span>! 👋
+                    </p>
+                    <p className="text-gray-400">
+                      You are logged in as {user.role.toLowerCase()}.
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    {user.role === "ADMIN" ? (
+                      <Button 
+                        size="lg" 
+                        onClick={() => router.push("/admin")}
+                        className="bg-linear-to-r from-glow-purple to-glow-magenta hover:opacity-90 transition-opacity text-white font-semibold px-8 py-6 text-lg btn-glow"
+                      >
+                        Go to Admin Dashboard
+                      </Button>
+                    ) : (
+                      <Button 
+                        size="lg" 
+                        onClick={() => router.push("/products")}
+                        className="bg-linear-to-r from-glow-purple to-glow-magenta hover:opacity-90 transition-opacity text-white font-semibold px-8 py-6 text-lg btn-glow"
+                      >
+                        Start Shopping
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+                  <Button 
+                    size="lg" 
+                    onClick={() => router.push("/login")}
+                    className="bg-linear-to-r from-glow-purple to-glow-magenta hover:opacity-90 transition-opacity text-white font-semibold px-8 py-6 text-lg btn-glow"
                   >
-                    <span className="font-semibold text-gray-700 capitalize">
-                      {key}
-                    </span>
-                    <code className="text-sm bg-gray-100 px-3 py-1 rounded">
-                      {value as string}
-                    </code>
-                  </li>
-                ))}
-              </ul>
+                    Sign in
+                  </Button>
+                  <Button 
+                    size="lg" 
+                    variant="outline" 
+                    onClick={() => router.push("/register")}
+                    className="border-glow-purple/30 bg-navy-deep/50 backdrop-blur-sm hover:bg-navy-deep/70 text-white font-semibold px-8 py-6 text-lg glass-card-hover"
+                  >
+                    Create account
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Feature Cards (Optional) */}
+            <div className="grid md:grid-cols-3 gap-6 mt-20">
+              <div className="glass-card glass-card-hover p-6 space-y-3">
+                <div className="h-12 w-12 rounded-lg bg-linear-to-br from-glow-purple/20 to-glow-magenta/20 flex items-center justify-center mb-4">
+                  <span className="text-2xl">🚀</span>
+                </div>
+                <h3 className="text-xl font-semibold text-white">Fast Delivery</h3>
+                <p className="text-gray-400">Get your items delivered quickly and securely</p>
+              </div>
+
+              <div className="glass-card glass-card-hover p-6 space-y-3">
+                <div className="h-12 w-12 rounded-lg bg-linear-to-br from-glow-cyan/20 to-glow-purple/20 flex items-center justify-center mb-4">
+                  <span className="text-2xl">🔒</span>
+                </div>
+                <h3 className="text-xl font-semibold text-white">Secure Payment</h3>
+                <p className="text-gray-400">Your transactions are safe and encrypted</p>
+              </div>
+
+              <div className="glass-card glass-card-hover p-6 space-y-3">
+                <div className="h-12 w-12 rounded-lg bg-linear-to-br from-glow-pink/20 to-glow-cyan/20 flex items-center justify-center mb-4">
+                  <span className="text-2xl">⭐</span>
+                </div>
+                <h3 className="text-xl font-semibold text-white">Quality Products</h3>
+                <p className="text-gray-400">Curated selection of the best items</p>
+              </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
