@@ -9,7 +9,6 @@ import { Loader2 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   Form,
@@ -43,27 +42,34 @@ export function LoginForm() {
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
-    
+
     try {
       await login(data);
-      
+
+      // ✅ SUCCESS TOAST
       toast({
         title: "Success!",
         description: "You have successfully logged in.",
       });
-      
+
       // Redirect based on role
       const user = useAuthStore.getState().user;
+
       if (user?.role === "ADMIN") {
         router.push("/admin");
       } else {
         router.push("/");
       }
     } catch (error: any) {
+      // ❌ OLD:
+      // variant: "destructive"
+
+      // ✅ NEW SHADCN v2 TOAST API
       toast({
         title: "Login failed",
-        description: error?.response?.data?.message || "Invalid email or password",
-        variant: "destructive",
+        description:
+          error?.response?.data?.message || "Invalid email or password.",
+        action: <span className="font-semibold text-red-600">Error</span>,
       });
     } finally {
       setIsLoading(false);
@@ -111,11 +117,7 @@ export function LoginForm() {
           )}
         />
 
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={isLoading}
-        >
+        <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

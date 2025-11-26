@@ -36,16 +36,29 @@ export function UserMenu() {
   const handleLogout = async () => {
     try {
       await logout();
+
+      // ✅ Updated toast — OK
       toast({
         title: "Logged out",
         description: "You have been successfully logged out.",
       });
+
       router.push("/");
     } catch (error) {
+      // ❌ OLD: variant: "destructive" (removed in new system)
+      // toast({
+      //   title: "Error",
+      //   description: "Failed to logout",
+      //   variant: "destructive",
+      // });
+
+      // ✅ NEW: styled destructive toast (modern shadcn toast)
       toast({
-        title: "Error",
-        description: "Failed to logout",
-        variant: "destructive",
+        title: "Logout failed",
+        description: "Something went wrong while logging out.",
+        action: (
+          <span className="font-semibold text-red-600">Error</span>
+        ),
       });
     }
   };
@@ -68,6 +81,7 @@ export function UserMenu() {
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
+
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
@@ -77,8 +91,9 @@ export function UserMenu() {
             </p>
           </div>
         </DropdownMenuLabel>
+
         <DropdownMenuSeparator />
-        
+
         {user.role === "ADMIN" && (
           <>
             <DropdownMenuItem onClick={() => router.push("/admin")}>
@@ -88,16 +103,19 @@ export function UserMenu() {
             <DropdownMenuSeparator />
           </>
         )}
-        
+
         <DropdownMenuItem onClick={() => router.push("/profile")}>
           <User className="mr-2 h-4 w-4" />
           Profile
         </DropdownMenuItem>
+
         <DropdownMenuItem onClick={() => router.push("/orders")}>
           <Package className="mr-2 h-4 w-4" />
           My Orders
         </DropdownMenuItem>
+
         <DropdownMenuSeparator />
+
         <DropdownMenuItem onClick={handleLogout} className="text-red-600">
           <LogOut className="mr-2 h-4 w-4" />
           Log out
