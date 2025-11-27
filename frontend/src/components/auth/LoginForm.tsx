@@ -67,7 +67,7 @@ export function LoginForm() {
       if (user?.role === "ADMIN") {
         router.push("/admin");
       } else {
-        router.push("/dashboard"); // Changed from /products
+        router.push("/"); // Changed from /products
       }
     } catch (error: any) {
       // ERROR TOAST (valid format)

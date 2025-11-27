@@ -8,8 +8,7 @@ interface CartStore {
   totalItems: number;
   totalAmount: number;
   isLoading: boolean;
-  
-  // Actions
+
   setCart: (items: CartItem[], totalItems: number, totalAmount: number) => void;
   addItem: (productId: number, quantity: number) => Promise<void>;
   updateItem: (productId: number, quantity: number) => Promise<void>;
@@ -34,8 +33,8 @@ export const useCartStore = create<CartStore>()(
         set({ isLoading: true });
         try {
           const response = await cartService.addToCart({ productId, quantity });
-          const cart = response.data;
-          
+          const cart = response.data!;
+
           set({
             items: cart.items,
             totalItems: cart.totalItems,
@@ -49,59 +48,76 @@ export const useCartStore = create<CartStore>()(
       },
 
       updateItem: async (productId: number, quantity: number) => {
-        // Optimistic update
         const currentItems = get().items;
-        const itemIndex = currentItems.findIndex(item => item.productId === productId);
-        
+        const itemIndex = currentItems.findIndex(
+          (item) => item.productId === productId
+        );
+
+        // Optimistic update
         if (itemIndex !== -1) {
           const updatedItems = [...currentItems];
-          updatedItems[itemIndex] = { ...updatedItems[itemIndex], quantity };
-          
-          const totalItems = updatedItems.reduce((sum, item) => sum + item.quantity, 0);
-          const totalAmount = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-          
+          updatedItems[itemIndex] = {
+            ...updatedItems[itemIndex],
+            quantity,
+          };
+
+          const totalItems = updatedItems.reduce(
+            (sum, item) => sum + item.quantity,
+            0
+          );
+          const totalAmount = updatedItems.reduce(
+            (sum, item) => sum + item.price * item.quantity,
+            0
+          );
+
           set({ items: updatedItems, totalItems, totalAmount });
         }
 
-        // Sync with backend
         try {
-          const response = await cartService.updateCartItem({ productId, quantity });
-          const cart = response.data;
-          
+          const response = await cartService.updateCartItem({
+            productId,
+            quantity,
+          });
+          const cart = response.data!;
+
           set({
             items: cart.items,
             totalItems: cart.totalItems,
             totalAmount: cart.totalAmount,
           });
         } catch (error) {
-          // Revert on error
           await get().syncWithBackend();
           throw error;
         }
       },
 
       removeItem: async (productId: number) => {
-        // Optimistic update
         const currentItems = get().items;
-        const updatedItems = currentItems.filter(item => item.productId !== productId);
-        
-        const totalItems = updatedItems.reduce((sum, item) => sum + item.quantity, 0);
-        const totalAmount = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        
+        const updatedItems = currentItems.filter(
+          (item) => item.productId !== productId
+        );
+
+        const totalItems = updatedItems.reduce(
+          (sum, item) => sum + item.quantity,
+          0
+        );
+        const totalAmount = updatedItems.reduce(
+          (sum, item) => sum + item.price * item.quantity,
+          0
+        );
+
         set({ items: updatedItems, totalItems, totalAmount });
 
-        // Sync with backend
         try {
           const response = await cartService.removeFromCart(productId);
-          const cart = response.data;
-          
+          const cart = response.data!;
+
           set({
             items: cart.items,
             totalItems: cart.totalItems,
             totalAmount: cart.totalAmount,
           });
         } catch (error) {
-          // Revert on error
           await get().syncWithBackend();
           throw error;
         }
@@ -109,11 +125,10 @@ export const useCartStore = create<CartStore>()(
 
       clearCart: async () => {
         set({ items: [], totalItems: 0, totalAmount: 0 });
-        
+
         try {
           await cartService.clearCart();
         } catch (error) {
-          // Revert on error
           await get().syncWithBackend();
           throw error;
         }
@@ -122,8 +137,8 @@ export const useCartStore = create<CartStore>()(
       syncWithBackend: async () => {
         try {
           const response = await cartService.getCart();
-          const cart = response.data;
-          
+          const cart = response.data!;
+
           set({
             items: cart.items,
             totalItems: cart.totalItems,

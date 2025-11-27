@@ -8,11 +8,8 @@ import { CategoryList } from "@/components/categories/CategoryList";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import type { Product } from "@/types/product.types";
 
 export default function HomePage() {
-  const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState<number | undefined>();
   
   const { data: productsData, isLoading: productsLoading, error: productsError } = useProducts({
@@ -20,13 +17,6 @@ export default function HomePage() {
   });
   
   const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
-
-  const handleAddToCart = (product: Product) => {
-    toast({
-      title: "Added to cart",
-      description: `${product.name} has been added to your cart.`,
-    });
-  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -86,10 +76,7 @@ export default function HomePage() {
               ))}
             </div>
           ) : (
-            <ProductGrid
-              products={productsData?.data || []}
-              onAddToCart={handleAddToCart}
-            />
+            <ProductGrid products={productsData?.data || []} />
           )}
         </div>
       </div>

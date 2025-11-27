@@ -10,6 +10,8 @@ import { AlertCircle, ShoppingCart, ArrowLeft } from "lucide-react";
 import { formatPrice, getStockLevelText, getStockLevelColor } from "@/lib/utils/format";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import { useAddToCart } from "@/lib/queries/useCartQueries";
+import { useAuthStore } from "@/lib/stores/authStore";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -18,17 +20,37 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const productId = parseInt(resolvedParams.id);
   const router = useRouter();
   const { toast } = useToast();
+  const { isAuthenticated } = useAuthStore();
+  const { mutate: addToCart, isPending } = useAddToCart();
   
   const { data, isLoading, error } = useProduct(productId);
   const product = data?.data;
 
   const handleAddToCart = () => {
-    if (product) {
-      toast({
-        title: "Added to cart",
-        description: `${product.name} has been added to your cart.`,
-      });
+    if (!isAuthenticated) {
+      router.push("/login");
+      return;
     }
+
+    if (!product) return;
+
+    addToCart(
+      { productId: product.id, quantity: 1 },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Added to cart",
+            description: `${product.name} has been added to your cart.`,
+          });
+        },
+        onError: (error: any) => {
+          toast({
+            title: "Error",
+            description: error?.response?.data?.message || "Failed to add item to cart",
+          });
+        },
+      }
+    );
   };
 
   if (isLoading) {
@@ -130,11 +152,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             <Button
               size="lg"
               className="flex-1"
-              disabled={product.stock === 0}
+              disabled={product.stock === 0 || isPending}
               onClick={handleAddToCart}
             >
               <ShoppingCart className="mr-2 h-5 w-5" />
-              {product.stock === 0 ? "Out of Stock" : "Add to Cart"}
+              {isPending ? "Adding..." : product.stock === 0 ? "Out of Stock" : "Add to Cart"}
             </Button>
           </div>
         </div>

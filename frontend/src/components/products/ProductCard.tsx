@@ -42,11 +42,11 @@ export function ProductCard({ product }: ProductCardProps) {
           });
         },
         onError: (error: any) => {
-          toast({
-            title: "Error",
-            description: error?.response?.data?.message || "Failed to add item to cart",
-            variant: "destructive",
-          });
+            toast({
+                title: "Error",
+                description:
+                  error?.response?.data?.message || "Failed to add item to cart",
+              });
         },
       }
     );

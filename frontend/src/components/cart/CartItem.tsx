@@ -25,7 +25,6 @@ export function CartItem({ item }: CartItemProps) {
       toast({
         title: "Insufficient stock",
         description: `Only ${item.product.stock} units available`,
-        variant: "destructive",
       });
       return;
     }
@@ -37,7 +36,6 @@ export function CartItem({ item }: CartItemProps) {
           toast({
             title: "Error",
             description: error?.response?.data?.message || "Failed to update cart",
-            variant: "destructive",
           });
         },
       }
@@ -56,7 +54,6 @@ export function CartItem({ item }: CartItemProps) {
         toast({
           title: "Error",
           description: error?.response?.data?.message || "Failed to remove item",
-          variant: "destructive",
         });
       },
     });
@@ -69,7 +66,7 @@ export function CartItem({ item }: CartItemProps) {
     <Card className="p-4">
       <div className="flex gap-4">
         {/* Image */}
-        <Link href={`/products/${item.product.id}`} className="flex-shrink-0">
+        <Link href={`/products/${item.product.id}`} className="shrink-0">
           <div className="w-24 h-24 relative bg-muted rounded-md overflow-hidden">
             <Image
               src="/images/placeholder.png"
@@ -136,7 +133,7 @@ export function CartItem({ item }: CartItemProps) {
         </div>
 
         {/* Price */}
-        <div className="text-right flex-shrink-0">
+        <div className="text-right shrink-0">
           <p className="font-bold text-lg">{formatPrice(itemTotal)}</p>
         </div>
       </div>
