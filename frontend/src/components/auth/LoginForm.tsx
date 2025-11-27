@@ -63,11 +63,11 @@ export function LoginForm() {
 
       const user = useAuthStore.getState().user;
 
-      // ROLE-BASED REDIRECT
+      // Already updated in the code:
       if (user?.role === "ADMIN") {
         router.push("/admin");
       } else {
-        router.push("/");
+        router.push("/dashboard"); // Changed from /products
       }
     } catch (error: any) {
       // ERROR TOAST (valid format)
