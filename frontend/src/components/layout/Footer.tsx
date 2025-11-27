@@ -1,46 +1,74 @@
-import Link from "next/link";
+"use client";
 
-export function Footer() {
+import Link from "next/link";
+import { ShoppingCart, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { UserMenu } from "@/components/auth/UserMenu";
+import { Badge } from "@/components/ui/badge";
+import { useAuthStore } from "@/lib/stores/authStore";
+import { useCartStore } from "@/lib/stores/cartStore";
+import { useEffect } from "react";
+
+export function Header() {
+  const { isAuthenticated } = useAuthStore();
+  const { totalItems, syncWithBackend } = useCartStore();
+
+  // Sync cart on mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      syncWithBackend();
+    }
+  }, [isAuthenticated, syncWithBackend]);
+
   return (
-    <footer className="border-t bg-muted/40">
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div>
-            <h3 className="font-bold text-lg mb-4">eTuckshop</h3>
-            <p className="text-sm text-muted-foreground">
-              Your one-stop shop for all your needs.
-            </p>
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto px-4">
+        <div className="flex h-16 items-center justify-between">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 font-bold text-xl">
+            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+              <span className="text-lg font-bold text-primary-foreground">eT</span>
+            </div>
+            <span className="hidden sm:inline">eTuckshop</span>
+          </Link>
+
+          {/* Search */}
+          <div className="hidden md:flex flex-1 max-w-md mx-8">
+            <div className="relative w-full">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search products..."
+                className="pl-8"
+              />
+            </div>
           </div>
-          
-          <div>
-            <h4 className="font-semibold mb-4">Shop</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/products" className="hover:text-foreground">All Products</Link></li>
-              <li><Link href="/categories" className="hover:text-foreground">Categories</Link></li>
-            </ul>
+
+          {/* Right section */}
+          <div className="flex items-center gap-4">
+            {/* Cart */}
+            {isAuthenticated && (
+              <Link href="/cart">
+                <Button variant="ghost" size="icon" className="relative">
+                  <ShoppingCart className="h-5 w-5" />
+                  {totalItems > 0 && (
+                    <Badge 
+                      variant="destructive" 
+                      className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                    >
+                      {totalItems}
+                    </Badge>
+                  )}
+                </Button>
+              </Link>
+            )}
+
+            {/* User Menu */}
+            <UserMenu />
           </div>
-          
-          <div>
-            <h4 className="font-semibold mb-4">Account</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/orders" className="hover:text-foreground">My Orders</Link></li>
-              <li><Link href="/profile" className="hover:text-foreground">Profile</Link></li>
-            </ul>
-          </div>
-          
-          <div>
-            <h4 className="font-semibold mb-4">Support</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/help" className="hover:text-foreground">Help Center</Link></li>
-              <li><Link href="/contact" className="hover:text-foreground">Contact Us</Link></li>
-            </ul>
-          </div>
-        </div>
-        
-        <div className="mt-8 pt-8 border-t text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} eTuckshop. All rights reserved.</p>
         </div>
       </div>
-    </footer>
+    </header>
   );
 }
