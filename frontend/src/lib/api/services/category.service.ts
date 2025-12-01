@@ -1,11 +1,11 @@
-import { ApiResponse, Category } from "@/types";
 import apiClient from '@/lib/api/client';
+import { ApiResponse, Category } from '@/lib/types';
 
 export const categoryService = {
   // Get all categories
   getAll: async () => {
-    const response = await apiClient.get<ApiResponse<Category[]>>("/categories");
-    return response.data.data; // return actual category array
+    const response = await apiClient.get<ApiResponse<Category[]>>('/categories');
+    return response.data;
   },
 
   // Get category by ID
@@ -13,16 +13,16 @@ export const categoryService = {
     const response = await apiClient.get<ApiResponse<Category>>(
       `/categories/${id}`
     );
-    return response.data.data;
+    return response.data;
   },
 
   // Admin: Create category
   create: async (data: { name: string; description?: string }) => {
     const response = await apiClient.post<ApiResponse<Category>>(
-      "/categories",
+      '/categories',
       data
     );
-    return response.data.data;
+    return response.data;
   },
 
   // Admin: Update category
@@ -31,7 +31,7 @@ export const categoryService = {
       `/categories/${id}`,
       data
     );
-    return response.data.data;
+    return response.data;
   },
 
   // Admin: Delete category
@@ -39,7 +39,7 @@ export const categoryService = {
     const response = await apiClient.delete<ApiResponse<{ id: number }>>(
       `/categories/${id}`
     );
-    return response.data.data;
+    return response.data;
   },
 
   // Admin: Get category stats
@@ -49,13 +49,15 @@ export const categoryService = {
         Array<{
           id: number;
           name: string;
+          description: string | null;
           totalProducts: number;
           totalStock: number;
           averagePrice: number;
+          createdAt: string;
+          updatedAt: string;
         }>
       >
-    >("/categories/admin/stats");
-
-    return response.data.data;
+    >('/categories/admin/stats');
+    return response.data;
   },
 };
