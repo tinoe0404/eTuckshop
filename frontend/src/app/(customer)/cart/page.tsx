@@ -131,7 +131,7 @@ export default function CartPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+      <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
         <div className="max-w-7xl mx-auto p-6 space-y-6">
           <Skeleton className="h-12 w-64" />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -167,7 +167,7 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -224,7 +224,7 @@ export default function CartPage() {
           <Card className="border-0 shadow-xl">
             <CardContent className="p-12">
               <div className="text-center space-y-6">
-                <div className="w-32 h-32 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full flex items-center justify-center mx-auto">
+                <div className="w-32 h-32 bg-linear-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full flex items-center justify-center mx-auto">
                   <ShoppingCart className="w-16 h-16 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
@@ -252,7 +252,7 @@ export default function CartPage() {
             {/* Cart Items */}
             <div className="lg:col-span-2 space-y-4">
               <Card className="border-0 shadow-lg">
-                <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+                <CardHeader className="border-b bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
                   <CardTitle className="flex items-center justify-between">
                     <span>Cart Items</span>
                     <Badge variant="secondary">{totalItems} items</Badge>
@@ -267,7 +267,7 @@ export default function CartPage() {
                       <CardContent className="p-4">
                         <div className="flex gap-4">
                           {/* Product Image */}
-                          <div className="relative w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-lg overflow-hidden flex-shrink-0">
+                          <div className="relative w-24 h-24 bg-linear-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-lg overflow-hidden flex-shrink-0">
                             {item.image ? (
                               <Image
                                 src={item.image}
@@ -422,7 +422,7 @@ export default function CartPage() {
             {/* Order Summary */}
             <div className="lg:col-span-1">
               <Card className="border-0 shadow-xl sticky top-20">
-                <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+                <CardHeader className="border-b bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
                   <CardTitle>Order Summary</CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
@@ -465,11 +465,11 @@ export default function CartPage() {
                   {/* Additional Info */}
                   <div className="pt-4 space-y-2 text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex items-start space-x-2">
-                      <ShoppingBag className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <ShoppingBag className="w-4 h-4 mt-0.5 shrink-0" />
                       <span>Free pickup at counter</span>
                     </div>
                     <div className="flex items-start space-x-2">
-                      <Package className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <Package className="w-4 h-4 mt-0.5 shrink-0" />
                       <span>Show QR code for quick collection</span>
                     </div>
                   </div>

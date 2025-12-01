@@ -1,11 +1,11 @@
-import apiClient from '../client';
-import { ApiResponse, Product } from '@/types';
+import apiClient from '@/lib/api/client';
+import { ApiResponse, Product } from '@/lib/types';
 
 export const productService = {
   // Get all products
   getAll: async () => {
     const response = await apiClient.get<ApiResponse<Product[]>>('/products');
-    return response.data.data;
+    return response.data;
   },
 
   // Get product by ID
@@ -13,7 +13,7 @@ export const productService = {
     const response = await apiClient.get<ApiResponse<Product>>(
       `/products/${id}`
     );
-    return response.data.data;
+    return response.data;
   },
 
   // Get products by category
@@ -21,7 +21,7 @@ export const productService = {
     const response = await apiClient.get<ApiResponse<Product[]>>(
       `/products/category/${categoryId}`
     );
-    return response.data.data;
+    return response.data;
   },
 
   // Search products
@@ -29,7 +29,7 @@ export const productService = {
     const response = await apiClient.get<ApiResponse<Product[]>>('/products', {
       params: { search: query },
     });
-    return response.data.data;
+    return response.data;
   },
 
   // Admin: Create product
@@ -45,7 +45,7 @@ export const productService = {
       '/products',
       data
     );
-    return response.data.data;
+    return response.data;
   },
 
   // Admin: Update product
@@ -54,7 +54,7 @@ export const productService = {
       `/products/${id}`,
       data
     );
-    return response.data.data;
+    return response.data;
   },
 
   // Admin: Delete product
@@ -62,6 +62,6 @@ export const productService = {
     const response = await apiClient.delete<ApiResponse<{ id: number }>>(
       `/products/${id}`
     );
-    return response.data.data;
+    return response.data;
   },
 };
