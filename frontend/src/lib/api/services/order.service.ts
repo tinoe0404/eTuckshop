@@ -1,9 +1,9 @@
-import { ApiResponse, Order} from "@/types";
 import apiClient from '@/lib/api/client';
+import { ApiResponse, Order, QRPayload } from '@/lib/types';
 
 export const orderService = {
   // Checkout - create order from cart
-  checkout: async (data: { paymentType: "CASH" | "PAYNOW" }) => {
+  checkout: async (data: { paymentType: 'CASH' | 'PAYNOW' }) => {
     const response = await apiClient.post<
       ApiResponse<{
         orderId: number;
@@ -18,9 +18,8 @@ export const orderService = {
           note: string;
         };
       }>
-    >("/orders/checkout", data);
-
-    return response.data.data;
+    >('/orders/checkout', data);
+    return response.data;
   },
 
   // Generate QR for cash payment
@@ -45,8 +44,7 @@ export const orderService = {
         expiresIn: string;
       }>
     >(`/orders/generate-qr/${orderId}`);
-
-    return response.data.data;
+    return response.data;
   },
 
   // Initiate PayNow payment
@@ -62,31 +60,27 @@ export const orderService = {
         instructions: string;
       }>
     >(`/orders/pay/paynow/${orderId}`);
-
-    return response.data.data;
+    return response.data;
   },
 
   // Get order QR code
- /* getOrderQR: async (orderId: number) => {
-    const response = await apiClient.get<
-      ApiResponse<QRPayload & { qrCode: string }>
-    >(`/orders/qr/${orderId}`);
-
-    return response.data.data;
-  }, */
+  getOrderQR: async (orderId: number) => {
+    const response = await apiClient.get<ApiResponse<QRPayload & { qrCode: string }>>(
+      `/orders/qr/${orderId}`
+    );
+    return response.data;
+  },
 
   // Get user orders
   getUserOrders: async () => {
-    const response = await apiClient.get<ApiResponse<Order[]>>("/orders");
-    return response.data.data;
+    const response = await apiClient.get<ApiResponse<Order[]>>('/orders');
+    return response.data;
   },
 
   // Get order by ID
   getOrderById: async (id: number) => {
-    const response = await apiClient.get<ApiResponse<Order>>(
-      `/orders/${id}`
-    );
-    return response.data.data;
+    const response = await apiClient.get<ApiResponse<Order>>(`/orders/${id}`);
+    return response.data;
   },
 
   // Cancel order
@@ -94,7 +88,7 @@ export const orderService = {
     const response = await apiClient.post<ApiResponse<{ message: string }>>(
       `/orders/cancel/${orderId}`
     );
-    return response.data.data;
+    return response.data;
   },
 
   // Admin: Get all orders
@@ -114,9 +108,8 @@ export const orderService = {
           totalPages: number;
         };
       }>
-    >("/orders/admin/all", { params });
-
-    return response.data.data;
+    >('/orders/admin/all', { params });
+    return response.data;
   },
 
   // Admin: Scan QR code
@@ -145,11 +138,12 @@ export const orderService = {
           paidAt: string | null;
         };
         instructions: string;
-        action: { complete: string };
+        action: {
+          complete: string;
+        };
       }>
-    >("/orders/admin/scan-qr", { qrData });
-
-    return response.data.data;
+    >('/orders/admin/scan-qr', { qrData });
+    return response.data;
   },
 
   // Admin: Complete order
@@ -162,8 +156,7 @@ export const orderService = {
         qrStatus: string;
       }>
     >(`/orders/admin/complete/${orderId}`);
-
-    return response.data.data;
+    return response.data;
   },
 
   // Admin: Reject order
@@ -175,8 +168,7 @@ export const orderService = {
         reason: string;
       }>
     >(`/orders/admin/reject/${orderId}`, { reason });
-
-    return response.data.data;
+    return response.data;
   },
 
   // Admin: Get order stats
@@ -192,8 +184,7 @@ export const orderService = {
         };
         revenue: number;
       }>
-    >("/orders/admin/stats");
-
-    return response.data.data;
+    >('/orders/admin/stats');
+    return response.data;
   },
 };
