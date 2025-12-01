@@ -1,22 +1,61 @@
-import apiClient from "../client";
-import { API_ENDPOINTS } from "../endpoints";
-import type { Category } from "@/types/category.types";
-import type { ApiResponse } from "@/types/api.types";
+import { ApiResponse, Category } from "@/types";
+import apiClient from '@/lib/api/client';
 
-class CategoryService {
-  async getCategories(): Promise<ApiResponse<Category[]>> {
-    const response = await apiClient.get<ApiResponse<Category[]>>(
-      API_ENDPOINTS.CATEGORIES.BASE
-    );
-    return response.data;
-  }
+export const categoryService = {
+  // Get all categories
+  getAll: async () => {
+    const response = await apiClient.get<ApiResponse<Category[]>>("/categories");
+    return response.data.data; // return actual category array
+  },
 
-  async getCategory(id: number): Promise<ApiResponse<Category>> {
+  // Get category by ID
+  getById: async (id: number) => {
     const response = await apiClient.get<ApiResponse<Category>>(
-      API_ENDPOINTS.CATEGORIES.BY_ID(id)
+      `/categories/${id}`
     );
-    return response.data;
-  }
-}
+    return response.data.data;
+  },
 
-export const categoryService = new CategoryService();
+  // Admin: Create category
+  create: async (data: { name: string; description?: string }) => {
+    const response = await apiClient.post<ApiResponse<Category>>(
+      "/categories",
+      data
+    );
+    return response.data.data;
+  },
+
+  // Admin: Update category
+  update: async (id: number, data: { name?: string; description?: string }) => {
+    const response = await apiClient.put<ApiResponse<Category>>(
+      `/categories/${id}`,
+      data
+    );
+    return response.data.data;
+  },
+
+  // Admin: Delete category
+  delete: async (id: number) => {
+    const response = await apiClient.delete<ApiResponse<{ id: number }>>(
+      `/categories/${id}`
+    );
+    return response.data.data;
+  },
+
+  // Admin: Get category stats
+  getStats: async () => {
+    const response = await apiClient.get<
+      ApiResponse<
+        Array<{
+          id: number;
+          name: string;
+          totalProducts: number;
+          totalStock: number;
+          averagePrice: number;
+        }>
+      >
+    >("/categories/admin/stats");
+
+    return response.data.data;
+  },
+};

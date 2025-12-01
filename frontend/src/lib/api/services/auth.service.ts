@@ -1,51 +1,46 @@
-import apiClient from "../client";
-import { API_ENDPOINTS } from "../endpoints";
-import type { 
-  AuthResponse, 
-  LoginCredentials, 
-  RegisterData, 
-  User,
-} from "@/types/auth.types";
-import type { ApiResponse } from "@/types/api.types"; // Changed import
+import apiClient from '../client';
+import { AuthResponse, ApiResponse, User } from '@/types';
 
-class AuthService {
-  async signup(data: RegisterData): Promise<AuthResponse> {
-    const response = await apiClient.post<AuthResponse>(
-      API_ENDPOINTS.AUTH.SIGNUP,
+export const authService = {
+  signup: async (data: { 
+    name: string; 
+    email: string; 
+    password: string; 
+    role?: 'CUSTOMER' 
+  }) => {
+    const response = await apiClient.post<ApiResponse<AuthResponse>>(
+      '/auth/signup', 
       data
     );
     return response.data;
-  }
+  },
 
-  async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    const response = await apiClient.post<AuthResponse>(
-      API_ENDPOINTS.AUTH.LOGIN,
-      credentials
+  login: async (data: { email: string; password: string }) => {
+    const response = await apiClient.post<ApiResponse<AuthResponse>>(
+      '/auth/login', 
+      data
     );
     return response.data;
-  }
+  },
 
-  async logout(): Promise<ApiResponse> {
-    const response = await apiClient.post<ApiResponse>(
-      API_ENDPOINTS.AUTH.LOGOUT
-    );
-    return response.data;
-  }
-
-  async refreshToken(refreshToken: string): Promise<{ accessToken: string }> {
-    const response = await apiClient.post<AuthResponse>(
-      API_ENDPOINTS.AUTH.REFRESH,
+  logout: async (refreshToken: string) => {
+    const response = await apiClient.post<ApiResponse<null>>(
+      '/auth/logout',
       { refreshToken }
     );
-    return { accessToken: response.data.accessToken };
-  }
+    return response.data;
+  },
 
-  async getProfile(): Promise<ApiResponse<User>> {
-    const response = await apiClient.get<ApiResponse<User>>(
-      API_ENDPOINTS.AUTH.PROFILE
+  refreshToken: async (refreshToken: string) => {
+    const response = await apiClient.post<ApiResponse<{ accessToken: string }>>(
+      '/auth/refresh', 
+      { refreshToken }
     );
     return response.data;
-  }
-}
+  },
 
-export const authService = new AuthService();
+  getProfile: async () => {
+    const response = await apiClient.get<ApiResponse<User>>('/auth/profile');
+    return response.data;
+  },
+};

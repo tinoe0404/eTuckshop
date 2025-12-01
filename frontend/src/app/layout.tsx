@@ -1,18 +1,14 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "../styles/globals.css";
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { ThemeProvider } from '@/components/providers/ThemeProvider';
+import { ReactQueryProvider } from '@/components/providers/ReactQueryProvider';
 
-import { QueryProvider } from "@/lib/providers/QueryProvider";
-import { ToastProvider } from "@/lib/providers/ToastProvider";
-
-// OR if you use shadcn toaster:
-// import { Toaster } from "@/components/ui/toaster";
-
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "eTuckshop - Your One-Stop Shop",
-  description: "Shop for all your needs at eTuckshop",
+  title: 'eTuckshop - Your Digital Tuckshop',
+  description: 'Shop conveniently with eTuckshop',
 };
 
 export default function RootLayout({
@@ -21,17 +17,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <QueryProvider>
-          {children}
-
-          {/* If you use your own ToastProvider from /lib/providers */}
-          <ToastProvider />
-
-          {/* If instead you want shadcn toaster, uncomment this: */}
-          {/* <Toaster /> */}
-        </QueryProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <ReactQueryProvider>
+            {children}
+          </ReactQueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

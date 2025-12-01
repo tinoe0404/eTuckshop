@@ -1,38 +1,67 @@
-import apiClient from "../client";
-import { API_ENDPOINTS } from "../endpoints";
-import type { Product, ProductFilters } from "@/types/product.types";
-import type { ApiResponse } from "@/types/api.types";
+import apiClient from '../client';
+import { ApiResponse, Product } from '@/types';
 
-class ProductService {
-  async getProducts(filters?: ProductFilters): Promise<ApiResponse<Product[]>> {
-    const params = new URLSearchParams();
-    
-    if (filters?.categoryId) params.append("categoryId", filters.categoryId.toString());
-    if (filters?.search) params.append("search", filters.search);
-    if (filters?.minPrice) params.append("minPrice", filters.minPrice.toString());
-    if (filters?.maxPrice) params.append("maxPrice", filters.maxPrice.toString());
-    if (filters?.sortBy) params.append("sortBy", filters.sortBy);
-    if (filters?.sortOrder) params.append("sortOrder", filters.sortOrder);
+export const productService = {
+  // Get all products
+  getAll: async () => {
+    const response = await apiClient.get<ApiResponse<Product[]>>('/products');
+    return response.data.data;
+  },
 
-    const response = await apiClient.get<ApiResponse<Product[]>>(
-      `${API_ENDPOINTS.PRODUCTS.BASE}?${params.toString()}`
-    );
-    return response.data;
-  }
-
-  async getProduct(id: number): Promise<ApiResponse<Product>> {
+  // Get product by ID
+  getById: async (id: number) => {
     const response = await apiClient.get<ApiResponse<Product>>(
-      API_ENDPOINTS.PRODUCTS.BY_ID(id)
+      `/products/${id}`
     );
-    return response.data;
-  }
+    return response.data.data;
+  },
 
-  async getProductsByCategory(categoryId: number): Promise<ApiResponse<Product[]>> {
+  // Get products by category
+  getByCategory: async (categoryId: number) => {
     const response = await apiClient.get<ApiResponse<Product[]>>(
-      API_ENDPOINTS.PRODUCTS.BY_CATEGORY(categoryId)
+      `/products/category/${categoryId}`
     );
-    return response.data;
-  }
-}
+    return response.data.data;
+  },
 
-export const productService = new ProductService();
+  // Search products
+  searchProducts: async (query: string) => {
+    const response = await apiClient.get<ApiResponse<Product[]>>('/products', {
+      params: { search: query },
+    });
+    return response.data.data;
+  },
+
+  // Admin: Create product
+  create: async (data: {
+    name: string;
+    description: string;
+    price: number;
+    stock: number;
+    categoryId: number;
+    image?: string;
+  }) => {
+    const response = await apiClient.post<ApiResponse<Product>>(
+      '/products',
+      data
+    );
+    return response.data.data;
+  },
+
+  // Admin: Update product
+  update: async (id: number, data: Partial<Product>) => {
+    const response = await apiClient.put<ApiResponse<Product>>(
+      `/products/${id}`,
+      data
+    );
+    return response.data.data;
+  },
+
+  // Admin: Delete product
+  delete: async (id: number) => {
+    const response = await apiClient.delete<ApiResponse<{ id: number }>>(
+      `/products/${id}`
+    );
+    return response.data.data;
+  },
+};

@@ -3,11 +3,11 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
-import CustomerHeader from '@/components/layout/CustomerHeader';
-import CustomerSidebar from '@/components/layout/CustomerSidebar';
+import AdminHeader from '@/components/layout/AdminHeader';
+import AdminSidebar from '@/components/layout/AdminSidebar';
 import { Toaster } from 'sonner';
 
-export default function CustomerLayout({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -22,13 +22,13 @@ export default function CustomerLayout({
       return;
     }
 
-    // Redirect if not customer
-    if (user?.role !== 'CUSTOMER') {
+    // Redirect if not admin
+    if (user?.role !== 'ADMIN') {
       router.push('/login');
     }
   }, [isAuthenticated, user, router]);
 
-  if (!isAuthenticated || user?.role !== 'CUSTOMER') {
+  if (!isAuthenticated || user?.role !== 'ADMIN') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
@@ -38,9 +38,9 @@ export default function CustomerLayout({
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <CustomerHeader />
+      <AdminHeader />
       <div className="flex">
-        <CustomerSidebar />
+        <AdminSidebar />
         <main className="flex-1 p-6">
           {children}
         </main>

@@ -1,52 +1,52 @@
-import apiClient from "../client";
-import { API_ENDPOINTS } from "../endpoints";
-import type { Cart, CartSummary, AddToCartRequest, UpdateCartRequest } from "@/types/cart.types";
-import type { ApiResponse } from "@/types/api.types";
+import { ApiResponse, Cart } from "@/types";
+import apiClient from '@/lib/api/client';
 
-class CartService {
-  async getCart(): Promise<ApiResponse<Cart>> {
-    const response = await apiClient.get<ApiResponse<Cart>>(
-      API_ENDPOINTS.CART.BASE
-    );
-    return response.data;
-  }
+export const cartService = {
+  // Get cart
+  getCart: async () => {
+    const response = await apiClient.get<ApiResponse<Cart>>("/cart");
+    return response.data.data; // <-- return actual cart object
+  },
 
-  async getCartSummary(): Promise<ApiResponse<CartSummary>> {
-    const response = await apiClient.get<ApiResponse<CartSummary>>(
-      API_ENDPOINTS.CART.SUMMARY
-    );
-    return response.data;
-  }
+  // Add to cart
+  addToCart: async (data: { productId: number; quantity?: number }) => {
+    const response = await apiClient.post<ApiResponse<Cart>>("/cart/add", data);
+    return response.data.data;
+  },
 
-  async addToCart(data: AddToCartRequest): Promise<ApiResponse<Cart>> {
-    const response = await apiClient.post<ApiResponse<Cart>>(
-      API_ENDPOINTS.CART.ADD,
-      data
-    );
-    return response.data;
-  }
-
-  async updateCartItem(data: UpdateCartRequest): Promise<ApiResponse<Cart>> {
+  // Update cart item
+  updateCartItem: async (data: { productId: number; quantity: number }) => {
     const response = await apiClient.patch<ApiResponse<Cart>>(
-      API_ENDPOINTS.CART.UPDATE,
+      "/cart/update",
       data
     );
-    return response.data;
-  }
+    return response.data.data;
+  },
 
-  async removeFromCart(productId: number): Promise<ApiResponse<Cart>> {
+  // Remove from cart
+  removeFromCart: async (productId: number) => {
     const response = await apiClient.delete<ApiResponse<Cart>>(
-      API_ENDPOINTS.CART.REMOVE(productId)
+      `/cart/remove/${productId}`
     );
-    return response.data;
-  }
+    return response.data.data;
+  },
 
-  async clearCart(): Promise<ApiResponse> {
-    const response = await apiClient.delete<ApiResponse>(
-      API_ENDPOINTS.CART.CLEAR
-    );
-    return response.data;
-  }
-}
+  // Clear cart
+  clearCart: async () => {
+    const response = await apiClient.delete<ApiResponse<Cart>>("/cart/clear");
+    return response.data.data;
+  },
 
-export const cartService = new CartService();
+  // Get cart summary
+  getCartSummary: async () => {
+    const response = await apiClient.get<
+      ApiResponse<{
+        totalItems: number;
+        totalAmount: number;
+        itemCount: number;
+      }>
+    >("/cart/summary");
+
+    return response.data.data;
+  },
+};
