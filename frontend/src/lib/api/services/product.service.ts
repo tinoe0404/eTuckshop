@@ -1,5 +1,5 @@
 import apiClient from '@/lib/api/client';
-import { ApiResponse, Product } from '@/lib/types';
+import { ApiResponse, Product } from '@/types';
 
 export const productService = {
   // Get all products

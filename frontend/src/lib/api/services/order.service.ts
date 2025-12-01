@@ -1,5 +1,5 @@
 import apiClient from '@/lib/api/client';
-import { ApiResponse, Order, QRPayload } from '@/lib/types';
+import { ApiResponse, Order,  } from '@/types';
 
 export const orderService = {
   // Checkout - create order from cart
@@ -63,13 +63,14 @@ export const orderService = {
     return response.data;
   },
 
-  // Get order QR code
+
+/*  // Get order QR code
   getOrderQR: async (orderId: number) => {
     const response = await apiClient.get<ApiResponse<QRPayload & { qrCode: string }>>(
       `/orders/qr/${orderId}`
     );
     return response.data;
-  },
+  }, */
 
   // Get user orders
   getUserOrders: async () => {

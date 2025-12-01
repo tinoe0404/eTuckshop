@@ -1,5 +1,5 @@
 import apiClient from '@/lib/api/client';
-import { ApiResponse, Category } from '@/lib/types';
+import { ApiResponse, Category } from '@/types';
 
 export const categoryService = {
   // Get all categories
