@@ -35,7 +35,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { formatCurrency, getStockLevelColor } from '@/lib/utils';
-import { CartItem } from '@/lib/types';
+import { CartItem } from '@/types';
 import Image from 'next/image';
 
 export default function CartPage() {
@@ -267,7 +267,7 @@ export default function CartPage() {
                       <CardContent className="p-4">
                         <div className="flex gap-4">
                           {/* Product Image */}
-                          <div className="relative w-24 h-24 bg-linear-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-lg overflow-hidden flex-shrink-0">
+                          <div className="relative w-24 h-24 bg-linear-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-lg overflow-hidden shrink-0">
                             {item.image ? (
                               <Image
                                 src={item.image}

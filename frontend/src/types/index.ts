@@ -1,12 +1,18 @@
+// -----------------------------
 // Generic API Response
+// -----------------------------
 export interface ApiResponse<T> {
-    success: boolean;
-    message: string;
-    data?: T;
-    error?: string;
-  }
-  
-  // Auth
+  success: boolean;
+  message: string;
+  data: T;              // ⬅ always return data when success = true
+  error?: string;       // optional for failed responses
+}
+
+
+
+// -----------------------------
+// Auth Types
+// -----------------------------
 export interface User {
   id: number;
   name: string;
@@ -17,16 +23,25 @@ export interface User {
 }
 
 export interface AuthResponse {
-  success: boolean;
-  message: string;
   user: User;
   accessToken: string;
   refreshToken: string;
 }
 
-export type ProductList = Product[];
 
-// Products
+
+// -----------------------------
+// Product & Category
+// -----------------------------
+export interface Category {
+  id: number;
+  name: string;
+  description: string | null;
+  productCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Product {
   id: number;
   name: string;
@@ -41,26 +56,13 @@ export interface Product {
   updatedAt: string;
 }
 
-export interface Category {
-  id: number;
-  name: string;
-  description: string | null;
-  productCount?: number;
-  createdAt: string;
-  updatedAt: string;
-}
+export type ProductList = Product[];
 
-// Cart
-export interface Cart {
-  id: number;
-  userId: number;
-  items: CartItem[];
-  totalItems: number;
-  totalAmount: number;
-  createdAt: string;
-  updatedAt: string;
-}
 
+
+// -----------------------------
+// Cart Types
+// -----------------------------
 export interface CartItem {
   id: number;
   productId: number;
@@ -75,22 +77,21 @@ export interface CartItem {
   image: string | null;
 }
 
-// Orders
-export interface Order {
+export interface Cart {
   id: number;
-  orderNumber: string;
   userId: number;
+  items: CartItem[];
+  totalItems: number;
   totalAmount: number;
-  paymentType: 'CASH' | 'PAYNOW';
-  status: 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED';
-  paidAt: string | null;
-  completedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  orderItems: OrderItem[];
-  paymentQR?: PaymentQR;
 }
 
+
+
+// -----------------------------
+// Order Types
+// -----------------------------
 export interface OrderItem {
   id: number;
   orderId: number;
@@ -104,4 +105,19 @@ export interface PaymentQR {
   expiresAt: string | null;
   isUsed: boolean;
   paymentType: 'CASH' | 'PAYNOW';
+}
+
+export interface Order {
+  id: number;
+  orderNumber: string;
+  userId: number;
+  totalAmount: number;
+  paymentType: 'CASH' | 'PAYNOW';
+  status: 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED';
+  paidAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  orderItems: OrderItem[];
+  paymentQR?: PaymentQR;
 }
