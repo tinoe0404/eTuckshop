@@ -203,7 +203,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
       <div className="max-w-6xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -244,7 +244,7 @@ export default function ProfilePage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+          <Card className="border-0 shadow-lg bg-linear-to-br from-blue-500 to-blue-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -258,7 +258,7 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-green-500 to-emerald-600 text-white">
+          <Card className="border-0 shadow-lg bg-linear-to-br from-green-500 to-emerald-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -272,7 +272,7 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-500 to-pink-600 text-white">
+          <Card className="border-0 shadow-lg bg-linear-to-br from-purple-500 to-pink-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -288,7 +288,7 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-500 to-red-600 text-white">
+          <Card className="border-0 shadow-lg bg-linear-to-br from-orange-500 to-red-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -309,7 +309,7 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Profile Info Card */}
           <Card className="border-0 shadow-xl lg:col-span-1">
-            <CardHeader className="border-b bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+            <CardHeader className="border-b bg-linear-to-r from-blue-600 to-purple-600 text-white">
               <CardTitle className="flex items-center space-x-2">
                 <User className="w-5 h-5" />
                 <span>Profile Info</span>
@@ -318,7 +318,7 @@ export default function ProfilePage() {
             <CardContent className="p-6">
               <div className="text-center space-y-4">
                 {/* Avatar */}
-                <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
+                <div className="w-24 h-24 bg-linear-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
                   <span className="text-4xl font-bold text-white">
                     {user.name.charAt(0).toUpperCase()}
                   </span>
@@ -374,7 +374,7 @@ export default function ProfilePage() {
 
           {/* Right Column: Settings Tabs */}
           <Card className="border-0 shadow-xl lg:col-span-2">
-            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+            <CardHeader className="border-b bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
               <CardTitle>Account Settings</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
