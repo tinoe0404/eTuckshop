@@ -48,8 +48,20 @@ import {
   Loader2,
   DollarSign,
   Box,
+  AlertCircle,
 } from 'lucide-react';
 import { Category } from '@/types';
+
+interface CategoryStats {
+  id: number;
+  name: string;
+  description: string | null;
+  totalProducts: number;
+  totalStock: number;
+  averagePrice: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function AdminCategoriesPage() {
   const queryClient = useQueryClient();
@@ -80,68 +92,72 @@ export default function AdminCategoriesPage() {
   });
 
   const categories = categoriesData?.data || [];
-  const stats = statsData?.data || [];
+  const stats: CategoryStats[] = statsData?.data || [];
 
   // Create category mutation
   const createCategoryMutation = useMutation({
-    mutationFn: categoryService.create,
-    onSuccess: () => {
+    mutationFn: (data: { name: string; description?: string }) =>
+      categoryService.create(data),
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
       queryClient.invalidateQueries({ queryKey: ['category-stats'] });
       queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast.success('Category created successfully');
+      toast.success(response.message || 'Category created successfully');
       setIsCreateDialogOpen(false);
       resetForm();
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to create category');
+      const message = error.response?.data?.message || 'Failed to create category';
+      toast.error(message);
     },
   });
 
   // Update category mutation
   const updateCategoryMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) =>
+    mutationFn: ({ id, data }: { id: number; data: { name?: string; description?: string } }) =>
       categoryService.update(id, data),
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
       queryClient.invalidateQueries({ queryKey: ['category-stats'] });
       queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast.success('Category updated successfully');
+      toast.success(response.message || 'Category updated successfully');
       setIsEditDialogOpen(false);
       setEditingCategory(null);
       resetForm();
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to update category');
+      const message = error.response?.data?.message || 'Failed to update category';
+      toast.error(message);
     },
   });
 
   // Delete category mutation
   const deleteCategoryMutation = useMutation({
-    mutationFn: categoryService.delete,
-    onSuccess: () => {
+    mutationFn: (id: number) => categoryService.delete(id),
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
       queryClient.invalidateQueries({ queryKey: ['category-stats'] });
       queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast.success('Category deleted successfully');
+      toast.success(response.message || 'Category deleted successfully');
       setDeleteCategoryId(null);
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to delete category');
+      const message = error.response?.data?.message || 'Failed to delete category';
+      toast.error(message);
     },
   });
 
   // Filter categories
-  const filteredCategories = categories.filter((category) =>
+  const filteredCategories = categories.filter((category: Category) =>
     category.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Calculate totals
+  // Calculate totals from stats
   const totalCategories = categories.length;
-  const totalProducts = stats.reduce((sum, cat) => sum + (cat.totalProducts || 0), 0);
-  const totalStock = stats.reduce((sum, cat) => sum + (cat.totalStock || 0), 0);
+  const totalProducts = stats.reduce((sum, cat) => sum + cat.totalProducts, 0);
+  const totalStock = stats.reduce((sum, cat) => sum + cat.totalStock, 0);
   const avgPrice = stats.length > 0
-    ? stats.reduce((sum, cat) => sum + (cat.averagePrice || 0), 0) / stats.length
+    ? stats.reduce((sum, cat) => sum + cat.averagePrice, 0) / stats.length
     : 0;
 
   const resetForm = () => {
@@ -152,15 +168,23 @@ export default function AdminCategoriesPage() {
   };
 
   const handleCreateCategory = () => {
-    if (!formData.name.trim()) {
+    const trimmedName = formData.name.trim();
+    
+    if (!trimmedName) {
       toast.error('Category name is required');
       return;
     }
 
-    createCategoryMutation.mutate({
-      name: formData.name.trim(),
-      description: formData.description.trim() || undefined,
-    });
+    const data: { name: string; description?: string } = {
+      name: trimmedName,
+    };
+
+    const trimmedDesc = formData.description.trim();
+    if (trimmedDesc) {
+      data.description = trimmedDesc;
+    }
+
+    createCategoryMutation.mutate(data);
   };
 
   const handleEditCategory = (category: Category) => {
@@ -175,17 +199,26 @@ export default function AdminCategoriesPage() {
   const handleUpdateCategory = () => {
     if (!editingCategory) return;
 
-    if (!formData.name.trim()) {
+    const trimmedName = formData.name.trim();
+    
+    if (!trimmedName) {
       toast.error('Category name is required');
       return;
     }
 
+    const data: { name?: string; description?: string } = {};
+    
+    // Only include name if it changed
+    if (trimmedName !== editingCategory.name) {
+      data.name = trimmedName;
+    }
+
+    // Always include description (can be empty string to clear)
+    data.description = formData.description.trim() || undefined;
+
     updateCategoryMutation.mutate({
       id: editingCategory.id,
-      data: {
-        name: formData.name.trim(),
-        description: formData.description.trim() || undefined,
-      },
+      data,
     });
   };
 
@@ -200,8 +233,14 @@ export default function AdminCategoriesPage() {
   };
 
   // Get category stats for a specific category
-  const getCategoryStats = (categoryId: number) => {
+  const getCategoryStats = (categoryId: number): CategoryStats | undefined => {
     return stats.find((s) => s.id === categoryId);
+  };
+
+  // Get category product count from categories data
+  const getCategoryProductCount = (categoryId: number): number => {
+    const category = categories.find((c: Category) => c.id === categoryId);
+    return category?.productCount || 0;
   };
 
   if (categoriesLoading || statsLoading) {
@@ -271,11 +310,11 @@ export default function AdminCategoriesPage() {
                 {/* Description */}
                 <div className="space-y-2">
                   <Label htmlFor="description" className="text-gray-300">
-                    Description
+                    Description (Optional)
                   </Label>
                   <Textarea
                     id="description"
-                    placeholder="Enter category description (optional)"
+                    placeholder="Enter category description"
                     value={formData.description}
                     onChange={(e) =>
                       setFormData({ ...formData, description: e.target.value })
@@ -293,6 +332,7 @@ export default function AdminCategoriesPage() {
                     resetForm();
                   }}
                   className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                  disabled={createCategoryMutation.isPending}
                 >
                   Cancel
                 </Button>
@@ -425,6 +465,8 @@ export default function AdminCategoriesPage() {
                 ) : (
                   filteredCategories.map((category: Category) => {
                     const categoryStats = getCategoryStats(category.id);
+                    const productCount = getCategoryProductCount(category.id);
+                    
                     return (
                       <TableRow
                         key={category.id}
@@ -434,7 +476,7 @@ export default function AdminCategoriesPage() {
                           <div>
                             <p className="font-medium text-white">{category.name}</p>
                             {category.description && (
-                              <p className="text-xs text-gray-400 line-clamp-1">
+                              <p className="text-xs text-gray-400 line-clamp-1 mt-1">
                                 {category.description}
                               </p>
                             )}
@@ -442,7 +484,7 @@ export default function AdminCategoriesPage() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="border-gray-700 text-gray-300">
-                            {categoryStats?.totalProducts || category.productCount || 0} products
+                            {categoryStats?.totalProducts || productCount} products
                           </Badge>
                         </TableCell>
                         <TableCell className="text-gray-300">
@@ -469,6 +511,8 @@ export default function AdminCategoriesPage() {
                               size="icon"
                               onClick={() => handleDeleteCategory(category.id)}
                               className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                              disabled={productCount > 0}
+                              title={productCount > 0 ? 'Cannot delete category with products' : 'Delete category'}
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -512,11 +556,11 @@ export default function AdminCategoriesPage() {
               {/* Description */}
               <div className="space-y-2">
                 <Label htmlFor="edit-description" className="text-gray-300">
-                  Description
+                  Description (Optional)
                 </Label>
                 <Textarea
                   id="edit-description"
-                  placeholder="Enter category description (optional)"
+                  placeholder="Enter category description"
                   value={formData.description}
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
@@ -535,6 +579,7 @@ export default function AdminCategoriesPage() {
                   resetForm();
                 }}
                 className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                disabled={updateCategoryMutation.isPending}
               >
                 Cancel
               </Button>
@@ -565,8 +610,15 @@ export default function AdminCategoriesPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Category?</AlertDialogTitle>
               <AlertDialogDescription className="text-gray-400">
-                This action cannot be undone. This will permanently delete the category.
-                You can only delete categories that have no products.
+                <div className="space-y-2">
+                  <p>This action cannot be undone. This will permanently delete the category.</p>
+                  <div className="flex items-start space-x-2 p-3 bg-yellow-900/20 border border-yellow-800/30 rounded-lg">
+                    <AlertCircle className="w-5 h-5 text-yellow-400 mt-0.5 shrink-0" />
+                    <p className="text-sm text-yellow-300">
+                      Note: You can only delete categories that have no products associated with them.
+                    </p>
+                  </div>
+                </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

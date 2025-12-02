@@ -4,8 +4,8 @@
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
-  data: T;              // ⬅ always return data when success = true
-  error?: string;       // optional for failed responses
+  data: T;
+  error?: string;
 }
 
 
@@ -107,17 +107,30 @@ export interface PaymentQR {
   paymentType: 'CASH' | 'PAYNOW';
 }
 
+
 export interface Order {
   id: number;
   orderNumber: string;
+
+  // Helpful for admin pages (order.user?.name, etc.)
   userId: number;
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+
   totalAmount: number;
   paymentType: 'CASH' | 'PAYNOW';
   status: 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED';
+
   paidAt: string | null;
   completedAt: string | null;
+
   createdAt: string;
   updatedAt: string;
+
   orderItems: OrderItem[];
+
   paymentQR?: PaymentQR;
 }
