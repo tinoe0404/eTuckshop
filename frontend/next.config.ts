@@ -1,11 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['localhost'],
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: '**', // allows all HTTPS image hosts
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost', // if you load images from localhost
       },
     ],
   },
@@ -14,6 +17,6 @@ const nextConfig = {
       bodySizeLimit: '2mb',
     },
   },
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;

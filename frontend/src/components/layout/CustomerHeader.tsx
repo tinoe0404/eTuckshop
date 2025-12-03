@@ -40,7 +40,7 @@ export default function CustomerHeader() {
               <span className="text-white text-xl font-bold">eT</span>
             </div>
             <span className="text-xl font-bold text-gray-900 dark:text-white">
-              Tuckshop
+              eTuckshop
             </span>
           </div>
 

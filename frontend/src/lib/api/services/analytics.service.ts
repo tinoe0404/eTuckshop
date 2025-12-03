@@ -10,10 +10,15 @@ export const analyticsService = {
    * Used in: /admin/dashboard
    */
   getDashboardStats: async () => {
-    const response = await apiClient.get<ApiResponse<DashboardStats>>(
-      '/analytics/dashboard'
-    );
-    return response.data;
+    try {
+      const response = await apiClient.get<ApiResponse<DashboardStats>>(
+        '/analytics/dashboard'
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Dashboard stats error:', error.response?.data || error.message);
+      throw error;
+    }
   },
 
   /**
@@ -25,10 +30,15 @@ export const analyticsService = {
     startDate?: string;
     endDate?: string;
   }) => {
-    const response = await apiClient.get<ApiResponse<AnalyticsData>>(
-      '/analytics',
-      { params }
-    );
-    return response.data;
+    try {
+      const response = await apiClient.get<ApiResponse<AnalyticsData>>(
+        '/analytics',
+        { params }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Analytics error:', error.response?.data || error.message);
+      throw error;
+    }
   },
 };

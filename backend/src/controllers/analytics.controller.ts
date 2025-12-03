@@ -135,14 +135,15 @@ export const getAnalytics = async (c: Context) => {
       }),
 
       // Daily sales and revenue stats (last 30 days)
+      // FIXED: Use camelCase column names that match Prisma schema
       prisma.$queryRaw`
         SELECT 
-          DATE(created_at) as date,
+          DATE("createdAt") as date,
           COUNT(*) as order_count,
-          SUM(CASE WHEN status IN ('PAID', 'COMPLETED') THEN total_amount ELSE 0 END) as revenue
+          SUM(CASE WHEN status IN ('PAID', 'COMPLETED') THEN "totalAmount" ELSE 0 END) as revenue
         FROM "Order"
-        WHERE created_at >= ${start} AND created_at <= ${end}
-        GROUP BY DATE(created_at)
+        WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+        GROUP BY DATE("createdAt")
         ORDER BY date ASC
       `,
 
