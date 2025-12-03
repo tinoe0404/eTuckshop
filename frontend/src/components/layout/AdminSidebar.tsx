@@ -62,6 +62,11 @@ const navItems: NavItem[] = [
     href: '/admin/scan-qr',
     icon: <QrCode className="w-5 h-5" />,
   },
+  {
+    title: 'Customers',
+    href: '/admin/customers',
+    icon: <Users className="w-5 h-5" />,
+  },
 ];
 
 export default function AdminSidebar() {
