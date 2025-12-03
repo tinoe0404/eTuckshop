@@ -1,6 +1,28 @@
 import apiClient from '@/lib/api/client';
 import { ApiResponse } from '@/types';
 
+// ========================
+// Types
+// ========================
+export interface CustomerStatistics {
+  totalOrders: number;
+  completedOrders: number;
+  totalSpent: number;
+  averageOrderValue: number;
+  pendingOrders: number;
+  paidOrders: number;
+  cancelledOrders: number;
+}
+
+export interface Order {
+  id: number;
+  orderNumber: string;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+  orderItems?: any[];
+}
+
 export interface Customer {
   id: number;
   name: string;
@@ -8,10 +30,16 @@ export interface Customer {
   role: string;
   createdAt: string;
   updatedAt: string;
-  totalOrders: number;
-  completedOrders: number;
-  totalSpent: number;
-  lastOrder: {
+
+  // Added fields
+  statistics: CustomerStatistics;
+  recentOrders: Order[];
+
+  // Optional for table listing
+  totalOrders?: number;
+  completedOrders?: number;
+  totalSpent?: number;
+  lastOrder?: {
     orderNumber: string;
     amount: number;
     date: string;
@@ -32,6 +60,9 @@ export interface CustomerStats {
   }>;
 }
 
+// ========================
+// Service
+// ========================
 export const customerService = {
   // Get all customers
   getAll: async (params?: {
@@ -41,7 +72,7 @@ export const customerService = {
     sortBy?: string;
     order?: 'asc' | 'desc';
   }) => {
-    const response = await apiClient.get
+    const response = await apiClient.get<
       ApiResponse<{
         customers: Customer[];
         pagination: {
@@ -57,23 +88,19 @@ export const customerService = {
 
   // Get customer by ID
   getById: async (id: number) => {
-    const response = await apiClient.get<ApiResponse<any>>(`/customers/${id}`);
+    const response = await apiClient.get<ApiResponse<Customer>>(`/customers/${id}`);
     return response.data;
   },
 
   // Get customer statistics
   getStats: async () => {
-    const response = await apiClient.get<ApiResponse<CustomerStats>>(
-      '/customers/stats'
-    );
+    const response = await apiClient.get<ApiResponse<CustomerStats>>('/customers/stats');
     return response.data;
   },
 
   // Delete customer
   delete: async (id: number) => {
-    const response = await apiClient.delete<ApiResponse<{ id: number }>>(
-      `/customers/${id}`
-    );
+    const response = await apiClient.delete<ApiResponse<{ id: number }>>(`/customers/${id}`);
     return response.data;
   },
 };

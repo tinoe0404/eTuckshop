@@ -96,7 +96,6 @@ export const getAnalytics = async (c: Context) => {
         category: product?.category.name || 'Unknown',
         totalSold: tp._sum.quantity || 0,
         orderCount: tp._count.productId || 0,
-        image: product?.image || null,
       };
     });
 

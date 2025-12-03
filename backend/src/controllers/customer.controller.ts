@@ -9,11 +9,7 @@ export const getAllCustomers = async (c: Context) => {
   try {
     const { search, page = "1", limit = "10", sortBy = "createdAt", order = "desc" } = c.req.query();
 
-    const where: any = {
-      role: "CUSTOMER", // Only get customers, not admins
-    };
-
-    // Search filter
+    const where: any = { role: "CUSTOMER" };
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -21,7 +17,6 @@ export const getAllCustomers = async (c: Context) => {
       ];
     }
 
-    // Build orderBy
     const orderByField = sortBy || "createdAt";
     const orderDirection = order === "asc" ? "asc" : "desc";
 
@@ -35,9 +30,7 @@ export const getAllCustomers = async (c: Context) => {
           role: true,
           createdAt: true,
           updatedAt: true,
-          _count: {
-            select: { orders: true },
-          },
+          _count: { select: { orders: true } },
         },
         orderBy: { [orderByField]: orderDirection },
         skip: (parseInt(page) - 1) * parseInt(limit),
@@ -46,14 +39,10 @@ export const getAllCustomers = async (c: Context) => {
       prisma.user.count({ where }),
     ]);
 
-    // Get order statistics for each customer
     const customersWithStats = await Promise.all(
       customers.map(async (customer) => {
         const orderStats = await prisma.order.aggregate({
-          where: {
-            userId: customer.id,
-            status: { in: ["PAID", "COMPLETED"] },
-          },
+          where: { userId: customer.id, status: { in: ["PAID", "COMPLETED"] } },
           _sum: { totalAmount: true },
           _count: true,
         });
@@ -125,24 +114,15 @@ export const getCustomerById = async (c: Context) => {
       return c.json({ success: false, message: "User is not a customer" }, 400);
     }
 
-    // Get customer orders
     const orders = await prisma.order.findMany({
       where: { userId: id },
-      include: {
-        orderItems: {
-          include: { product: true },
-        },
-      },
+      include: { orderItems: { include: { product: true } } },
       orderBy: { createdAt: "desc" },
       take: 10,
     });
 
-    // Calculate statistics
     const stats = await prisma.order.aggregate({
-      where: {
-        userId: id,
-        status: { in: ["PAID", "COMPLETED"] },
-      },
+      where: { userId: id, status: { in: ["PAID", "COMPLETED"] } },
       _sum: { totalAmount: true },
       _avg: { totalAmount: true },
       _count: true,
@@ -159,20 +139,18 @@ export const getCustomerById = async (c: Context) => {
       success: true,
       message: "Customer details retrieved successfully",
       data: {
-        customer: {
-          ...customer,
-          statistics: {
-            totalOrders: orders.length,
-            completedOrders: stats._count || 0,
-            totalSpent: parseFloat((stats._sum.totalAmount || 0).toFixed(2)),
-            averageOrderValue: parseFloat((stats._avg.totalAmount || 0).toFixed(2)),
-            pendingOrders: statusBreakdown[0],
-            paidOrders: statusBreakdown[1],
-            completedOrders: statusBreakdown[2],
-            cancelledOrders: statusBreakdown[3],
-          },
-          recentOrders: orders,
+        ...customer,
+        statistics: {
+          totalOrders: orders.length,
+          completedOrdersCount: stats._count || 0,
+          totalSpent: parseFloat((stats._sum.totalAmount || 0).toFixed(2)),
+          averageOrderValue: parseFloat((stats._avg.totalAmount || 0).toFixed(2)),
+          pendingOrders: statusBreakdown[0],
+          paidOrders: statusBreakdown[1],
+          completedOrders: statusBreakdown[2],
+          cancelledOrders: statusBreakdown[3],
         },
+        recentOrders: orders,
       },
     });
   } catch (error) {
@@ -185,43 +163,20 @@ export const getCustomerById = async (c: Context) => {
 // ==========================================
 export const getCustomerStats = async (c: Context) => {
   try {
-    const [
-      totalCustomers,
-      activeCustomers,
-      newCustomersThisMonth,
-      topCustomers,
-    ] = await Promise.all([
-      // Total customers
+    const [totalCustomers, activeCustomers, newCustomersThisMonth, topCustomers] = await Promise.all([
       prisma.user.count({ where: { role: "CUSTOMER" } }),
-
-      // Active customers (with at least 1 completed order)
+      prisma.user.count({
+        where: { role: "CUSTOMER", orders: { some: { status: { in: ["PAID", "COMPLETED"] } } } },
+      }),
       prisma.user.count({
         where: {
           role: "CUSTOMER",
-          orders: {
-            some: {
-              status: { in: ["PAID", "COMPLETED"] },
-            },
-          },
+          createdAt: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
         },
       }),
-
-      // New customers this month
-      prisma.user.count({
-        where: {
-          role: "CUSTOMER",
-          createdAt: {
-            gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-          },
-        },
-      }),
-
-      // Top 5 customers by spending
       prisma.order.groupBy({
         by: ["userId"],
-        where: {
-          status: { in: ["PAID", "COMPLETED"] },
-        },
+        where: { status: { in: ["PAID", "COMPLETED"] } },
         _sum: { totalAmount: true },
         _count: true,
         orderBy: { _sum: { totalAmount: "desc" } },
@@ -229,7 +184,6 @@ export const getCustomerStats = async (c: Context) => {
       }),
     ]);
 
-    // Get customer details for top customers
     const topCustomerIds = topCustomers.map((tc) => tc.userId);
     const customerDetails = await prisma.user.findMany({
       where: { id: { in: topCustomerIds } },
@@ -272,11 +226,7 @@ export const deleteCustomer = async (c: Context) => {
 
     const customer = await prisma.user.findUnique({
       where: { id },
-      include: {
-        _count: {
-          select: { orders: true },
-        },
-      },
+      include: { _count: { select: { orders: true } } },
     });
 
     if (!customer) {
@@ -287,7 +237,6 @@ export const deleteCustomer = async (c: Context) => {
       return c.json({ success: false, message: "Cannot delete admin users" }, 400);
     }
 
-    // Check if customer has orders
     if (customer._count.orders > 0) {
       return c.json(
         {
