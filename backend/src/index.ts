@@ -10,6 +10,7 @@ import categoryRoutes from "./routes/category.route";
 import cartRoutes from "./routes/cart.route";
 import orderRoutes from "./routes/orders.route";
 import analyticsRoutes from "./routes/analytics.route";
+import customerRoutes from "./routes/customer.route";
 
 const app = new Hono();
 
@@ -32,6 +33,7 @@ app.get("/", (c) => {
       cart: "/api/cart",
       orders: "/api/orders",
       analytics: "/api/analytics",
+      customer: "/api/customer",
     }
   });
 });
@@ -54,6 +56,7 @@ app.route("/api/categories", categoryRoutes);
 app.route("/api/cart", cartRoutes);
 app.route("/api/orders", orderRoutes);
 app.route("/api/analytics", analyticsRoutes);
+app.route("/api/customers", customerRoutes);
 
 // Global error handler
 app.onError((err, c) => {
