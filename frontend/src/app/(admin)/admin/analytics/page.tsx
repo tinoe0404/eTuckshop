@@ -16,7 +16,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-
+import { AnalyticsSummary, DailyStats, TopProduct, AnalyticsData } from '@/types';
 export default function AdminAnalyticsPage() {
   const [dateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -257,7 +257,7 @@ export default function AdminAnalyticsPage() {
                     No sales data
                   </div>
                 ) : (
-                  topProducts.slice(0, 5).map((product, index) => (
+                  topProducts.slice(0, 5).map((product) => (
                     <div
                       key={product.productId}
                       className="flex items-center space-x-3 p-3 bg-[#0f1419] rounded-lg hover:bg-gray-800/50 transition-colors"
@@ -319,7 +319,9 @@ export default function AdminAnalyticsPage() {
                         <p className="text-sm font-medium text-white">
                           {order.orderNumber}
                         </p>
-                        <p className="text-xs text-gray-400">{order.user.name}</p>
+                        <p className="text-xs text-gray-400">
+                          {order.user?.name || 'Guest User'}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-4">

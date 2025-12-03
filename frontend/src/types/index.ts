@@ -7,9 +7,6 @@ export interface ApiResponse<T> {
   data: T;
   error?: string;
 }
-
-
-
 // -----------------------------
 // Auth Types
 // -----------------------------
@@ -27,8 +24,6 @@ export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
 }
-
-
 
 // -----------------------------
 // Product & Category
@@ -58,8 +53,6 @@ export interface Product {
 
 export type ProductList = Product[];
 
-
-
 // -----------------------------
 // Cart Types
 // -----------------------------
@@ -87,8 +80,6 @@ export interface Cart {
   updatedAt: string;
 }
 
-
-
 // -----------------------------
 // Order Types
 // -----------------------------
@@ -106,7 +97,6 @@ export interface PaymentQR {
   isUsed: boolean;
   paymentType: 'CASH' | 'PAYNOW';
 }
-
 
 export interface Order {
   id: number;
@@ -134,4 +124,55 @@ export interface Order {
 
   paymentQR?: PaymentQR;
 }
+// -----------------------------
+// Dashboard Stats (for main admin dashboard)
+// -----------------------------
+export interface DashboardStats {
+  totalOrders: number;
+  pendingOrders: number;
+  completedOrders: number;
+  totalProducts: number;
+  lowStockProducts: number;
+  totalRevenue: number;
+  todayRevenue: number;
+  totalCustomers: number;
+}
 
+// -----------------------------
+// Analytics Types (for analytics page)
+// -----------------------------
+export interface AnalyticsSummary {
+  totalUsers: number;
+  totalProducts: number;
+  totalSales: number;
+  totalRevenue: number;
+  averageOrderValue: number;
+  totalOrders: number;
+  revenueGrowth: number;
+}
+
+export interface DailyStats {
+  date: string;
+  sales: number;
+  revenue: number;
+}
+
+export interface TopProduct {
+  productId: number;
+  name: string;
+  category: string;
+  image?: string | null;
+  totalSold: number;
+  orderCount: number;
+}
+
+export interface AnalyticsData {
+  summary: AnalyticsSummary;
+  dailyStats: DailyStats[];
+  topProducts: TopProduct[];
+  recentOrders: Order[];
+  dateRange: {
+    start: string;
+    end: string;
+  };
+}

@@ -3,6 +3,87 @@ import { prisma } from "../utils/db";
 import { serverError } from "../utils/serverError";
 
 // ==========================================
+// GET DASHBOARD STATS
+// ==========================================
+export const getDashboardStats = async (c: Context) => {
+  try {
+    // Get today's date at midnight for today's revenue calculation
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Parallel queries for better performance
+    const [
+      totalOrders,
+      pendingOrders,
+      completedOrders,
+      totalProducts,
+      lowStockProducts,
+      totalCustomers,
+      totalRevenue,
+      todayRevenue,
+    ] = await Promise.all([
+      // Total orders count
+      prisma.order.count(),
+
+      // Pending orders count
+      prisma.order.count({
+        where: { status: "PENDING" },
+      }),
+
+      // Completed orders count
+      prisma.order.count({
+        where: { status: "COMPLETED" },
+      }),
+
+      // Total products count
+      prisma.product.count(),
+
+      // Low stock products (stock <= 10)
+      prisma.product.count({
+        where: { stock: { lte: 10 } },
+      }),
+
+      // Total customers count
+      prisma.user.count({
+        where: { role: "CUSTOMER" },
+      }),
+
+      // Total revenue from completed orders
+      prisma.order.aggregate({
+        where: { status: "COMPLETED" },
+        _sum: { totalAmount: true },
+      }),
+
+      // Today's revenue
+      prisma.order.aggregate({
+        where: {
+          status: "COMPLETED",
+          completedAt: { gte: today },
+        },
+        _sum: { totalAmount: true },
+      }),
+    ]);
+
+    return c.json({
+      success: true,
+      message: "Dashboard stats retrieved successfully",
+      data: {
+        totalOrders,
+        pendingOrders,
+        completedOrders,
+        totalProducts,
+        lowStockProducts,
+        totalRevenue: parseFloat((totalRevenue._sum.totalAmount || 0).toFixed(2)),
+        todayRevenue: parseFloat((todayRevenue._sum.totalAmount || 0).toFixed(2)),
+        totalCustomers,
+      },
+    });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};
+
+// ==========================================
 // GET ANALYTICS DASHBOARD DATA
 // ==========================================
 export const getAnalytics = async (c: Context) => {
@@ -14,6 +95,9 @@ export const getAnalytics = async (c: Context) => {
     const start = startDate 
       ? new Date(startDate) 
       : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    // Set end date to end of day
+    end.setHours(23, 59, 59, 999);
 
     // Parallel queries for better performance
     const [
@@ -71,12 +155,18 @@ export const getAnalytics = async (c: Context) => {
         take: 5,
       }),
 
-      // Recent orders
+      // Recent orders with user details
       prisma.order.findMany({
         take: 10,
         orderBy: { createdAt: 'desc' },
         include: {
-          user: { select: { name: true, email: true } },
+          user: { 
+            select: { 
+              id: true,
+              name: true, 
+              email: true 
+            } 
+          },
         },
       }),
     ]);

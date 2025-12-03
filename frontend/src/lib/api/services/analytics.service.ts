@@ -1,56 +1,30 @@
 import apiClient from '@/lib/api/client';
-import { ApiResponse } from '@/types';
+import { ApiResponse, DashboardStats, AnalyticsData } from '@/types';
 
-export interface AnalyticsSummary {
-  totalUsers: number;
-  totalProducts: number;
-  totalSales: number;
-  totalRevenue: number;
-  averageOrderValue: number;
-  totalOrders: number;
-  revenueGrowth: number;
-}
-
-export interface DailyStat {
-  date: string;
-  sales: number;
-  revenue: number;
-}
-
-export interface TopProduct {
-  productId: number;
-  name: string;
-  category: string;
-  totalSold: number;
-  orderCount: number;
-  image: string | null;
-}
-
-export interface RecentOrder {
-  id: number;
-  orderNumber: string;
-  totalAmount: number;
-  status: string;
-  createdAt: string;
-  user: {
-    name: string;
-    email: string;
-  };
-}
-
-export interface AnalyticsData {
-  summary: AnalyticsSummary;
-  dailyStats: DailyStat[];
-  topProducts: TopProduct[];
-  recentOrders: RecentOrder[];
-  dateRange: {
-    start: string;
-    end: string;
-  };
-}
-
+// ========================
+// Analytics Service
+// ========================
 export const analyticsService = {
-  getAnalytics: async (params?: { startDate?: string; endDate?: string }) => {
+  /**
+   * Get dashboard statistics for main admin dashboard
+   * Used in: /admin/dashboard
+   */
+  getDashboardStats: async () => {
+    const response = await apiClient.get<ApiResponse<DashboardStats>>(
+      '/analytics/dashboard'
+    );
+    return response.data;
+  },
+
+  /**
+   * Get detailed analytics data for analytics page
+   * Used in: /admin/analytics
+   * @param params - Optional date range filters
+   */
+  getAnalytics: async (params?: {
+    startDate?: string;
+    endDate?: string;
+  }) => {
     const response = await apiClient.get<ApiResponse<AnalyticsData>>(
       '/analytics',
       { params }
