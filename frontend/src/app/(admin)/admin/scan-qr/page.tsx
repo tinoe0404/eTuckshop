@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { orderService } from '@/lib/api/services/order.service';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +33,10 @@ import {
   AlertCircle,
   Loader2,
   ShoppingBag,
+  Camera,
+  X,
+  SwitchCamera,
+  Keyboard,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
@@ -70,9 +74,18 @@ interface ScannedOrder {
 }
 
 export default function AdminQRScannerPage() {
+  const [scanMode, setScanMode] = useState<'camera' | 'manual'>('camera');
   const [qrInput, setQrInput] = useState('');
   const [scannedOrder, setScannedOrder] = useState<ScannedOrder | null>(null);
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Scan QR mutation
   const scanQRMutation = useMutation({
@@ -81,6 +94,7 @@ export default function AdminQRScannerPage() {
       if (response.success) {
         setScannedOrder(response.data);
         toast.success(response.message || 'QR scanned successfully');
+        stopCamera();
       }
     },
     onError: (error: any) => {
@@ -101,10 +115,12 @@ export default function AdminQRScannerPage() {
     onSuccess: (response) => {
       toast.success(response.message || 'Order completed successfully');
       setShowCompleteDialog(false);
-      // Reset scanner
       setTimeout(() => {
         setScannedOrder(null);
         setQrInput('');
+        if (scanMode === 'camera') {
+          startCamera();
+        }
       }, 2000);
     },
     onError: (error: any) => {
@@ -112,7 +128,130 @@ export default function AdminQRScannerPage() {
     },
   });
 
-  const handleScanQR = () => {
+  // Start camera
+  const startCamera = async () => {
+    try {
+      setCameraError(null);
+      
+      const constraints = {
+        video: {
+          facingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+        setIsCameraActive(true);
+        startScanning();
+      }
+    } catch (error: any) {
+      console.error('Camera error:', error);
+      setCameraError(
+        error.name === 'NotAllowedError'
+          ? 'Camera access denied. Please allow camera permissions.'
+          : error.name === 'NotFoundError'
+          ? 'No camera found on this device.'
+          : 'Failed to start camera. Please try again.'
+      );
+      toast.error('Camera error: ' + (error.message || 'Unknown error'));
+    }
+  };
+
+  // Stop camera
+  const stopCamera = () => {
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    setIsCameraActive(false);
+  };
+
+  // Switch camera (front/back)
+  const switchCamera = () => {
+    stopCamera();
+    setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
+    setTimeout(() => startCamera(), 100);
+  };
+
+  // Start scanning QR codes from video
+  const startScanning = () => {
+    if (scanIntervalRef.current) return;
+
+    scanIntervalRef.current = setInterval(() => {
+      if (!videoRef.current || !canvasRef.current || scanQRMutation.isPending) return;
+
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+
+      if (!context || video.readyState !== video.HAVE_ENOUGH_DATA) return;
+
+      // Set canvas size to video size
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      // Draw video frame to canvas
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Get image data
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+      // Try to decode QR code using jsQR
+      try {
+        const code = (window as any).jsQR?.(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'dontInvert',
+        });
+
+        if (code && code.data) {
+          // Successfully decoded QR code
+          scanQRMutation.mutate(code.data);
+        }
+      } catch (error) {
+        console.error('QR decode error:', error);
+      }
+    }, 300); // Check every 300ms
+  };
+
+  // Load jsQR library
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
+  // Start camera on mount if in camera mode
+  useEffect(() => {
+    if (scanMode === 'camera' && !scannedOrder) {
+      startCamera();
+    }
+
+    return () => {
+      stopCamera();
+    };
+  }, [scanMode, scannedOrder]);
+
+  const handleManualScan = () => {
     const trimmedData = qrInput.trim();
     
     if (!trimmedData) {
@@ -132,6 +271,14 @@ export default function AdminQRScannerPage() {
   const handleReset = () => {
     setScannedOrder(null);
     setQrInput('');
+    if (scanMode === 'camera') {
+      startCamera();
+    }
+  };
+
+  const toggleScanMode = () => {
+    stopCamera();
+    setScanMode((prev) => (prev === 'camera' ? 'manual' : 'camera'));
   };
 
   return (
@@ -152,61 +299,176 @@ export default function AdminQRScannerPage() {
         {!scannedOrder ? (
           <Card className="bg-[#1a2332] border-gray-800">
             <CardHeader className="border-b border-gray-800">
-              <CardTitle className="flex items-center space-x-2 text-white">
-                <Scan className="w-5 h-5 text-blue-400" />
-                <span>Scan QR Code</span>
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center space-x-2 text-white">
+                  {scanMode === 'camera' ? (
+                    <Camera className="w-5 h-5 text-blue-400" />
+                  ) : (
+                    <Keyboard className="w-5 h-5 text-blue-400" />
+                  )}
+                  <span>{scanMode === 'camera' ? 'Camera Scanner' : 'Manual Entry'}</span>
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleScanMode}
+                  className="border-gray-700"
+                >
+                  {scanMode === 'camera' ? (
+                    <>
+                      <Keyboard className="w-4 h-4 mr-2" />
+                      Manual
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-4 h-4 mr-2" />
+                      Camera
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
-              {/* Instructions */}
-              <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
-                  <div className="space-y-2 text-sm text-blue-300">
-                    <p className="font-semibold">How to scan:</p>
-                    <ol className="list-decimal list-inside space-y-1 ml-2">
-                      <li>Ask customer to show their QR code</li>
-                      <li>Paste or type the QR data in the field below</li>
-                      <li>Click "Scan QR Code" to verify the order</li>
-                      <li>Complete the pickup after payment verification</li>
-                    </ol>
+              {/* Camera Mode */}
+              {scanMode === 'camera' ? (
+                <div className="space-y-4">
+                  {/* Camera Preview */}
+                  <div className="relative bg-black rounded-2xl overflow-hidden aspect-video">
+                    {cameraError ? (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-center space-y-4 p-6">
+                          <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
+                          <div>
+                            <p className="text-red-400 font-semibold mb-2">Camera Error</p>
+                            <p className="text-gray-400 text-sm">{cameraError}</p>
+                          </div>
+                          <Button onClick={startCamera} variant="outline">
+                            Retry
+                          </Button>
+                        </div>
+                      </div>
+                    ) : !isCameraActive ? (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="w-12 h-12 text-blue-400 animate-spin" />
+                      </div>
+                    ) : null}
+
+                    <video
+                      ref={videoRef}
+                      className="w-full h-full object-cover"
+                      playsInline
+                      muted
+                    />
+
+                    {/* Scanning Overlay */}
+                    {isCameraActive && (
+                      <div className="absolute inset-0 pointer-events-none">
+                        {/* Corner Markers */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64">
+                          <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-blue-400" />
+                          <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-blue-400" />
+                          <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-blue-400" />
+                          <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-blue-400" />
+                        </div>
+
+                        {/* Scanning Line */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 w-64 h-0.5 bg-blue-400 animate-pulse" />
+                      </div>
+                    )}
+
+                    {/* Status Badge */}
+                    {isCameraActive && (
+                      <div className="absolute top-4 left-4">
+                        <Badge className="bg-red-500 text-white gap-2">
+                          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                          {scanQRMutation.isPending ? 'Processing...' : 'Scanning...'}
+                        </Badge>
+                      </div>
+                    )}
+
+                    {/* Camera Switch Button */}
+                    {isCameraActive && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={switchCamera}
+                        className="absolute top-4 right-4"
+                      >
+                        <SwitchCamera className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+
+                  <canvas ref={canvasRef} className="hidden" />
+
+                  {/* Instructions */}
+                  <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
+                      <div className="space-y-2 text-sm text-blue-300">
+                        <p className="font-semibold">How to scan:</p>
+                        <ol className="list-decimal list-inside space-y-1 ml-2">
+                          <li>Point camera at customer's QR code</li>
+                          <li>Hold steady until automatic detection</li>
+                          <li>Verify order details before completing pickup</li>
+                        </ol>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                /* Manual Entry Mode */
+                <div className="space-y-4">
+                  {/* Instructions */}
+                  <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
+                      <div className="space-y-2 text-sm text-blue-300">
+                        <p className="font-semibold">Manual entry:</p>
+                        <ol className="list-decimal list-inside space-y-1 ml-2">
+                          <li>Ask customer to show their QR code</li>
+                          <li>Paste or type the QR data below</li>
+                          <li>Click "Scan QR Code" to verify</li>
+                        </ol>
+                      </div>
+                    </div>
+                  </div>
 
-              {/* QR Input */}
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-gray-300">
-                  QR Code Data
-                </label>
-                <Textarea
-                  placeholder="Paste QR code data here..."
-                  value={qrInput}
-                  onChange={(e) => setQrInput(e.target.value)}
-                  className="bg-[#0f1419] border-gray-700 text-white min-h-[120px] font-mono text-sm"
-                  disabled={scanQRMutation.isPending}
-                />
-              </div>
+                  {/* QR Input */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-300">
+                      QR Code Data
+                    </label>
+                    <Textarea
+                      placeholder="Paste QR code data here..."
+                      value={qrInput}
+                      onChange={(e) => setQrInput(e.target.value)}
+                      className="bg-[#0f1419] border-gray-700 text-white min-h-[120px] font-mono text-sm"
+                      disabled={scanQRMutation.isPending}
+                    />
+                  </div>
 
-              {/* Scan Button */}
-              <Button
-                size="lg"
-                className="w-full bg-blue-600 hover:bg-blue-700"
-                onClick={handleScanQR}
-                disabled={scanQRMutation.isPending || !qrInput.trim()}
-              >
-                {scanQRMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Scanning...
-                  </>
-                ) : (
-                  <>
-                    <Scan className="w-5 h-5 mr-2" />
-                    Scan QR Code
-                  </>
-                )}
-              </Button>
+                  {/* Scan Button */}
+                  <Button
+                    size="lg"
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    onClick={handleManualScan}
+                    disabled={scanQRMutation.isPending || !qrInput.trim()}
+                  >
+                    {scanQRMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Scanning...
+                      </>
+                    ) : (
+                      <>
+                        <Scan className="w-5 h-5 mr-2" />
+                        Scan QR Code
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -408,7 +670,7 @@ export default function AdminQRScannerPage() {
                 onClick={handleReset}
                 className="border-gray-700 text-gray-300 hover:bg-gray-800"
               >
-                <XCircle className="w-5 h-5 mr-2" />
+                <X className="w-5 h-5 mr-2" />
                 Cancel
               </Button>
             </div>

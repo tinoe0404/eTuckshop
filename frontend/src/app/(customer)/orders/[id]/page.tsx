@@ -31,18 +31,14 @@ import {
   Wallet,
   Download,
   RefreshCw,
-  User,
-  Mail,
   Calendar,
   DollarSign,
   AlertCircle,
   Loader2,
   QrCode,
-  ExternalLink,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { Order } from '@/types';
-// Image component removed - using regular img tags
 
 export default function OrderDetailPage() {
   const router = useRouter();
@@ -53,13 +49,14 @@ export default function OrderDetailPage() {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
-  // Fetch order details
+  // Fetch order details - FIXED: Proper query data access
   const { data: orderData, isLoading } = useQuery({
     queryKey: ['order', orderId],
     queryFn: () => orderService.getOrderById(orderId),
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Auto-refresh every 5 seconds for pending/paid orders
-      const order = data?.data;
+      if (!query.state.data) return false;
+      const order = query.state.data.data;
       if (order && ['PENDING', 'PAID'].includes(order.status)) {
         return 5000;
       }
@@ -161,7 +158,6 @@ export default function OrderDetailPage() {
   };
 
   const handlePayNow = () => {
-    // Initiate PayNow payment
     orderService.initiatePayNow(orderId).then((response) => {
       if (response.success && response.data.paymentUrl) {
         window.location.href = response.data.paymentUrl;
@@ -311,8 +307,8 @@ export default function OrderDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: QR Code & Actions */}
           <div className="lg:col-span-2 space-y-6">
-            {/* QR Code Card */}
-            {order.status !== 'CANCELLED' && (
+            {/* QR Code Card - FIXED: Check for PENDING or PAID status */}
+            {(order.status === 'PENDING' || order.status === 'PAID') && (
               <Card className="border-0 shadow-xl">
                 <CardHeader className="border-b bg-linear-to-r from-blue-600 to-purple-600 text-white">
                   <CardTitle className="flex items-center space-x-2">
@@ -362,7 +358,7 @@ export default function OrderDetailPage() {
                         <div className="flex items-start space-x-2 text-sm text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
                           <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
                           <p>
-                            <strong>Important:</strong> Your QR code will expire in 2 minutes.
+                            <strong>Important:</strong> Your QR code will expire in 15 minutes.
                             Generate it when you're ready to go to the counter.
                           </p>
                         </div>
@@ -426,7 +422,7 @@ export default function OrderDetailPage() {
                               </p>
                               <div
                                 className={`text-4xl font-bold ${
-                                  timeLeft < 30 ? 'text-red-600' : 'text-blue-600'
+                                  timeLeft < 120 ? 'text-red-600' : 'text-blue-600'
                                 }`}
                               >
                                 {formatTime(timeLeft)}
@@ -492,9 +488,15 @@ export default function OrderDetailPage() {
                       </div>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            )}
 
-                  {/* Cancelled Order */}
-                  {order.status === 'CANCELLED' && (
+            {/* Show completed/cancelled status message - FIXED: Separate section */}
+            {(order.status === 'COMPLETED' || order.status === 'CANCELLED') && (
+              <Card className="border-0 shadow-xl">
+                <CardContent className="p-8">
+                  {order.status === 'CANCELLED' ? (
                     <div className="text-center space-y-4 py-8">
                       <div className="w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto">
                         <XCircle className="w-10 h-10 text-red-600" />
@@ -506,6 +508,25 @@ export default function OrderDetailPage() {
                         <p className="text-gray-600 dark:text-gray-400">
                           This order has been cancelled.
                         </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-4 py-8">
+                      <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto">
+                        <CheckCircle className="w-10 h-10 text-green-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-semibold text-green-600 mb-2">
+                          Order Completed
+                        </h3>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          This order has been completed and picked up.
+                        </p>
+                        {order.completedAt && (
+                          <p className="text-sm text-gray-500 mt-2">
+                            Completed on {new Date(order.completedAt).toLocaleString()}
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -528,7 +549,6 @@ export default function OrderDetailPage() {
                       key={item.id}
                       className="flex items-center space-x-4 p-4 rounded-lg border border-gray-200 dark:border-gray-700"
                     >
-                      {/* Product Image */}
                       <div className="relative w-16 h-16 bg-linear-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-lg overflow-hidden shrink-0">
                         {item.product?.image ? (
                           <img
@@ -543,7 +563,6 @@ export default function OrderDetailPage() {
                         )}
                       </div>
 
-                      {/* Product Info */}
                       <div className="flex-1">
                         <h4 className="font-semibold text-gray-900 dark:text-white">
                           {item.product?.name}
@@ -553,7 +572,6 @@ export default function OrderDetailPage() {
                         </p>
                       </div>
 
-                      {/* Price */}
                       <div className="text-right">
                         <p className="font-bold text-blue-600">
                           {formatCurrency(item.subtotal)}
@@ -568,7 +586,6 @@ export default function OrderDetailPage() {
 
           {/* Right Column: Summary */}
           <div className="space-y-6">
-            {/* Order Summary */}
             <Card className="border-0 shadow-xl sticky top-20">
               <CardHeader className="border-b bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
                 <CardTitle>Order Summary</CardTitle>
@@ -602,7 +619,6 @@ export default function OrderDetailPage() {
 
                 <Separator />
 
-                {/* Order Timeline */}
                 <div className="space-y-3">
                   <h4 className="font-semibold text-gray-900 dark:text-white">
                     Order Timeline

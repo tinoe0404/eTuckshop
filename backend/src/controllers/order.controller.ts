@@ -128,7 +128,7 @@ export const checkout = async (c: Context) => {
       response.data.nextStep = {
         action: "Generate QR Code",
         url: `/api/orders/generate-qr/${order.id}`,
-        note: "QR code expires in 1 minute",
+        note: "QR code expires in 15 minutes",
       };
     } else {
       response.data.nextStep = {
@@ -146,7 +146,7 @@ export const checkout = async (c: Context) => {
 
 // ==========================================
 // GENERATE QR CODE FOR CASH PAYMENT
-// (Expires in 1 minute)
+// (Expires in 15 minutes) ⬅️ CHANGED FROM 1 MINUTE
 // ==========================================
 export const generateCashQR = async (c: Context) => {
   try {
@@ -173,8 +173,8 @@ export const generateCashQR = async (c: Context) => {
       return c.json({ success: false, message: `Order already ${order.status.toLowerCase()}` }, 400);
     }
 
-    // Set 1 minute expiry
-    const expiresAt = new Date(Date.now() + 60 * 1000);
+    // Set 15 minute expiry ⬅️ CHANGED FROM 60 seconds
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     // Build QR payload
     const qrPayload = buildQRPayload(order, expiresAt);
@@ -189,7 +189,7 @@ export const generateCashQR = async (c: Context) => {
 
     return c.json({
       success: true,
-      message: "Cash QR code generated (expires in 2 minutes)",
+      message: "Cash QR code generated (expires in 15 minutes)", // ⬅️ UPDATED MESSAGE
       data: {
         orderId: order.id,
         orderNumber: order.orderNumber,
@@ -199,7 +199,7 @@ export const generateCashQR = async (c: Context) => {
         orderSummary: qrPayload.orderSummary,
         qrCode,
         expiresAt,
-        expiresIn: "120 seconds",
+        expiresIn: "900 seconds", // ⬅️ 15 minutes = 900 seconds
       },
     });
   } catch (error) {
@@ -561,7 +561,7 @@ export const scanQRCode = async (c: Context) => {
         });
         return c.json({
           success: false,
-          message: "Cash QR expired (1 minute limit)",
+          message: "Cash QR expired (15 minute limit)", // ⬅️ UPDATED MESSAGE
           data: { suggestion: "Customer needs to generate new QR" },
         }, 400);
       }
