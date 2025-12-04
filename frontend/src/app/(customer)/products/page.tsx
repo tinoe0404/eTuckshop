@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Select,
   SelectContent,
@@ -118,17 +119,29 @@ export default function ProductsPage() {
     return result;
   }, [products, searchQuery, selectedCategory, sortBy, priceRange, stockFilter]);
 
-  const handleAddToCart = async (productId: number) => {
-    try {
-      const response = await cartService.addToCart({ productId, quantity: 1 });
-      if (response.success) {
-        toast.success('Added to cart!');
-        setTotalItems(response.data.totalItems);
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to add to cart');
+  const queryClient = useQueryClient();
+
+const addToCartMutation = useMutation({
+  mutationFn: (productId: number) =>
+    cartService.addToCart({ productId, quantity: 1 }),
+
+  onSuccess: (response) => {
+    if (response.success) {
+      // 🔥 Update Zustand immediately
+      setTotalItems(response.data.totalItems);
+
+      // 🔥 Refetch cart everywhere else in the app
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+
+      toast.success('Added to cart!');
     }
-  };
+  },
+
+  onError: (error: any) => {
+    toast.error(error.response?.data?.message || 'Failed to add to cart');
+  },
+});
+
 
   const resetFilters = () => {
     setSearchQuery('');
@@ -365,7 +378,7 @@ export default function ProductsPage() {
                   <div className="flex space-x-2">
                     <Button
                       className="flex-1"
-                      onClick={() => handleAddToCart(product.id)}
+                      onClick={() => addToCartMutation.mutate(product.id)}
                       disabled={product.stock === 0}
                     >
                       <Plus className="w-4 h-4 mr-1" />
@@ -447,7 +460,7 @@ export default function ProductsPage() {
                         </div>
                         <div className="flex items-center space-x-3">
                           <Button
-                            onClick={() => handleAddToCart(product.id)}
+                            onClick={() => addToCartMutation.mutate(product.id)}
                             disabled={product.stock === 0}
                           >
                             <Plus className="w-4 h-4 mr-2" />

@@ -360,28 +360,30 @@ export const clearCart = async (c: Context) => {
 // GET CART SUMMARY (Protected)
 // ==============================
 export const getCartSummary = async (c: Context) => {
-    try {
-      const user = c.get("user");
-      const cart = await getOrCreateCart(user.id);
-  
-      const totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
-      const totalAmount = cart.items.reduce(
+  try {
+    const user = c.get("user");
+    const cart = await getOrCreateCart(user.id);
+
+    const totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+    const totalAmount = parseFloat(
+      cart.items.reduce(
         (sum, item) => sum + item.product.price * item.quantity,
         0
-      );
-  
-      return c.json({
-        success: true,
-        message: "Cart summary retrieved successfully",
-        data: {
-          totalItems,
-          totalAmount: parseFloat(totalAmount.toFixed(2)),
-          itemCount: cart.items.length,
-        },
-      });
-    } catch (error) {
-      return serverError(c, error);
-    }
-  };
+      ).toFixed(2)
+    );
+
+    return c.json({
+      success: true,
+      message: "Cart summary retrieved successfully",
+      data: {
+        totalItems,
+        totalAmount
+      },
+    });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};
+
   
   

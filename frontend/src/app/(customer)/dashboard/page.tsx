@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   ShoppingBag,
@@ -80,17 +81,31 @@ export default function CustomerDashboard() {
         .reduce((sum: number, o: Order) => sum + o.totalAmount, 0) || 0,
   };
 
-  const handleAddToCart = async (productId: number) => {
-    try {
-      const response = await cartService.addToCart({ productId, quantity: 1 });
-      if (response.success) {
-        toast.success('Added to cart!');
-        setTotalItems(response.data.totalItems);
-      }
-    } catch (error: any) {
+  const queryClient = useQueryClient();
+
+  const addToCartMutation = useMutation({
+    mutationFn: (productId: number) =>
+      cartService.addToCart({ productId, quantity: 1 }),
+  
+    onSuccess: async (res) => {
+      // Update Zustand instantly
+      setTotalItems(res.data.totalItems);
+  
+      // Refresh ALL relevant queries
+      await queryClient.invalidateQueries({ queryKey: ['cart-summary'] });
+      await queryClient.invalidateQueries({ queryKey: ['cart'] });
+      await queryClient.invalidateQueries({ queryKey: ['products-featured'] });
+      await queryClient.invalidateQueries({ queryKey: ['user-orders'] });
+  
+      toast.success('Added to cart!');
+    },
+  
+    onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Failed to add to cart');
-    }
-  };
+    },
+  });
+  
+
 
   const handleWhatsAppShop = () => {
     const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '+1234567890';
@@ -313,7 +328,7 @@ export default function CustomerDashboard() {
                       <div className="flex space-x-2">
                         <Button
                           className="flex-1"
-                          onClick={() => handleAddToCart(product.id)}
+                          onClick={() => addToCartMutation.mutate(product.id)}
                           disabled={product.stock === 0}
                         >
                           <Plus className="w-4 h-4 mr-1" />
