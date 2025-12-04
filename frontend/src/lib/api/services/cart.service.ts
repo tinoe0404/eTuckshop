@@ -40,14 +40,14 @@ export const cartService = {
   },
 
   // Get cart summary
-  getCartSummary: async () => {
-    const response = await apiClient.get<
-      ApiResponse<{
-        totalItems: number;
-        totalAmount: number;
-        itemCount: number;
-      }>
-    >('/cart/summary');
-    return response.data;
-  },
+getCartSummary: async () => {
+  const response = await apiClient.get<
+    ApiResponse<{
+      totalItems: number;
+      totalAmount: number;
+    }>
+  >('/cart/summary');
+  return response.data;
+},
+
 };
