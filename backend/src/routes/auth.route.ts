@@ -5,23 +5,26 @@ import {
   logout,
   refreshToken,
   getProfile,
+  forgotPassword,
+  verifyResetTokenEndpoint,
+  resetPassword,
 } from "../controllers/auth.controller";
-import { protectRoute, adminRoute } from "../middlewares/auth.middleware";
+import { authMiddleware } from "../middleware/auth.middleware";
 
 const router = new Hono();
 
 // Public routes
 router.post("/signup", signup);
 router.post("/login", login);
+router.post("/logout", logout);
 router.post("/refresh", refreshToken);
 
-// Protected routes
-router.post("/logout", protectRoute, logout);
-router.get("/profile", protectRoute, getProfile);
+// Password reset routes (public)
+router.post("/forgot-password", forgotPassword);
+router.post("/verify-reset-token", verifyResetTokenEndpoint);
+router.post("/reset-password", resetPassword);
 
-// Admin only route
-router.get("/admin-only", protectRoute, adminRoute, (c) =>
-  c.json({ success: true, message: "Admin route works" })
-);
+// Protected routes
+router.get("/profile", authMiddleware, getProfile);
 
 export default router;
