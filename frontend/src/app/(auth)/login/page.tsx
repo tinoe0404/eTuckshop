@@ -21,7 +21,6 @@ import { useAuthStore } from "@/lib/store/authStore";
 import { setTokens } from "@/lib/utils/token";
 import type { AuthResponse } from "@/types";
 
-
 // ------------------ VALIDATION ------------------
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -31,7 +30,6 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 type UserRole = "CUSTOMER" | "ADMIN" | null;
-
 
 // ------------------ COMPONENT ------------------
 export default function LoginPage() {
@@ -55,7 +53,6 @@ export default function LoginPage() {
 
   const rememberMe = watch("rememberMe");
 
-
   // ------------------ LOGIN HANDLER ------------------
   const onSubmit = async (data: LoginFormData) => {
     if (!selectedRole) {
@@ -66,45 +63,35 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      // ✅ AuthService now throws on failure, so response is guaranteed
       const response: AuthResponse = await authService.login({
         email: data.email,
         password: data.password,
       });
 
-      if (!response.success) {
-        toast.error(response.message);
-        setIsLoading(false);
-        return;
-      }
-
-      // Ensure user login matches the selected role
+      // Role validation
       if (response.user.role !== selectedRole) {
-        toast.error(`This account is not registered as ${selectedRole.toLowerCase()}`);
-        setIsLoading(false);
+        toast.error(
+          `This account is not registered as ${selectedRole.toLowerCase()}`
+        );
         return;
       }
 
-      // Save tokens
+      // Save tokens & user
       setTokens(response.accessToken, response.refreshToken);
-
-      // Save user to store
       setUser(response.user);
 
       toast.success(`Welcome back, ${response.user.name}!`);
 
       // Redirect based on role
-      router.push(
-        response.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard"
-      );
-
+      router.push(response.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
     } catch (err: any) {
-      const message = err?.response?.data?.message || "Invalid email or password";
-      toast.error(message);
+      // err.message comes from authService.throw
+      toast.error(err.message || "Invalid email or password");
     } finally {
       setIsLoading(false);
     }
   };
-
 
   // ------------------ UI ------------------
   return (
@@ -189,7 +176,6 @@ export default function LoginPage() {
 
         {/* Login Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-
           {/* Email */}
           <div className="space-y-2">
             <Label htmlFor="email">Username</Label>
@@ -243,10 +229,7 @@ export default function LoginPage() {
                   setValue("rememberMe", checked as boolean)
                 }
               />
-              <Label
-                htmlFor="rememberMe"
-                className="text-sm font-normal cursor-pointer"
-              >
+              <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
                 Remember me
               </Label>
             </div>

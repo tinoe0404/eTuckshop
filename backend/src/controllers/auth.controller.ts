@@ -67,13 +67,16 @@ export const signup = async (c: Context) => {
 
     const { password: _, ...safeUser } = user;
 
+    // ✅ FIXED: Wrap auth data in 'data' property
     return c.json(
       {
         success: true,
         message: "User created successfully",
-        user: safeUser,
-        accessToken,
-        refreshToken,
+        data: {
+          user: safeUser,
+          accessToken,
+          refreshToken,
+        }
       },
       201
     );
@@ -103,12 +106,15 @@ export const login = async (c: Context) => {
 
     console.log("✅ Login successful for:", user.email, "| Role:", user.role);
 
+    // ✅ FIXED: Wrap auth data in 'data' property
     return c.json({
       success: true,
       message: "Logged in successfully",
-      user: safeUser,
-      accessToken,
-      refreshToken,
+      data: {
+        user: safeUser,
+        accessToken,
+        refreshToken,
+      }
     });
   } catch (error) {
     return serverError(c, error);
@@ -128,7 +134,11 @@ export const logout = async (c: Context) => {
       }
     }
 
-    return c.json({ success: true, message: "Logged out successfully" });
+    return c.json({ 
+      success: true, 
+      message: "Logged out successfully",
+      data: null 
+    });
   } catch (error) {
     return serverError(c, error);
   }
@@ -153,10 +163,13 @@ export const refreshToken = async (c: Context) => {
 
     const { accessToken } = await generateTokens(decoded.userId as string);
 
+    // ✅ FIXED: Wrap token in 'data' property
     return c.json({
       success: true,
       message: "Token refreshed successfully",
-      accessToken,
+      data: {
+        accessToken,
+      }
     });
   } catch (error) {
     return serverError(c, error);
@@ -170,10 +183,11 @@ export const getProfile = async (c: Context) => {
     if (!user)
       return c.json({ success: false, message: "Unauthorized" }, 401);
 
+    // ✅ FIXED: Wrap user in 'data' property
     return c.json({
       success: true,
       message: "Profile retrieved successfully",
-      user,
+      data: user,
     });
   } catch (error) {
     return serverError(c, error);
@@ -189,29 +203,24 @@ export const forgotPassword = async (c: Context) => {
       return c.json({ success: false, message: "Email is required" }, 400);
     }
 
-    // Find user
     const user = await prisma.user.findUnique({ where: { email } });
 
-    // Always return success for security (don't reveal if email exists)
     if (!user) {
       return c.json({
         success: true,
         message: "If an account exists with this email, you will receive a password reset link shortly.",
+        data: null
       });
     }
 
-    // Generate reset token
     const resetToken = await generateResetToken(user.id, user.email);
 
-    // Store token in Redis with 1 hour expiration
     await redis.set(`password_reset:${user.id}`, resetToken, {
-      ex: 60 * 60, // 1 hour
+      ex: 60 * 60,
     });
 
-    // Create reset link
     const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
 
-    // Send email
     await sendPasswordResetEmail(user.email, user.name, resetUrl);
 
     console.log("📧 Password reset email sent to:", user.email);
@@ -219,6 +228,7 @@ export const forgotPassword = async (c: Context) => {
     return c.json({
       success: true,
       message: "If an account exists with this email, you will receive a password reset link shortly.",
+      data: null
     });
   } catch (error) {
     console.error("Forgot password error:", error);
@@ -241,7 +251,6 @@ export const verifyResetTokenEndpoint = async (c: Context) => {
       return c.json({ success: false, message: "Invalid or expired token" }, 400);
     }
 
-    // Check if token exists in Redis
     const storedToken = await redis.get(`password_reset:${decoded.userId}`);
     if (storedToken !== token) {
       return c.json({ success: false, message: "Invalid or expired token" }, 400);
@@ -250,6 +259,7 @@ export const verifyResetTokenEndpoint = async (c: Context) => {
     return c.json({
       success: true,
       message: "Token is valid",
+      data: null
     });
   } catch (error) {
     return serverError(c, error);
@@ -269,20 +279,17 @@ export const resetPassword = async (c: Context) => {
       return c.json({ success: false, message: "Password must be at least 6 characters" }, 400);
     }
 
-    // Verify token
     const decoded = await verifyResetToken(token);
 
     if (!decoded || !decoded.userId) {
       return c.json({ success: false, message: "Invalid or expired token" }, 400);
     }
 
-    // Check if token exists in Redis
     const storedToken = await redis.get(`password_reset:${decoded.userId}`);
     if (storedToken !== token) {
       return c.json({ success: false, message: "Invalid or expired token" }, 400);
     }
 
-    // Find user
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId as number },
     });
@@ -291,22 +298,17 @@ export const resetPassword = async (c: Context) => {
       return c.json({ success: false, message: "User not found" }, 404);
     }
 
-    // Hash new password
     const hashedPassword = await Bun.password.hash(newPassword, {
       algorithm: "bcrypt",
       cost: 10,
     });
 
-    // Update password
     await prisma.user.update({
       where: { id: user.id },
       data: { password: hashedPassword },
     });
 
-    // Delete reset token from Redis
     await redis.del(`password_reset:${user.id}`);
-
-    // Clear all refresh tokens (force re-login on all devices)
     await redis.del(`refresh_token:${user.id}`);
 
     console.log("✅ Password reset successful for:", user.email);
@@ -314,9 +316,10 @@ export const resetPassword = async (c: Context) => {
     return c.json({
       success: true,
       message: "Password reset successfully. Please login with your new password.",
+      data: null
     });
   } catch (error) {
     console.error("Reset password error:", error);
     return serverError(c, error);
   }
-};
+}

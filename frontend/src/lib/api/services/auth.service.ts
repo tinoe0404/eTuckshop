@@ -1,46 +1,52 @@
 import apiClient from '../client';
-import { AuthResponse, ApiResponse, User } from '@/types';
+import type { ApiResponse, AuthResponse, User } from '@/types';
 
+// ----------------- TYPES -----------------
+interface SignupData {
+  name: string;
+  email: string;
+  password: string;
+  role?: 'CUSTOMER' | 'ADMIN'; // <-- allow both roles
+}
+
+interface LoginData {
+  email: string;
+  password: string;
+}
+
+// ----------------- AUTH SERVICE -----------------
 export const authService = {
-  signup: async (data: { 
-    name: string; 
-    email: string; 
-    password: string; 
-    role?: 'CUSTOMER' 
-  }) => {
-    const response = await apiClient.post<ApiResponse<AuthResponse>>(
-      '/auth/signup', 
-      data
-    );
-    return response.data;
+  // ---------------- SIGNUP ----------------
+  signup: async (data: SignupData): Promise<AuthResponse> => {
+    const res = await apiClient.post<ApiResponse<AuthResponse>>('/auth/signup', data);
+    if (!res.data.success) throw new Error(res.data.message);
+    return res.data.data;
   },
 
-  login: async (data: { email: string; password: string }) => {
-    const response = await apiClient.post<ApiResponse<AuthResponse>>(
-      '/auth/login', 
-      data
-    );
-    return response.data;
+  // ---------------- LOGIN ----------------
+  login: async (data: LoginData): Promise<AuthResponse> => {
+    const res = await apiClient.post<ApiResponse<AuthResponse>>('/auth/login', data);
+    if (!res.data.success) throw new Error(res.data.message);
+    return res.data.data;
   },
 
-  logout: async (refreshToken: string) => {
-    const response = await apiClient.post<ApiResponse<null>>(
-      '/auth/logout',
-      { refreshToken }
-    );
-    return response.data;
+  // ---------------- LOGOUT ----------------
+  logout: async (refreshToken: string): Promise<void> => {
+    const res = await apiClient.post<ApiResponse<null>>('/auth/logout', { refreshToken });
+    if (!res.data.success) throw new Error(res.data.message);
   },
 
-  refreshToken: async (refreshToken: string) => {
-    const response = await apiClient.post<ApiResponse<{ accessToken: string }>>(
-      '/auth/refresh', 
-      { refreshToken }
-    );
-    return response.data;
+  // -------------- REFRESH TOKEN --------------
+  refreshToken: async (refreshToken: string): Promise<{ accessToken: string }> => {
+    const res = await apiClient.post<ApiResponse<{ accessToken: string }>>('/auth/refresh', { refreshToken });
+    if (!res.data.success) throw new Error(res.data.message);
+    return res.data.data;
   },
 
-  getProfile: async () => {
-    const response = await apiClient.get<ApiResponse<User>>('/auth/profile');
-    return response.data;
+  // -------------- GET PROFILE --------------
+  getProfile: async (): Promise<User> => {
+    const res = await apiClient.get<ApiResponse<User>>('/auth/profile');
+    if (!res.data.success) throw new Error(res.data.message);
+    return res.data.data;
   },
 };
