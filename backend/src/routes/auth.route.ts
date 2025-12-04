@@ -9,7 +9,7 @@ import {
   verifyResetTokenEndpoint,
   resetPassword,
 } from "../controllers/auth.controller";
-import { authMiddleware } from "../middleware/auth.middleware";
+import { protectRoute } from "../middlewares/auth.middleware";
 
 const router = new Hono();
 
@@ -19,12 +19,12 @@ router.post("/login", login);
 router.post("/logout", logout);
 router.post("/refresh", refreshToken);
 
-// Password reset routes (public)
+// Password reset routes (public - no authentication needed)
 router.post("/forgot-password", forgotPassword);
 router.post("/verify-reset-token", verifyResetTokenEndpoint);
 router.post("/reset-password", resetPassword);
 
 // Protected routes
-router.get("/profile", authMiddleware, getProfile);
+router.get("/profile", protectRoute, getProfile);
 
 export default router;

@@ -15,7 +15,7 @@ const storeRefreshToken = async (userId: string, refreshToken: string) => {
 
 // Generate password reset token (valid for 1 hour)
 const generateResetToken = async (userId: number, email: string) => {
-  const secret = process.env.JWT_SECRET || "your-secret-key";
+  const secret = process.env.ACCESS_TOKEN_SECRET!;
   const token = await sign(
     {
       userId,
@@ -31,7 +31,7 @@ const generateResetToken = async (userId: number, email: string) => {
 // Verify password reset token
 const verifyResetToken = async (token: string) => {
   try {
-    const secret = process.env.JWT_SECRET || "your-secret-key";
+    const secret = process.env.ACCESS_TOKEN_SECRET!;
     const decoded = await verify(token, secret);
     
     if (decoded.type !== "password_reset") {
