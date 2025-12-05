@@ -11,22 +11,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useAuthStore } from '@/lib/store/authStore';
 import { useCartStore } from '@/lib/store/cartStore';
 import { useRouter } from 'next/navigation';
-import { removeTokens } from '@/lib/utils/token';
 import { toast } from 'sonner';
+import { useLogout } from '@/lib/hooks/useLogout';
 
 export default function CustomerHeader() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
   const { totalItems } = useCartStore();
+  const { logout } = useLogout();
 
-  const handleLogout = () => {
-    logout();
-    removeTokens();
-    toast.success('Logged out successfully');
-    router.push('/login');
+  const handleLogout = async () => {
+    await logout();
   };
 
   return (

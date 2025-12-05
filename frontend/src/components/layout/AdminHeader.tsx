@@ -10,20 +10,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useLogout } from '@/lib/hooks/useLogout';
 import { useAuthStore } from '@/lib/store/authStore';
 import { useRouter } from 'next/navigation';
-import { removeTokens } from '@/lib/utils/token';
-import { toast } from 'sonner';
 
 export default function AdminHeader() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { logout } = useLogout();
+  const { user } = useAuthStore(); // ✅ Get user from auth store
 
-  const handleLogout = () => {
-    logout();
-    removeTokens();
-    toast.success('Logged out successfully');
-    router.push('/login');
+  const handleLogout = async () => {
+    await logout();
   };
 
   return (
@@ -58,11 +55,11 @@ export default function AdminHeader() {
                 <Button variant="ghost" className="flex items-center space-x-2">
                   <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                     <span className="text-white text-sm font-semibold">
-                      {user?.name.charAt(0).toUpperCase()}
+                      {user?.name?.charAt(0).toUpperCase() || 'A'}
                     </span>
                   </div>
                   <span className="hidden md:block font-medium">
-                    {user?.name}
+                    {user?.name || 'Admin'}
                   </span>
                 </Button>
               </DropdownMenuTrigger>
