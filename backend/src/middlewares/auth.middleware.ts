@@ -1,22 +1,33 @@
 import { Context, Next } from "hono";
+import { getCookie } from "hono/cookie";
 import { verify } from "hono/jwt";
 import { prisma } from "../utils/db";
 
 // Custom middleware to verify JWT and fetch user
 export const protectRoute = async (c: Context, next: Next) => {
   try {
-    const header = c.req.header("Authorization");
-    
-    if (!header || !header.startsWith("Bearer ")) {
+    let token: string | undefined;
+
+    // 1. Try to get token from cookie first (primary method)
+    token = getCookie(c, "accessToken");
+
+    // 2. Fallback to Authorization header (for API clients that can't use cookies)
+    if (!token) {
+      const header = c.req.header("Authorization");
+      if (header && header.startsWith("Bearer ")) {
+        token = header.split(" ")[1];
+      }
+    }
+
+    // 3. No token found
+    if (!token) {
       return c.json({ 
         success: false, 
         message: "Unauthorized - No token provided" 
       }, 401);
     }
 
-    const token = header.split(" ")[1];
-
-    // Verify token using Hono's verify function
+    // 4. Verify token using Hono's verify function
     const payload = await verify(token, process.env.ACCESS_TOKEN_SECRET!);
 
     if (!payload || !payload.userId) {
@@ -26,8 +37,8 @@ export const protectRoute = async (c: Context, next: Next) => {
       }, 401);
     }
 
-    // Fetch user from database
-    const userId = Number(payload.userId); // Ensure userId is a number
+    // 5. Fetch user from database
+    const userId = Number(payload.userId);
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, name: true, email: true, role: true },
@@ -40,7 +51,7 @@ export const protectRoute = async (c: Context, next: Next) => {
       }, 401);
     }
 
-    // Attach user to context for downstream handlers
+    // 6. Attach user to context for downstream handlers
     c.set("user", user);
     await next();
   } catch (error: any) {
