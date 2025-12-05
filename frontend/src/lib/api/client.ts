@@ -1,5 +1,4 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { getAccessToken, setAccessToken, removeTokens, getRefreshToken } from '@/lib/utils/token';
 
 const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -7,50 +6,96 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 10000,
+  withCredentials: true, // ✅ CRITICAL: Send cookies with every request
 });
 
-// Request interceptor
+// Track if we're currently refreshing to prevent multiple refresh calls
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: any) => void;
+  reject: (reason?: any) => void;
+}> = [];
+
+const processQueue = (error: any = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve();
+    }
+  });
+  failedQueue = [];
+};
+
+// Request interceptor - cookies are automatically sent via withCredentials
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = getAccessToken();
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    // Cookies are automatically included, no need to manually add Authorization header
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response interceptor
+// Response interceptor - handle 401 and refresh token
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
+    // Handle 401 errors (expired access token)
     if (error.response?.status === 401 && !originalRequest._retry) {
+      
+      // If the failed request was the refresh endpoint itself, don't retry
+      if (originalRequest.url?.includes('/auth/refresh')) {
+        isRefreshing = false;
+        processQueue(error);
+        
+        // Clear auth state and redirect to login
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+
+      // If already refreshing, queue this request
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(() => apiClient(originalRequest))
+          .catch((err) => Promise.reject(err));
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
-        const refreshToken = getRefreshToken();
-        if (!refreshToken) {
-          throw new Error('No refresh token');
-        }
+        // Call refresh endpoint (refreshToken cookie is automatically sent)
+        await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
+          {}, // Empty body, token comes from cookie
+          { withCredentials: true }
+        );
 
-        const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
-          refreshToken,
-        });
+        // Token refreshed successfully (new accessToken cookie is set)
+        isRefreshing = false;
+        processQueue();
 
-        const { accessToken } = response.data.data;
-        setAccessToken(accessToken);
-
-        if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-        }
-
+        // Retry the original request
         return apiClient(originalRequest);
       } catch (refreshError) {
-        removeTokens();
-        window.location.href = '/login';
+        // Refresh failed - logout user
+        isRefreshing = false;
+        processQueue(refreshError);
+
+        if (typeof window !== 'undefined') {
+          // Clear any client-side state
+          localStorage.clear();
+          sessionStorage.clear();
+          
+          // Redirect to login
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshError);
       }
     }
