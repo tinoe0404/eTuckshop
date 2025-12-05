@@ -16,8 +16,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 
 import { authService } from "@/lib/api/services/auth.service";
-import { setTokens } from "@/lib/utils/token";
-import type { AuthResponse } from "@/types";
+import { useAuthStore } from "@/lib/store/authStore";
 
 // ------------------ VALIDATION ------------------
 const registerSchema = z.object({
@@ -37,6 +36,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 // ------------------ COMPONENT ------------------
 export default function RegisterPage() {
   const router = useRouter();
+  const { setUser } = useAuthStore();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -60,24 +60,24 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const response: AuthResponse = await authService.signup({
+      // Call signup API (cookies are automatically set by backend)
+      const response = await authService.signup({
         name: data.name,
         email: data.email,
         password: data.password,
         role: data.role,
       });
 
-      // Save tokens
-      setTokens(response.accessToken, response.refreshToken);
+      // Update Zustand store with user data
+      setUser(response.user);
 
       toast.success(`Account created successfully! Welcome, ${response.user.name}`);
 
       // Redirect based on role
       const redirectUrl = response.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
       
-      setTimeout(() => {
-        window.location.replace(redirectUrl);
-      }, 300);
+      router.push(redirectUrl);
+      router.refresh();
 
     } catch (err: any) {
       const message = err?.message || "Failed to create account";
