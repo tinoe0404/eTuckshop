@@ -18,8 +18,6 @@ import Link from "next/link";
 
 import { authService } from "@/lib/api/services/auth.service";
 import { useAuthStore } from "@/lib/store/authStore";
-import { setTokens } from "@/lib/utils/token";
-import type { AuthResponse } from "@/types";
 
 // ------------------ VALIDATION ------------------
 const loginSchema = z.object({
@@ -70,7 +68,8 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const response: AuthResponse = await authService.login({
+      // Call login API (cookies are automatically set by backend)
+      const response = await authService.login({
         email: data.email,
         password: data.password,
       });
@@ -84,8 +83,7 @@ export default function LoginPage() {
         return;
       }
 
-      // Save tokens & user
-      setTokens(response.accessToken, response.refreshToken);
+      // Update Zustand store with user data
       setUser(response.user);
 
       toast.success(`Welcome back, ${response.user.name}!`);
@@ -95,10 +93,9 @@ export default function LoginPage() {
       const defaultUrl = response.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
       const redirectUrl = callbackUrl || defaultUrl;
 
-      // Redirect with a small delay to ensure state is saved
-      setTimeout(() => {
-        window.location.replace(redirectUrl);
-      }, 300);
+      // Redirect
+      router.push(redirectUrl);
+      router.refresh();
 
     } catch (err: any) {
       toast.error(err.message || "Invalid email or password");
