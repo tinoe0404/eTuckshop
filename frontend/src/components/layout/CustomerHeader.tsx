@@ -12,13 +12,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useCartStore } from '@/lib/store/cartStore';
+import { useAuthStore } from '@/lib/store/authStore';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
 import { useLogout } from '@/lib/hooks/useLogout';
 
 export default function CustomerHeader() {
   const router = useRouter();
   const { totalItems } = useCartStore();
+  const { user } = useAuthStore(); // ✅ Get user from auth store
   const { logout } = useLogout();
 
   const handleLogout = async () => {
@@ -39,8 +40,6 @@ export default function CustomerHeader() {
               eTuckshop
             </span>
           </div>
-
-          {/* NOTHING here anymore — search bar removed */}
 
           {/* Actions */}
           <div className="flex items-center space-x-4">
@@ -71,11 +70,11 @@ export default function CustomerHeader() {
                 <Button variant="ghost" className="flex items-center space-x-2">
                   <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                     <span className="text-white text-sm font-semibold">
-                      {user?.name.charAt(0).toUpperCase()}
+                      {user?.name?.charAt(0).toUpperCase() || 'U'}
                     </span>
                   </div>
                   <span className="hidden md:block font-medium">
-                    {user?.name}
+                    {user?.name || 'User'}
                   </span>
                 </Button>
               </DropdownMenuTrigger>
