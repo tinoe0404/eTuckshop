@@ -462,26 +462,37 @@ export default function CheckoutPage() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Your Order</AlertDialogTitle>
-              <AlertDialogDescription className="space-y-3">
-                <p>
-                  You're about to place an order for{' '}
-                  <strong>{totalItems} items</strong> with a total of{' '}
-                  <strong>{formatCurrency(totalAmount)}</strong>.
-                </p>
-                <p>
-                  Payment method:{' '}
-                  <strong>
-                    {selectedPayment === 'CASH' ? 'Cash at Counter' : 'PayNow Online'}
-                  </strong>
-                </p>
-                {selectedPayment === 'CASH' && (
-                  <p className="text-yellow-600 dark:text-yellow-400">
-                    ⚠️ Your QR code will expire in 1 minute. Please proceed to the
-                    counter immediately.
+
+              {/* FIXED SECTION */}
+              <AlertDialogDescription asChild>
+                <div className="space-y-3">
+                  <p>
+                    You're about to place an order for{" "}
+                    <strong>{totalItems} items</strong> with a total of{" "}
+                    <strong>{formatCurrency(totalAmount)}</strong>.
                   </p>
-                )}
+
+                  <p>
+                    Payment method:{" "}
+                    <strong>
+                      {selectedPayment === "CASH"
+                        ? "Cash at Counter"
+                        : "PayNow Online"}
+                    </strong>
+                  </p>
+
+                  {selectedPayment === "CASH" && (
+                    <p className="text-yellow-600 dark:text-yellow-400">
+                      ⚠️ Your QR code will expire in 1 minute. Please proceed to the
+                      counter immediately.
+                    </p>
+                  )}
+                </div>
               </AlertDialogDescription>
+              {/* END FIXED SECTION */}
+
             </AlertDialogHeader>
+
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={confirmOrder}>
@@ -490,6 +501,7 @@ export default function CheckoutPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
       </div>
     </div>
   );
