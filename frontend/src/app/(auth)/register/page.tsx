@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,6 +41,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -48,6 +49,11 @@ export default function RegisterPage() {
   });
 
   const selectedRole = watch("role");
+
+  // Fix hydration error
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // ------------------ REGISTER HANDLER ------------------
   const onSubmit = async (data: RegisterFormData) => {
@@ -67,24 +73,32 @@ export default function RegisterPage() {
       toast.success(`Account created successfully! Welcome, ${response.user.name}`);
 
       // Redirect based on role
-      router.push(response.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
+      const redirectUrl = response.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
+      
+      setTimeout(() => {
+        window.location.replace(redirectUrl);
+      }, 300);
 
     } catch (err: any) {
       const message = err?.message || "Failed to create account";
       toast.error(message);
-    } finally {
       setIsLoading(false);
     }
   };
 
+  // Prevent hydration errors
+  if (!mounted) {
+    return null;
+  }
+
   // ------------------ UI ------------------
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
       <Card className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 shadow-2xl">
 
         {/* Logo */}
         <div className="flex justify-center">
-          <div className="w-24 h-24 bg-linear-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+          <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
             <span className="text-white text-3xl font-bold">eT</span>
           </div>
         </div>
@@ -103,6 +117,7 @@ export default function RegisterPage() {
           <button
             type="button"
             onClick={() => setValue("role", "CUSTOMER")}
+            disabled={isLoading}
             className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
               selectedRole === "CUSTOMER"
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
@@ -132,6 +147,7 @@ export default function RegisterPage() {
           <button
             type="button"
             onClick={() => setValue("role", "ADMIN")}
+            disabled={isLoading}
             className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
               selectedRole === "ADMIN"
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
@@ -167,6 +183,7 @@ export default function RegisterPage() {
             <Input
               id="name"
               placeholder="Enter your name"
+              disabled={isLoading}
               {...register("name")}
             />
             {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
@@ -182,6 +199,7 @@ export default function RegisterPage() {
                 type="email"
                 placeholder="Enter your email"
                 className="pl-10"
+                disabled={isLoading}
                 {...register("email")}
               />
             </div>
@@ -198,11 +216,13 @@ export default function RegisterPage() {
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
                 className="pl-10 pr-10"
+                disabled={isLoading}
                 {...register("password")}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((p) => !p)}
+                disabled={isLoading}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -221,11 +241,13 @@ export default function RegisterPage() {
                 type={showConfirmPassword ? "text" : "password"}
                 placeholder="Confirm your password"
                 className="pl-10 pr-10"
+                disabled={isLoading}
                 {...register("confirmPassword")}
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword((p) => !p)}
+                disabled={isLoading}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}

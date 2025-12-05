@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -34,11 +34,13 @@ type UserRole = "CUSTOMER" | "ADMIN" | null;
 // ------------------ COMPONENT ------------------
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setUser } = useAuthStore();
 
   const [selectedRole, setSelectedRole] = useState<UserRole>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const {
     register,
@@ -53,6 +55,11 @@ export default function LoginPage() {
 
   const rememberMe = watch("rememberMe");
 
+  // Fix hydration error
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // ------------------ LOGIN HANDLER ------------------
   const onSubmit = async (data: LoginFormData) => {
     if (!selectedRole) {
@@ -63,7 +70,6 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // ✅ AuthService now throws on failure, so response is guaranteed
       const response: AuthResponse = await authService.login({
         email: data.email,
         password: data.password,
@@ -74,6 +80,7 @@ export default function LoginPage() {
         toast.error(
           `This account is not registered as ${selectedRole.toLowerCase()}`
         );
+        setIsLoading(false);
         return;
       }
 
@@ -83,24 +90,35 @@ export default function LoginPage() {
 
       toast.success(`Welcome back, ${response.user.name}!`);
 
-      // Redirect based on role
-      router.push(response.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
+      // Get callback URL or use default based on role
+      const callbackUrl = searchParams.get('callbackUrl');
+      const defaultUrl = response.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
+      const redirectUrl = callbackUrl || defaultUrl;
+
+      // Redirect with a small delay to ensure state is saved
+      setTimeout(() => {
+        window.location.replace(redirectUrl);
+      }, 300);
+
     } catch (err: any) {
-      // err.message comes from authService.throw
       toast.error(err.message || "Invalid email or password");
-    } finally {
       setIsLoading(false);
     }
   };
 
+  // Prevent hydration errors
+  if (!mounted) {
+    return null;
+  }
+
   // ------------------ UI ------------------
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
       <Card className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 shadow-2xl">
 
         {/* Logo */}
         <div className="flex justify-center">
-          <div className="w-24 h-24 bg-linear-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+          <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
             <span className="text-white text-3xl font-bold">eT</span>
           </div>
         </div>
@@ -119,6 +137,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => setSelectedRole("CUSTOMER")}
+            disabled={isLoading}
             className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
               selectedRole === "CUSTOMER"
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
@@ -148,6 +167,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => setSelectedRole("ADMIN")}
+            disabled={isLoading}
             className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
               selectedRole === "ADMIN"
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
@@ -178,14 +198,15 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Email */}
           <div className="space-y-2">
-            <Label htmlFor="email">Username</Label>
+            <Label htmlFor="email">Email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter your username"
+                placeholder="Enter your email"
                 className="pl-10"
+                disabled={isLoading}
                 {...register("email")}
               />
             </div>
@@ -204,12 +225,14 @@ export default function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
                 className="pl-10 pr-10"
+                disabled={isLoading}
                 {...register("password")}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((p) => !p)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                disabled={isLoading}
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
@@ -228,6 +251,7 @@ export default function LoginPage() {
                 onCheckedChange={(checked) =>
                   setValue("rememberMe", checked as boolean)
                 }
+                disabled={isLoading}
               />
               <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
                 Remember me
@@ -247,7 +271,7 @@ export default function LoginPage() {
             type="submit"
             className="w-full"
             size="lg"
-            disabled={isLoading}
+            disabled={isLoading || !selectedRole}
           >
             {isLoading
               ? "Signing in..."

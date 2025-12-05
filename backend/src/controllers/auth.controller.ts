@@ -1,4 +1,5 @@
 import { Context } from "hono";
+import { setCookie, deleteCookie } from "hono/cookie";
 import { prisma } from "../utils/db";
 import { redis } from "../utils/redis";
 import { generateTokens, verifyRefreshToken } from "../utils/tokens";
@@ -9,7 +10,7 @@ import { sign, verify } from "hono/jwt";
 // ------------------- HELPER -------------------
 const storeRefreshToken = async (userId: string, refreshToken: string) => {
   await redis.set(`refresh_token:${userId}`, refreshToken, {
-    ex: 7 * 24 * 60 * 60,
+    ex: 7 * 24 * 60 * 60, // 7 days
   });
 };
 
@@ -44,6 +45,35 @@ const verifyResetToken = async (token: string) => {
   }
 };
 
+// Helper to set auth cookies
+const setAuthCookies = (c: Context, accessToken: string, refreshToken: string) => {
+  const isProd = process.env.NODE_ENV === "production";
+  
+  // Access token cookie (15 minutes)
+  setCookie(c, "accessToken", accessToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: "Lax",
+    path: "/",
+    maxAge: 60 * 15, // 15 minutes
+  });
+
+  // Refresh token cookie (7 days)
+  setCookie(c, "refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: "Lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+  });
+};
+
+// Helper to clear auth cookies
+const clearAuthCookies = (c: Context) => {
+  deleteCookie(c, "accessToken", { path: "/" });
+  deleteCookie(c, "refreshToken", { path: "/" });
+};
+
 // ------------------- SIGNUP -------------------
 export const signup = async (c: Context) => {
   try {
@@ -65,17 +95,17 @@ export const signup = async (c: Context) => {
     const { accessToken, refreshToken } = await generateTokens(user.id.toString());
     await storeRefreshToken(user.id.toString(), refreshToken);
 
+    // Set httpOnly cookies
+    setAuthCookies(c, accessToken, refreshToken);
+
     const { password: _, ...safeUser } = user;
 
-    // ✅ FIXED: Wrap auth data in 'data' property
     return c.json(
       {
         success: true,
         message: "User created successfully",
         data: {
           user: safeUser,
-          accessToken,
-          refreshToken,
         }
       },
       201
@@ -102,20 +132,17 @@ export const login = async (c: Context) => {
     const { accessToken, refreshToken } = await generateTokens(user.id.toString());
     await storeRefreshToken(user.id.toString(), refreshToken);
 
+    // Set httpOnly cookies
+    setAuthCookies(c, accessToken, refreshToken);
+
     const { password: _, ...safeUser } = user;
 
-    console.log("✅ Login successful for:", user.email, "| Role:", user.role);
-
-    // ✅ FIXED: Wrap auth data in 'data' property
     return c.json({
       success: true,
       message: "Logged in successfully",
-      data: {
-        user: safeUser,
-        accessToken,
-        refreshToken,
-      }
+      data: { user: safeUser }
     });
+
   } catch (error) {
     return serverError(c, error);
   }
@@ -124,7 +151,10 @@ export const login = async (c: Context) => {
 // ------------------- LOGOUT -------------------
 export const logout = async (c: Context) => {
   try {
-    const { refreshToken } = await c.req.json();
+    // Try to get refresh token from cookie first, then body
+    const cookieRefreshToken = c.req.header("Cookie")?.match(/refreshToken=([^;]+)/)?.[1];
+    const bodyData = await c.req.json().catch(() => ({}));
+    const refreshToken = cookieRefreshToken || bodyData.refreshToken;
 
     if (refreshToken) {
       const decoded = await verifyRefreshToken(refreshToken);
@@ -134,36 +164,61 @@ export const logout = async (c: Context) => {
       }
     }
 
+    // Clear cookies
+    clearAuthCookies(c);
+
     return c.json({ 
       success: true, 
       message: "Logged out successfully",
       data: null 
     });
   } catch (error) {
-    return serverError(c, error);
+    // Still clear cookies even if there's an error
+    clearAuthCookies(c);
+    return c.json({ 
+      success: true, 
+      message: "Logged out successfully",
+      data: null 
+    });
   }
 };
 
 // ------------------- REFRESH ACCESS TOKEN -------------------
 export const refreshToken = async (c: Context) => {
   try {
-    const { refreshToken } = await c.req.json();
+    // Try to get refresh token from cookie first, then body
+    const cookieRefreshToken = c.req.header("Cookie")?.match(/refreshToken=([^;]+)/)?.[1];
+    const bodyData = await c.req.json().catch(() => ({}));
+    const refreshToken = cookieRefreshToken || bodyData.refreshToken;
+
     if (!refreshToken)
       return c.json({ success: false, message: "No refresh token provided" }, 401);
 
     const decoded = await verifyRefreshToken(refreshToken);
     
     if (!decoded || !decoded.userId) {
+      clearAuthCookies(c);
       return c.json({ success: false, message: "Invalid refresh token" }, 401);
     }
 
     const storedToken = await redis.get(`refresh_token:${decoded.userId}`);
-    if (storedToken !== refreshToken)
+    if (storedToken !== refreshToken) {
+      clearAuthCookies(c);
       return c.json({ success: false, message: "Invalid refresh token" }, 401);
+    }
 
     const { accessToken } = await generateTokens(decoded.userId as string);
 
-    // ✅ FIXED: Wrap token in 'data' property
+    // Update only the access token cookie
+    const isProd = process.env.NODE_ENV === "production";
+    setCookie(c, "accessToken", accessToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: "Lax",
+      path: "/",
+      maxAge: 60 * 15, // 15 minutes
+    });
+
     return c.json({
       success: true,
       message: "Token refreshed successfully",
@@ -172,6 +227,7 @@ export const refreshToken = async (c: Context) => {
       }
     });
   } catch (error) {
+    clearAuthCookies(c);
     return serverError(c, error);
   }
 };
@@ -183,7 +239,6 @@ export const getProfile = async (c: Context) => {
     if (!user)
       return c.json({ success: false, message: "Unauthorized" }, 401);
 
-    // ✅ FIXED: Wrap user in 'data' property
     return c.json({
       success: true,
       message: "Profile retrieved successfully",

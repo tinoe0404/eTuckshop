@@ -1,33 +1,33 @@
-const ACCESS_TOKEN_KEY = 'accessToken';
-const REFRESH_TOKEN_KEY = 'refreshToken';
+// /lib/utils/token.ts
 
-export const getAccessToken = (): string | null => {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
+export const getAccessToken = () => {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("accessToken");
 };
 
-export const setAccessToken = (token: string): void => {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+export const getRefreshToken = () => {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("refreshToken");
 };
 
-export const getRefreshToken = (): string | null => {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
+export const setAccessToken = (token: string) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("accessToken", token);
 };
 
-export const setRefreshToken = (token: string): void => {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(REFRESH_TOKEN_KEY, token);
+export const setRefreshToken = (token: string) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("refreshToken", token);
 };
 
-export const removeTokens = (): void => {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
+// ⭐ Combined helper
+export const setTokens = (access: string, refresh: string) => {
+  setAccessToken(access);
+  setRefreshToken(refresh);
 };
 
-export const setTokens = (accessToken: string, refreshToken: string): void => {
-  setAccessToken(accessToken);
-  setRefreshToken(refreshToken);
+export const removeTokens = () => {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
 };
