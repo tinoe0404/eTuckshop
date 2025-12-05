@@ -7,8 +7,9 @@ export interface ApiResponse<T> {
   data: T;
   error?: string;
 }
+
 // -----------------------------
-// Auth Types
+// Auth Types (UPDATED - No tokens in response)
 // -----------------------------
 export interface User {
   id: number;
@@ -19,10 +20,9 @@ export interface User {
   updatedAt: string;
 }
 
+// ✅ UPDATED: AuthResponse no longer contains tokens (they're in httpOnly cookies)
 export interface AuthResponse {
   user: User;
-  accessToken: string;
-  refreshToken: string;
 }
 
 // -----------------------------
@@ -101,31 +101,25 @@ export interface PaymentQR {
 export interface Order {
   id: number;
   orderNumber: string;
-
-  // Helpful for admin pages (order.user?.name, etc.)
   userId: number;
   user?: {
     id: number;
     name: string;
     email: string;
   };
-
   totalAmount: number;
   paymentType: 'CASH' | 'PAYNOW';
   status: 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED';
-
   paidAt: string | null;
   completedAt: string | null;
-
   createdAt: string;
   updatedAt: string;
-
   orderItems: OrderItem[];
-
   paymentQR?: PaymentQR;
 }
+
 // -----------------------------
-// Dashboard Stats (for main admin dashboard)
+// Dashboard Stats
 // -----------------------------
 export interface DashboardStats {
   totalOrders: number;
@@ -139,7 +133,7 @@ export interface DashboardStats {
 }
 
 // -----------------------------
-// Analytics Types (for analytics page)
+// Analytics Types
 // -----------------------------
 export interface AnalyticsSummary {
   totalUsers: number;
