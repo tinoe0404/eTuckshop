@@ -191,7 +191,7 @@ export const orderService = {
 
   // Get order QR code
   getOrderQR: async (orderId: number) => {
-    const response = await apiClient.get
+    const response = await apiClient.get<
       ApiResponse<{
         orderId: number;
         orderNumber: string;
@@ -212,8 +212,10 @@ export const orderService = {
         isUsed: boolean;
       }>
     >(`/orders/qr/${orderId}`);
+
     return response.data;
   },
+
 
   
 };

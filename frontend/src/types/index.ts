@@ -170,3 +170,33 @@ export interface AnalyticsData {
     end: string;
   };
 }
+
+// -----------------------------
+// QR Details (from getOrderQR, generateCashQR, PayNow QR responses)
+// -----------------------------
+export interface QRDetails {
+  orderId: number;
+  orderNumber: string;
+  paymentType: 'CASH' | 'PAYNOW';
+  paymentStatus: 'PENDING' | 'PAID';
+
+  customer: {
+    name: string;
+    email: string;
+  };
+
+  orderSummary: {
+    items: Array<{
+      name: string;
+      quantity: number;
+      price: number;
+      subtotal: number;
+    }>;
+    totalItems: number;
+    totalAmount: number;
+  };
+
+  qrCode: string;
+  expiresAt: string | null;
+  paidAt: string | null;
+}
