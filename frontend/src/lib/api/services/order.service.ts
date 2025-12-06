@@ -188,4 +188,32 @@ export const orderService = {
     >('/orders/admin/stats');
     return response.data;
   },
+
+  // Get order QR code
+  getOrderQR: async (orderId: number) => {
+    const response = await apiClient.get
+      ApiResponse<{
+        orderId: number;
+        orderNumber: string;
+        paymentType: string;
+        paymentStatus: string;
+        customer: {
+          name: string;
+          email: string;
+        };
+        orderSummary: {
+          items: any[];
+          totalItems: number;
+          totalAmount: number;
+        };
+        qrCode: string;
+        expiresAt: string | null;
+        paidAt: string | null;
+        isUsed: boolean;
+      }>
+    >(`/orders/qr/${orderId}`);
+    return response.data;
+  },
+
+  
 };
