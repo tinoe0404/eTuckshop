@@ -1,9 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { categoryService } from '@/lib/api/services/category.service';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useMemo } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,7 +35,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
 import {
   Plus,
   Search,
@@ -52,6 +49,16 @@ import {
 } from 'lucide-react';
 import { Category } from '@/types';
 
+// Import our optimized hooks and store
+import {
+  useCategories,
+  useCategoryStats,
+  useCreateCategory,
+  useUpdateCategory,
+  useDeleteCategory,
+} from '@/hooks/useCategories';
+import { useCategoryUIStore } from '@/store/useCategoryUIStore';
+
 interface CategoryStats {
   id: number;
   name: string;
@@ -64,115 +71,72 @@ interface CategoryStats {
 }
 
 export default function AdminCategoriesPage() {
-  const queryClient = useQueryClient();
-  
-  // State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [deleteCategoryId, setDeleteCategoryId] = useState<number | null>(null);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  
-  // Form state
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-  });
+  // UI Store (Zustand)
+  const {
+    isCreateDialogOpen,
+    isEditDialogOpen,
+    deleteCategoryId,
+    formData,
+    editingCategory,
+    searchQuery,
+    openCreateDialog,
+    closeCreateDialog,
+    openEditDialog,
+    closeEditDialog,
+    openDeleteDialog,
+    closeDeleteDialog,
+    setFormData,
+    setSearchQuery,
+  } = useCategoryUIStore();
 
-  // Fetch categories
-  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
-    queryKey: ['admin-categories'],
-    queryFn: categoryService.getAll,
-  });
-
-  // Fetch category stats
-  const { data: statsData, isLoading: statsLoading } = useQuery({
-    queryKey: ['category-stats'],
-    queryFn: categoryService.getStats,
-  });
+  // Server State (React Query)
+  const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
+  const { data: statsData, isLoading: statsLoading } = useCategoryStats();
+  
+  // Mutations with optimistic updates
+  const createMutation = useCreateCategory();
+  const updateMutation = useUpdateCategory();
+  const deleteMutation = useDeleteCategory();
 
   const categories = categoriesData?.data || [];
   const stats: CategoryStats[] = statsData?.data || [];
 
-  // Create category mutation
-  const createCategoryMutation = useMutation({
-    mutationFn: (data: { name: string; description?: string }) =>
-      categoryService.create(data),
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
-      queryClient.invalidateQueries({ queryKey: ['category-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast.success(response.message || 'Category created successfully');
-      setIsCreateDialogOpen(false);
-      resetForm();
-    },
-    onError: (error: any) => {
-      const message = error.response?.data?.message || 'Failed to create category';
-      toast.error(message);
-    },
-  });
+  // Memoized filtered categories
+  const filteredCategories = useMemo(() => {
+    return categories.filter((category: Category) =>
+      category.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [categories, searchQuery]);
 
-  // Update category mutation
-  const updateCategoryMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { name?: string; description?: string } }) =>
-      categoryService.update(id, data),
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
-      queryClient.invalidateQueries({ queryKey: ['category-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast.success(response.message || 'Category updated successfully');
-      setIsEditDialogOpen(false);
-      setEditingCategory(null);
-      resetForm();
-    },
-    onError: (error: any) => {
-      const message = error.response?.data?.message || 'Failed to update category';
-      toast.error(message);
-    },
-  });
+  // Memoized totals
+  const totals = useMemo(() => {
+    return {
+      totalCategories: categories.length,
+      totalProducts: stats.reduce((sum, cat) => sum + cat.totalProducts, 0),
+      totalStock: stats.reduce((sum, cat) => sum + cat.totalStock, 0),
+      avgPrice: stats.length > 0
+        ? stats.reduce((sum, cat) => sum + cat.averagePrice, 0) / stats.length
+        : 0,
+    };
+  }, [categories, stats]);
 
-  // Delete category mutation
-  const deleteCategoryMutation = useMutation({
-    mutationFn: (id: number) => categoryService.delete(id),
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
-      queryClient.invalidateQueries({ queryKey: ['category-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast.success(response.message || 'Category deleted successfully');
-      setDeleteCategoryId(null);
-    },
-    onError: (error: any) => {
-      const message = error.response?.data?.message || 'Failed to delete category';
-      toast.error(message);
-    },
-  });
-
-  // Filter categories
-  const filteredCategories = categories.filter((category: Category) =>
-    category.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Calculate totals from stats
-  const totalCategories = categories.length;
-  const totalProducts = stats.reduce((sum, cat) => sum + cat.totalProducts, 0);
-  const totalStock = stats.reduce((sum, cat) => sum + cat.totalStock, 0);
-  const avgPrice = stats.length > 0
-    ? stats.reduce((sum, cat) => sum + cat.averagePrice, 0) / stats.length
-    : 0;
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      description: '',
-    });
+  // Get category stats helper
+  const getCategoryStats = (categoryId: number): CategoryStats | undefined => {
+    return stats.find((s) => s.id === categoryId);
   };
 
+  // Get category product count helper
+  const getCategoryProductCount = (categoryId: number): number => {
+    const category = categories.find((c: Category) => c.id === categoryId);
+    return category?.productCount || 0;
+  };
+
+  // Handlers
   const handleCreateCategory = () => {
     const trimmedName = formData.name.trim();
     
     if (!trimmedName) {
-      toast.error('Category name is required');
-      return;
+      return; // Toast handled in mutation
     }
 
     const data: { name: string; description?: string } = {
@@ -184,16 +148,15 @@ export default function AdminCategoriesPage() {
       data.description = trimmedDesc;
     }
 
-    createCategoryMutation.mutate(data);
+    createMutation.mutate(data, {
+      onSuccess: () => {
+        closeCreateDialog();
+      },
+    });
   };
 
-  const handleEditCategory = (category: Category) => {
-    setEditingCategory(category);
-    setFormData({
-      name: category.name,
-      description: category.description || '',
-    });
-    setIsEditDialogOpen(true);
+  const handleEditClick = (category: Category) => {
+    openEditDialog(category);
   };
 
   const handleUpdateCategory = () => {
@@ -202,47 +165,45 @@ export default function AdminCategoriesPage() {
     const trimmedName = formData.name.trim();
     
     if (!trimmedName) {
-      toast.error('Category name is required');
-      return;
+      return; // Toast handled in mutation
     }
 
     const data: { name?: string; description?: string } = {};
     
-    // Only include name if it changed
     if (trimmedName !== editingCategory.name) {
       data.name = trimmedName;
     }
 
-    // Always include description (can be empty string to clear)
     data.description = formData.description.trim() || undefined;
 
-    updateCategoryMutation.mutate({
-      id: editingCategory.id,
-      data,
-    });
+    updateMutation.mutate(
+      {
+        id: editingCategory.id,
+        data,
+      },
+      {
+        onSuccess: () => {
+          closeEditDialog();
+        },
+      }
+    );
   };
 
-  const handleDeleteCategory = (id: number) => {
-    setDeleteCategoryId(id);
+  const handleDeleteClick = (id: number) => {
+    openDeleteDialog(id);
   };
 
   const confirmDelete = () => {
     if (deleteCategoryId) {
-      deleteCategoryMutation.mutate(deleteCategoryId);
+      deleteMutation.mutate(deleteCategoryId, {
+        onSuccess: () => {
+          closeDeleteDialog();
+        },
+      });
     }
   };
 
-  // Get category stats for a specific category
-  const getCategoryStats = (categoryId: number): CategoryStats | undefined => {
-    return stats.find((s) => s.id === categoryId);
-  };
-
-  // Get category product count from categories data
-  const getCategoryProductCount = (categoryId: number): number => {
-    const category = categories.find((c: Category) => c.id === categoryId);
-    return category?.productCount || 0;
-  };
-
+  // Loading state
   if (categoriesLoading || statsLoading) {
     return (
       <div className="min-h-screen bg-[#0f1419] p-6">
@@ -276,9 +237,12 @@ export default function AdminCategoriesPage() {
               Organize your products into categories
             </p>
           </div>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <Dialog open={isCreateDialogOpen} onOpenChange={closeCreateDialog}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={openCreateDialog}
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Category
               </Button>
@@ -291,7 +255,6 @@ export default function AdminCategoriesPage() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                {/* Category Name */}
                 <div className="space-y-2">
                   <Label htmlFor="name" className="text-gray-300">
                     Category Name *
@@ -301,13 +264,12 @@ export default function AdminCategoriesPage() {
                     placeholder="Enter category name"
                     value={formData.name}
                     onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
+                      setFormData({ name: e.target.value })
                     }
                     className="bg-[#0f1419] border-gray-700 text-white"
                   />
                 </div>
 
-                {/* Description */}
                 <div className="space-y-2">
                   <Label htmlFor="description" className="text-gray-300">
                     Description (Optional)
@@ -317,7 +279,7 @@ export default function AdminCategoriesPage() {
                     placeholder="Enter category description"
                     value={formData.description}
                     onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
+                      setFormData({ description: e.target.value })
                     }
                     className="bg-[#0f1419] border-gray-700 text-white"
                     rows={3}
@@ -327,21 +289,18 @@ export default function AdminCategoriesPage() {
               <DialogFooter>
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    setIsCreateDialogOpen(false);
-                    resetForm();
-                  }}
+                  onClick={closeCreateDialog}
                   className="border-gray-700 text-gray-300 hover:bg-gray-800"
-                  disabled={createCategoryMutation.isPending}
+                  disabled={createMutation.isPending}
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleCreateCategory}
-                  disabled={createCategoryMutation.isPending}
+                  disabled={createMutation.isPending}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
-                  {createCategoryMutation.isPending ? (
+                  {createMutation.isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Creating...
@@ -362,7 +321,7 @@ export default function AdminCategoriesPage() {
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
                   <p className="text-gray-400 text-sm font-medium">Total Categories</p>
-                  <p className="text-3xl font-bold text-white">{totalCategories}</p>
+                  <p className="text-3xl font-bold text-white">{totals.totalCategories}</p>
                 </div>
                 <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center">
                   <FolderOpen className="w-6 h-6 text-blue-400" />
@@ -376,7 +335,7 @@ export default function AdminCategoriesPage() {
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
                   <p className="text-gray-400 text-sm font-medium">Total Products</p>
-                  <p className="text-3xl font-bold text-white">{totalProducts}</p>
+                  <p className="text-3xl font-bold text-white">{totals.totalProducts}</p>
                 </div>
                 <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
                   <Package className="w-6 h-6 text-purple-400" />
@@ -390,7 +349,7 @@ export default function AdminCategoriesPage() {
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
                   <p className="text-gray-400 text-sm font-medium">Total Stock</p>
-                  <p className="text-3xl font-bold text-white">{totalStock}</p>
+                  <p className="text-3xl font-bold text-white">{totals.totalStock}</p>
                 </div>
                 <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
                   <Box className="w-6 h-6 text-green-400" />
@@ -405,7 +364,7 @@ export default function AdminCategoriesPage() {
                 <div className="space-y-2">
                   <p className="text-gray-400 text-sm font-medium">Avg Price</p>
                   <p className="text-3xl font-bold text-white">
-                    ${avgPrice.toFixed(2)}
+                    ${totals.avgPrice.toFixed(2)}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center">
@@ -501,7 +460,7 @@ export default function AdminCategoriesPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleEditCategory(category)}
+                              onClick={() => handleEditClick(category)}
                               className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
                             >
                               <Edit className="w-4 h-4" />
@@ -509,7 +468,7 @@ export default function AdminCategoriesPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDeleteCategory(category.id)}
+                              onClick={() => handleDeleteClick(category.id)}
                               className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
                               disabled={productCount > 0}
                               title={productCount > 0 ? 'Cannot delete category with products' : 'Delete category'}
@@ -528,7 +487,7 @@ export default function AdminCategoriesPage() {
         </Card>
 
         {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <Dialog open={isEditDialogOpen} onOpenChange={closeEditDialog}>
           <DialogContent className="bg-[#1a2332] border-gray-700 text-white">
             <DialogHeader>
               <DialogTitle className="text-xl">Edit Category</DialogTitle>
@@ -537,7 +496,6 @@ export default function AdminCategoriesPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              {/* Category Name */}
               <div className="space-y-2">
                 <Label htmlFor="edit-name" className="text-gray-300">
                   Category Name *
@@ -547,13 +505,12 @@ export default function AdminCategoriesPage() {
                   placeholder="Enter category name"
                   value={formData.name}
                   onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
+                    setFormData({ name: e.target.value })
                   }
                   className="bg-[#0f1419] border-gray-700 text-white"
                 />
               </div>
 
-              {/* Description */}
               <div className="space-y-2">
                 <Label htmlFor="edit-description" className="text-gray-300">
                   Description (Optional)
@@ -563,7 +520,7 @@ export default function AdminCategoriesPage() {
                   placeholder="Enter category description"
                   value={formData.description}
                   onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
+                    setFormData({ description: e.target.value })
                   }
                   className="bg-[#0f1419] border-gray-700 text-white"
                   rows={3}
@@ -573,22 +530,18 @@ export default function AdminCategoriesPage() {
             <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsEditDialogOpen(false);
-                  setEditingCategory(null);
-                  resetForm();
-                }}
+                onClick={closeEditDialog}
                 className="border-gray-700 text-gray-300 hover:bg-gray-800"
-                disabled={updateCategoryMutation.isPending}
+                disabled={updateMutation.isPending}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleUpdateCategory}
-                disabled={updateCategoryMutation.isPending}
+                disabled={updateMutation.isPending}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                {updateCategoryMutation.isPending ? (
+                {updateMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Updating...
@@ -604,7 +557,7 @@ export default function AdminCategoriesPage() {
         {/* Delete Confirmation */}
         <AlertDialog
           open={deleteCategoryId !== null}
-          onOpenChange={() => setDeleteCategoryId(null)}
+          onOpenChange={closeDeleteDialog}
         >
           <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white">
             <AlertDialogHeader>
@@ -622,15 +575,18 @@ export default function AdminCategoriesPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel className="border-gray-700 text-gray-300 hover:bg-gray-800">
+              <AlertDialogCancel 
+                onClick={closeDeleteDialog}
+                className="border-gray-700 text-gray-300 hover:bg-gray-800"
+              >
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
                 onClick={confirmDelete}
-                disabled={deleteCategoryMutation.isPending}
+                disabled={deleteMutation.isPending}
                 className="bg-red-600 hover:bg-red-700"
               >
-                {deleteCategoryMutation.isPending ? (
+                {deleteMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Deleting...
