@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -19,23 +19,25 @@ import { authService } from "@/lib/api/services/auth.service";
 import { useAuthStore } from "@/lib/store/authStore";
 
 // ------------------ VALIDATION ------------------
-const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  confirmPassword: z.string().min(6, "Confirm password is required"),
-  role: z.enum(["CUSTOMER", "ADMIN"]),
-})
-.refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
+const registerSchema = z
+  .object({
+    name: z.string().min(2, "Name must be at least 2 characters"),
+    email: z.string().email("Invalid email address"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    confirmPassword: z.string().min(6, "Confirm password is required"),
+    role: z.enum(["CUSTOMER", "ADMIN"]),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
 // ------------------ COMPONENT ------------------
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setUser } = useAuthStore();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -43,7 +45,13 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<RegisterFormData>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    watch,
+    setValue,
+  } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: { role: "CUSTOMER" },
   });
@@ -51,16 +59,12 @@ export default function RegisterPage() {
   const selectedRole = watch("role");
 
   // Fix hydration error
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => setMounted(true), []);
 
   // ------------------ REGISTER HANDLER ------------------
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
-
     try {
-      // Call signup API (cookies are automatically set by backend)
       const response = await authService.signup({
         name: data.name,
         email: data.email,
@@ -68,34 +72,30 @@ export default function RegisterPage() {
         role: data.role,
       });
 
-      // Update Zustand store with user data
-      setUser(response.user);
+      const user = response.user;
+      setUser(user);
 
-      toast.success(`Account created successfully! Welcome, ${response.user.name}`);
+      toast.success(`Account created successfully! Welcome, ${user.name}`);
 
-      // Redirect based on role
-      const redirectUrl = response.user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
-      
+      // Redirect based on role or callbackUrl if provided
+      const callbackUrl = searchParams.get("callbackUrl");
+      const defaultUrl = user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
+      const redirectUrl = callbackUrl || defaultUrl;
+
       router.push(redirectUrl);
       router.refresh();
-
     } catch (err: any) {
-      const message = err?.message || "Failed to create account";
-      toast.error(message);
+      toast.error(err?.message || "Failed to create account");
       setIsLoading(false);
     }
   };
 
-  // Prevent hydration errors
-  if (!mounted) {
-    return null;
-  }
+  if (!mounted) return null;
 
   // ------------------ UI ------------------
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
       <Card className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 shadow-2xl">
-
         {/* Logo */}
         <div className="flex justify-center">
           <div className="w-24 h-24 bg-linear-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -105,9 +105,7 @@ export default function RegisterPage() {
 
         {/* Header */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Create your account
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Create your account</h1>
           <p className="text-gray-600 dark:text-gray-400">Sign up to get started</p>
         </div>
 
@@ -136,9 +134,7 @@ export default function RegisterPage() {
               </div>
               <div className="text-center">
                 <p className="font-semibold text-gray-900 dark:text-white">Customer</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Shop for products
-                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Shop for products</p>
               </div>
             </div>
           </button>
@@ -166,9 +162,7 @@ export default function RegisterPage() {
               </div>
               <div className="text-center">
                 <p className="font-semibold text-gray-900 dark:text-white">Admin</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Manage the shop
-                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Manage the shop</p>
               </div>
             </div>
           </button>
@@ -176,16 +170,10 @@ export default function RegisterPage() {
 
         {/* Register Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-
           {/* Name */}
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              placeholder="Enter your name"
-              disabled={isLoading}
-              {...register("name")}
-            />
+            <Input id="name" placeholder="Enter your name" disabled={isLoading} {...register("name")} />
             {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
           </div>
 
@@ -194,14 +182,7 @@ export default function RegisterPage() {
             <Label htmlFor="email">Email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                className="pl-10"
-                disabled={isLoading}
-                {...register("email")}
-              />
+              <Input id="email" type="email" placeholder="Enter your email" className="pl-10" disabled={isLoading} {...register("email")} />
             </div>
             {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
           </div>

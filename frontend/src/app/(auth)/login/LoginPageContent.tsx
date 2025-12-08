@@ -73,24 +73,20 @@ export default function LoginPageContent() {
         password: data.password,
       });
 
-      if (response.user.role !== selectedRole) {
-        toast.error(
-          `This account is not registered as ${selectedRole.toLowerCase()}`
-        );
+      const user = response.user; // ✅ Correct: authService.login returns { user }
+
+      if (user.role !== selectedRole) {
+        toast.error(`This account is not registered as ${selectedRole.toLowerCase()}`);
         setIsLoading(false);
         return;
       }
 
-      setUser(response.user);
+      setUser(user);
 
-      toast.success(`Welcome back, ${response.user.name}!`);
+      toast.success(`Welcome back, ${user.name}!`);
 
       const callbackUrl = searchParams.get("callbackUrl");
-      const defaultUrl =
-        response.user.role === "ADMIN"
-          ? "/admin/dashboard"
-          : "/dashboard";
-
+      const defaultUrl = user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
       const redirectUrl = callbackUrl || defaultUrl;
 
       router.push(redirectUrl);
