@@ -16,14 +16,18 @@ const app = new Hono();
 
 // Middleware
 app.use(logger());
-app.use("*", cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
-  credentials: true,
-}));
+app.use(
+  "*",
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    credentials: true,
+  })
+);
 
+// Health / root endpoint
 app.get("/", (c) => {
-  return c.json({ 
-    success: true, 
+  return c.json({
+    success: true,
     message: "eTuckshop API is running",
     version: "1.0.0",
     endpoints: {
@@ -34,7 +38,7 @@ app.get("/", (c) => {
       orders: "/api/orders",
       analytics: "/api/analytics",
       customer: "/api/customer",
-    }
+    },
   });
 });
 
@@ -56,19 +60,24 @@ app.route("/api/categories", categoryRoutes);
 app.route("/api/cart", cartRoutes);
 app.route("/api/orders", orderRoutes);
 app.route("/api/analytics", analyticsRoutes);
-app.route("/api/customers", customerRoutes);
+app.route("/api/customer", customerRoutes); // Fixed naming
 
 // Global error handler
-app.onError((err, c) => {
+app.onError((err: Error, c) => {
   console.error("🔥 Global Error:", err);
-  return c.json({ success: false, message: "Internal server error", error: err.message }, 500);
+  return c.json(
+    { success: false, message: "Internal server error", error: err.message },
+    500
+  );
 });
 
 // Start server
 (async () => {
   await checkDbConnection();
-  const port = process.env.PORT ? +process.env.PORT : 5000;
+
+  const port = Number(process.env.PORT) || 3000;
+
   serve({ port, fetch: app.fetch });
+
   console.log(`🚀 Server running on http://localhost:${port}`);
-  console.log(`🤖 Chatbot webhook: http://localhost:${port}/api/chatbot/webhook`);
 })();
