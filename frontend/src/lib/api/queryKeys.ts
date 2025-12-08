@@ -10,15 +10,18 @@ export const queryKeys = {
     stats: () => [...queryKeys.categories.all, 'stats'] as const,
   },
   
-  // Products (existing)
+  // ✅ NEW/UPDATED: Products
   products: {
     all: ['products'] as const,
     lists: () => [...queryKeys.products.all, 'list'] as const,
     list: (filters?: Record<string, any>) => 
       [...queryKeys.products.lists(), { filters }] as const,
+    details: () => [...queryKeys.products.all, 'detail'] as const,
+    detail: (id: number) => [...queryKeys.products.details(), id] as const,
+    inventory: () => [...queryKeys.products.all, 'inventory'] as const,
   },
   
-  // ✅ NEW: Customers
+  // Customers (existing)
   customers: {
     all: ['customers'] as const,
     lists: () => [...queryKeys.customers.all, 'list'] as const,

@@ -1,10 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { productService } from '@/lib/api/services/product.service';
-import { categoryService } from '@/lib/api/services/category.service';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,109 +36,39 @@ import {
 import { formatCurrency, getStockLevelColor } from '@/lib/utils';
 import { Product, Category } from '@/types';
 
-type StockFilter = 'ALL' | 'LOW' | 'MEDIUM' | 'HIGH' | 'OUT_OF_STOCK';
+// Import optimized hooks and store
+import { useProducts } from '@/lib/hooks/useProducts';
+import { useCategories } from '@/lib/hooks/useCategories';
+import { useInventoryUIStore, StockFilter, SortBy } from '@/lib/store/useInventoryUIStore';
+import { useInventoryStats, useFilteredProducts } from '@/lib/hooks/useInventory';
 
 export default function AdminInventoryPage() {
   const router = useRouter();
-  
-  // Filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [stockFilter, setStockFilter] = useState<StockFilter>('ALL');
-  const [sortBy, setSortBy] = useState<'name' | 'stock-low' | 'stock-high'>('stock-low');
 
-  // Fetch products
-  const { data: productsData, isLoading: productsLoading } = useQuery({
-    queryKey: ['admin-products'],
-    queryFn: productService.getAll,
-  });
+  // UI Store (Zustand)
+  const {
+    searchQuery,
+    categoryFilter,
+    stockFilter,
+    sortBy,
+    setSearchQuery,
+    setCategoryFilter,
+    setStockFilter,
+    setSortBy,
+  } = useInventoryUIStore();
 
-  // Fetch categories
-  const { data: categoriesData } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryService.getAll,
-  });
+  // Server State (React Query)
+  const { data: productsData, isLoading: productsLoading } = useProducts();
+  const { data: categoriesData } = useCategories();
 
   const products = productsData?.data || [];
   const categories = categoriesData?.data || [];
 
-  // Calculate inventory stats
-  const inventoryStats = useMemo(() => {
-    const totalProducts = products.length;
-    const totalStock = products.reduce((sum, p) => sum + p.stock, 0);
-    const totalValue = products.reduce((sum, p) => sum + (p.stock * p.price), 0);
-    const lowStockCount = products.filter(p => p.stockLevel === 'LOW').length;
-    const outOfStockCount = products.filter(p => p.stock === 0).length;
-    const avgStockPerProduct = totalProducts > 0 ? totalStock / totalProducts : 0;
+  // Custom hooks for computed values
+  const inventoryStats = useInventoryStats(products, categories);
+  const filteredProducts = useFilteredProducts(products);
 
-    // Category breakdown
-    const categoryBreakdown = categories.map((cat: Category) => {
-      const categoryProducts = products.filter(p => p.categoryId === cat.id);
-      const categoryStock = categoryProducts.reduce((sum, p) => sum + p.stock, 0);
-      const categoryValue = categoryProducts.reduce((sum, p) => sum + (p.stock * p.price), 0);
-      return {
-        id: cat.id,
-        name: cat.name,
-        productCount: categoryProducts.length,
-        totalStock: categoryStock,
-        totalValue: categoryValue,
-        lowStockCount: categoryProducts.filter(p => p.stockLevel === 'LOW').length,
-      };
-    }).filter(c => c.productCount > 0);
-
-    return {
-      totalProducts,
-      totalStock,
-      totalValue,
-      lowStockCount,
-      outOfStockCount,
-      avgStockPerProduct,
-      categoryBreakdown,
-    };
-  }, [products, categories]);
-
-  // Filter and sort products
-  const filteredProducts = useMemo(() => {
-    let result = [...products];
-
-    // Search filter
-    if (searchQuery) {
-      result = result.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.description?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Category filter
-    if (categoryFilter !== 'all') {
-      result = result.filter(p => p.categoryId === parseInt(categoryFilter));
-    }
-
-    // Stock level filter
-    if (stockFilter !== 'ALL') {
-      if (stockFilter === 'OUT_OF_STOCK') {
-        result = result.filter(p => p.stock === 0);
-      } else {
-        result = result.filter(p => p.stockLevel === stockFilter);
-      }
-    }
-
-    // Sort
-    switch (sortBy) {
-      case 'name':
-        result.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case 'stock-low':
-        result.sort((a, b) => a.stock - b.stock);
-        break;
-      case 'stock-high':
-        result.sort((a, b) => b.stock - a.stock);
-        break;
-    }
-
-    return result;
-  }, [products, searchQuery, categoryFilter, stockFilter, sortBy]);
-
+  // Loading state
   if (productsLoading) {
     return (
       <div className="min-h-screen bg-[#0f1419] p-6">
@@ -273,12 +199,14 @@ export default function AdminInventoryPage() {
                   <div className="space-y-1 text-sm text-yellow-200">
                     {inventoryStats.outOfStockCount > 0 && (
                       <p>
-                        ⚠️ <strong>{inventoryStats.outOfStockCount}</strong> products are out of stock
+                        ⚠️ <strong>{inventoryStats.outOfStockCount}</strong> products
+                        are out of stock
                       </p>
                     )}
                     {inventoryStats.lowStockCount > 0 && (
                       <p>
-                        📦 <strong>{inventoryStats.lowStockCount}</strong> products have low stock levels
+                        📦 <strong>{inventoryStats.lowStockCount}</strong> products have
+                        low stock levels
                       </p>
                     )}
                   </div>
@@ -309,7 +237,8 @@ export default function AdminInventoryPage() {
               {inventoryStats.categoryBreakdown.map((cat) => (
                 <div
                   key={cat.id}
-                  className="p-4 bg-[#0f1419] rounded-lg border border-gray-700 hover:border-gray-600 transition-colors"
+                  className="p-4 bg-[#0f1419] rounded-lg border border-gray-700 hover:border-gray-600 transition-colors cursor-pointer"
+                  onClick={() => setCategoryFilter(cat.id.toString())}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-semibold text-white">{cat.name}</h4>
@@ -388,26 +317,39 @@ export default function AdminInventoryPage() {
                   <SelectValue placeholder="Stock Level" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1a2332] border-gray-700 text-white">
-                  <SelectItem value="ALL" className="hover:bg-gray-700">All Stock</SelectItem>
-                  <SelectItem value="OUT_OF_STOCK" className="hover:bg-gray-700">Out of Stock</SelectItem>
-                  <SelectItem value="LOW" className="hover:bg-gray-700">Low Stock</SelectItem>
-                  <SelectItem value="MEDIUM" className="hover:bg-gray-700">Medium Stock</SelectItem>
-                  <SelectItem value="HIGH" className="hover:bg-gray-700">High Stock</SelectItem>
+                  <SelectItem value="ALL" className="hover:bg-gray-700">
+                    All Stock
+                  </SelectItem>
+                  <SelectItem value="OUT_OF_STOCK" className="hover:bg-gray-700">
+                    Out of Stock
+                  </SelectItem>
+                  <SelectItem value="LOW" className="hover:bg-gray-700">
+                    Low Stock
+                  </SelectItem>
+                  <SelectItem value="MEDIUM" className="hover:bg-gray-700">
+                    Medium Stock
+                  </SelectItem>
+                  <SelectItem value="HIGH" className="hover:bg-gray-700">
+                    High Stock
+                  </SelectItem>
                 </SelectContent>
               </Select>
 
               {/* Sort */}
-              <Select
-                value={sortBy}
-                onValueChange={(value: any) => setSortBy(value)}
-              >
+              <Select value={sortBy} onValueChange={(value: SortBy) => setSortBy(value)}>
                 <SelectTrigger className="w-[180px] bg-[#0f1419] border-gray-700 text-white">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1a2332] border-gray-700 text-white">
-                  <SelectItem value="name" className="hover:bg-gray-700">Name (A-Z)</SelectItem>
-                  <SelectItem value="stock-low" className="hover:bg-gray-700">Stock (Low to High)</SelectItem>
-                  <SelectItem value="stock-high" className="hover:bg-gray-700">Stock (High to Low)</SelectItem>
+                  <SelectItem value="name" className="hover:bg-gray-700">
+                    Name (A-Z)
+                  </SelectItem>
+                  <SelectItem value="stock-low" className="hover:bg-gray-700">
+                    Stock (Low to High)
+                  </SelectItem>
+                  <SelectItem value="stock-high" className="hover:bg-gray-700">
+                    Stock (High to Low)
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
