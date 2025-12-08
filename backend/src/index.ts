@@ -19,13 +19,23 @@ app.use(logger());
 app.use(
   "*",
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: (origin, c) => {
+      const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
+
+      // Allow requests from CLIENT_URL or localhost
+      if (!origin) return null; // allow non-browser requests (curl/postman)
+      if (origin === CLIENT_URL || origin.startsWith("http://localhost")) {
+        return origin; // allowed origin
+      }
+      return null; // block other origins
+    },
     credentials: true,
   })
 );
 
+
 // Health / root endpoint
-app.get("/", (c) => {
+app.get("/api", (c) => {
   return c.json({
     success: true,
     message: "eTuckshop API is running",
@@ -60,7 +70,7 @@ app.route("/api/categories", categoryRoutes);
 app.route("/api/cart", cartRoutes);
 app.route("/api/orders", orderRoutes);
 app.route("/api/analytics", analyticsRoutes);
-app.route("/api/customer", customerRoutes); // Fixed naming
+app.route("/api/customer", customerRoutes);
 
 // Global error handler
 app.onError((err: Error, c) => {

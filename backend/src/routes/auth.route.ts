@@ -5,8 +5,8 @@ import {
   logout,
   refreshToken,
   getProfile,
-  updateProfile,      // ADD THIS IMPORT
-  changePassword,     // ADD THIS IMPORT
+  updateProfile,     
+  changePassword,     
   forgotPassword,
   verifyResetTokenEndpoint,
   resetPassword,
