@@ -1,5 +1,5 @@
 import apiClient from '../client';
-import type { ApiResponse, User } from '@/types';
+import type { ApiResponse, User, UpdateProfileData, ChangePasswordData } from '@/types';
 
 // ----------------- TYPES -----------------
 interface SignupData {
@@ -57,5 +57,18 @@ export const authService = {
     const res = await apiClient.get<ApiResponse<User>>('/auth/profile');
     if (!res.data.success) throw new Error(res.data.message);
     return res.data.data;
+  },
+  
+  // -------------- UPDATE PROFILE --------------
+  updateProfile: async (data: UpdateProfileData): Promise<User> => {
+    const res = await apiClient.put<ApiResponse<User>>('/auth/profile', data);
+    if (!res.data.success) throw new Error(res.data.message);
+    return res.data.data;
+  },
+
+  // -------------- CHANGE PASSWORD --------------
+  changePassword: async (data: ChangePasswordData): Promise<void> => {
+    const res = await apiClient.put<ApiResponse<null>>('/auth/password', data);
+    if (!res.data.success) throw new Error(res.data.message);
   },
 };

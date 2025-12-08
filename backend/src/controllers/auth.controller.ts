@@ -249,6 +249,146 @@ export const getProfile = async (c: Context) => {
   }
 };
 
+// ------------------- UPDATE PROFILE -------------------
+export const updateProfile = async (c: Context) => {
+  try {
+    const user = c.get("user");
+    if (!user) {
+      return c.json({ success: false, message: "Unauthorized" }, 401);
+    }
+
+    const { name, email } = await c.req.json();
+
+    // Validate input
+    if (!name || !email) {
+      return c.json({ 
+        success: false, 
+        message: "Name and email are required" 
+      }, 400);
+    }
+
+    if (name.length < 2) {
+      return c.json({ 
+        success: false, 
+        message: "Name must be at least 2 characters" 
+      }, 400);
+    }
+
+    // Check if email is already taken by another user
+    if (email !== user.email) {
+      const existingUser = await prisma.user.findUnique({ 
+        where: { email } 
+      });
+      
+      if (existingUser && existingUser.id !== user.id) {
+        return c.json({ 
+          success: false, 
+          message: "Email is already taken" 
+        }, 400);
+      }
+    }
+
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { name, email },
+      select: { 
+        id: true, 
+        name: true, 
+        email: true, 
+        role: true,
+        createdAt: true,
+        updatedAt: true
+      },
+    });
+
+    return c.json({
+      success: true,
+      message: "Profile updated successfully",
+      data: updatedUser,
+    });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};
+
+// ------------------- CHANGE PASSWORD -------------------
+export const changePassword = async (c: Context) => {
+  try {
+    const user = c.get("user");
+    if (!user) {
+      return c.json({ success: false, message: "Unauthorized" }, 401);
+    }
+
+    const { currentPassword, newPassword } = await c.req.json();
+
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return c.json({ 
+        success: false, 
+        message: "Current password and new password are required" 
+      }, 400);
+    }
+
+    if (newPassword.length < 6) {
+      return c.json({ 
+        success: false, 
+        message: "New password must be at least 6 characters" 
+      }, 400);
+    }
+
+    // Get user with password
+    const fullUser = await prisma.user.findUnique({
+      where: { id: user.id },
+    });
+
+    if (!fullUser) {
+      return c.json({ success: false, message: "User not found" }, 404);
+    }
+
+    // Verify current password
+    const isValid = await Bun.password.verify(currentPassword, fullUser.password);
+    if (!isValid) {
+      return c.json({ 
+        success: false, 
+        message: "Current password is incorrect" 
+      }, 400);
+    }
+
+    // Check if new password is same as current
+    const isSamePassword = await Bun.password.verify(newPassword, fullUser.password);
+    if (isSamePassword) {
+      return c.json({ 
+        success: false, 
+        message: "New password must be different from current password" 
+      }, 400);
+    }
+
+    // Hash new password
+    const hashedPassword = await Bun.password.hash(newPassword, {
+      algorithm: "bcrypt",
+      cost: 10,
+    });
+
+    // Update password
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
+
+    // Invalidate all refresh tokens (force re-login on other devices)
+    await redis.del(`refresh_token:${user.id}`);
+
+    return c.json({
+      success: true,
+      message: "Password changed successfully",
+      data: null,
+    });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};
+
 // ------------------- FORGOT PASSWORD -------------------
 export const forgotPassword = async (c: Context) => {
   try {
@@ -377,4 +517,4 @@ export const resetPassword = async (c: Context) => {
     console.error("Reset password error:", error);
     return serverError(c, error);
   }
-}
+};

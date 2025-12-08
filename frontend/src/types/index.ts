@@ -25,6 +25,16 @@ export interface AuthResponse {
   user: User;
 }
 
+export interface UpdateProfileData {
+  name: string;
+  email: string;
+}
+
+export interface ChangePasswordData {
+  currentPassword: string;
+  newPassword: string;
+}
+
 // -----------------------------
 // Product & Category
 // -----------------------------

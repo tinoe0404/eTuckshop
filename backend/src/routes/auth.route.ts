@@ -5,6 +5,8 @@ import {
   logout,
   refreshToken,
   getProfile,
+  updateProfile,      // ADD THIS IMPORT
+  changePassword,     // ADD THIS IMPORT
   forgotPassword,
   verifyResetTokenEndpoint,
   resetPassword,
@@ -26,5 +28,7 @@ router.post("/reset-password", resetPassword);
 
 // Protected routes
 router.get("/profile", protectRoute, getProfile);
+router.put("/profile", protectRoute, updateProfile);      // ADD THIS LINE
+router.put("/password", protectRoute, changePassword);    // ADD THIS LINE
 
 export default router;

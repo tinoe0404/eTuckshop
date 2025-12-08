@@ -1,20 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuthStore } from '@/lib/store/authStore';
 import { orderService } from '@/lib/api/services/order.service';
+import { authService } from '@/lib/api/services/auth.service';
+import { useLogout } from '@/lib/hooks/useLogout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
@@ -47,8 +48,6 @@ import {
   Loader2,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { removeTokens } from '@/lib/utils/token';
-import { authService } from '@/lib/api/services/auth.service';
 
 // Validation schemas
 const profileSchema = z.object({
@@ -70,7 +69,9 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, setUser, logout } = useAuthStore();
+  const queryClient = useQueryClient();
+  const { user, setUser } = useAuthStore();
+  const { logout: handleLogoutAction } = useLogout();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -122,43 +123,53 @@ export default function ProfilePage() {
     resolver: zodResolver(passwordSchema),
   });
 
-  // Update profile mutation (mock - you'll need to add this to backend)
-  const updateProfileMutation = useMutation({
-    mutationFn: async (data: ProfileFormData) => {
-      // TODO: Add update profile endpoint to backend
-      // For now, just simulate success
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          resolve({ success: true, data: { ...user, ...data } });
-        }, 1000);
+  // Sync form with user state when user changes
+  useEffect(() => {
+    if (user) {
+      resetProfile({
+        name: user.name,
+        email: user.email,
       });
-    },
-    onSuccess: (response: any) => {
-      setUser(response.data);
+    }
+  }, [user, resetProfile]);
+
+  // Update profile mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: (data: ProfileFormData) => authService.updateProfile(data),
+    onSuccess: (updatedUser) => {
+      // Update Zustand store
+      setUser(updatedUser);
+      
+      // Update React Query cache
+      queryClient.setQueryData(['profile'], updatedUser);
+      
       toast.success('Profile updated successfully');
       setIsEditingProfile(false);
     },
-    onError: () => {
-      toast.error('Failed to update profile');
+    onError: (error: any) => {
+      const message = error?.response?.data?.message || error.message || 'Failed to update profile';
+      toast.error(message);
     },
   });
 
-  // Change password mutation (mock - you'll need to add this to backend)
+  // Change password mutation
   const changePasswordMutation = useMutation({
-    mutationFn: async (data: PasswordFormData) => {
-      // TODO: Add change password endpoint to backend
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          resolve({ success: true });
-        }, 1000);
-      });
-    },
+    mutationFn: (data: PasswordFormData) => authService.changePassword({
+      currentPassword: data.currentPassword,
+      newPassword: data.newPassword,
+    }),
     onSuccess: () => {
-      toast.success('Password changed successfully');
+      toast.success('Password changed successfully. Please login again.');
       resetPassword();
+      
+      // Force logout after password change (since backend invalidates tokens)
+      setTimeout(() => {
+        handleLogoutAction();
+      }, 2000);
     },
-    onError: () => {
-      toast.error('Failed to change password');
+    onError: (error: any) => {
+      const message = error?.response?.data?.message || error.message || 'Failed to change password';
+      toast.error(message);
     },
   });
 
@@ -178,22 +189,6 @@ export default function ProfilePage() {
     });
   };
 
-  const handleLogout = async () => {
-    try {
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (refreshToken) {
-        await authService.logout(refreshToken);
-      }
-    } catch (error) {
-      // Ignore logout errors
-    } finally {
-      removeTokens();
-      logout();
-      router.push('/login');
-      toast.success('Logged out successfully');
-    }
-  };
-
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -203,7 +198,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
       <div className="max-w-6xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -232,7 +227,7 @@ export default function ProfilePage() {
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={handleLogout}
+                  onClick={handleLogoutAction}
                   className="bg-red-600 hover:bg-red-700"
                 >
                   Logout
@@ -244,7 +239,7 @@ export default function ProfilePage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="border-0 shadow-lg bg-linear-to-br from-blue-500 to-blue-600 text-white">
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -258,7 +253,7 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-linear-to-br from-green-500 to-emerald-600 text-white">
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-green-500 to-emerald-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -272,7 +267,7 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-linear-to-br from-purple-500 to-pink-600 text-white">
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-500 to-pink-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -288,7 +283,7 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-linear-to-br from-orange-500 to-red-600 text-white">
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-500 to-red-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -309,7 +304,7 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Profile Info Card */}
           <Card className="border-0 shadow-xl lg:col-span-1">
-            <CardHeader className="border-b bg-linear-to-r from-blue-600 to-purple-600 text-white">
+            <CardHeader className="border-b bg-gradient-to-r from-blue-600 to-purple-600 text-white">
               <CardTitle className="flex items-center space-x-2">
                 <User className="w-5 h-5" />
                 <span>Profile Info</span>
@@ -318,7 +313,7 @@ export default function ProfilePage() {
             <CardContent className="p-6">
               <div className="text-center space-y-4">
                 {/* Avatar */}
-                <div className="w-24 h-24 bg-linear-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
+                <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
                   <span className="text-4xl font-bold text-white">
                     {user.name.charAt(0).toUpperCase()}
                   </span>
@@ -374,7 +369,7 @@ export default function ProfilePage() {
 
           {/* Right Column: Settings Tabs */}
           <Card className="border-0 shadow-xl lg:col-span-2">
-            <CardHeader className="border-b bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
               <CardTitle>Account Settings</CardTitle>
             </CardHeader>
             <CardContent className="p-6">

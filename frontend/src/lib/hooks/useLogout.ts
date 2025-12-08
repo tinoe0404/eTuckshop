@@ -36,6 +36,6 @@ export const useLogout = () => {
       router.refresh();
     }
   };
-
   return { logout };
+
 };
