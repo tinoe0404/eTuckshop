@@ -10,7 +10,7 @@ export const queryKeys = {
     stats: () => [...queryKeys.categories.all, 'stats'] as const,
   },
   
-  // ✅ NEW/UPDATED: Products
+  // Products (existing)
   products: {
     all: ['products'] as const,
     lists: () => [...queryKeys.products.all, 'list'] as const,
@@ -35,5 +35,22 @@ export const queryKeys = {
     details: () => [...queryKeys.customers.all, 'detail'] as const,
     detail: (id: number) => [...queryKeys.customers.details(), id] as const,
     stats: () => [...queryKeys.customers.all, 'stats'] as const,
+  },
+  
+  // ✅ NEW: Orders
+  orders: {
+    all: ['orders'] as const,
+    lists: () => [...queryKeys.orders.all, 'list'] as const,
+    list: (filters: {
+      status?: string;
+      paymentType?: string;
+      page?: number;
+      limit?: number;
+    }) => [...queryKeys.orders.lists(), filters] as const,
+    details: () => [...queryKeys.orders.all, 'detail'] as const,
+    detail: (id: number) => [...queryKeys.orders.details(), id] as const,
+    stats: () => [...queryKeys.orders.all, 'stats'] as const,
+    userOrders: () => [...queryKeys.orders.all, 'user'] as const,
+    qr: (orderId: number) => [...queryKeys.orders.all, 'qr', orderId] as const,
   },
 } as const;

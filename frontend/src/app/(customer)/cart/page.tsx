@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cartService } from '@/lib/api/services/cart.service';
@@ -33,6 +33,7 @@ import {
   ArrowLeft,
   Package,
   AlertCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { formatCurrency, getStockLevelColor } from '@/lib/utils';
 import { CartItem } from '@/types';
@@ -42,11 +43,13 @@ export default function CartPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { setTotalItems } = useCartStore();
+  const [quantityInputs, setQuantityInputs] = useState<Record<number, string>>({});
 
   // Fetch cart
-  const { data: cartData, isLoading } = useQuery({
+  const { data: cartData, isLoading, error } = useQuery({
     queryKey: ['cart'],
     queryFn: cartService.getCart,
+    retry: 2,
   });
 
   // Update cart item mutation
@@ -97,21 +100,34 @@ export default function CartPage() {
   const totalItems = cart?.totalItems || 0;
   const totalAmount = cart?.totalAmount || 0;
 
-  // Update cart store
-  useEffect(() => {
-    if (cart) {
-      setTotalItems(cart.totalItems);
-    }
-  }, [cart, setTotalItems]);
-
-  const handleQuantityChange = (productId: number, newQuantity: number, maxStock: number) => {
+  const handleQuantityChange = useCallback((productId: number, newQuantity: number, maxStock: number) => {
     if (newQuantity < 1) return;
     if (newQuantity > maxStock) {
       toast.error(`Only ${maxStock} available in stock`);
       return;
     }
     updateMutation.mutate({ productId, quantity: newQuantity });
-  };
+  }, [updateMutation]);
+
+  const handleQuantityInputChange = useCallback((productId: number, value: string) => {
+    setQuantityInputs(prev => ({ ...prev, [productId]: value }));
+  }, []);
+
+  const handleQuantityInputBlur = useCallback((productId: number, maxStock: number) => {
+    const value = quantityInputs[productId];
+    if (value) {
+      const numValue = parseInt(value);
+      if (!isNaN(numValue) && numValue > 0) {
+        handleQuantityChange(productId, numValue, maxStock);
+      }
+    }
+    // Clear the input state
+    setQuantityInputs(prev => {
+      const newState = { ...prev };
+      delete newState[productId];
+      return newState;
+    });
+  }, [quantityInputs, handleQuantityChange]);
 
   const handleRemoveItem = (productId: number) => {
     removeMutation.mutate(productId);
@@ -126,12 +142,65 @@ export default function CartPage() {
       toast.error('Your cart is empty');
       return;
     }
+    
+    // Check for stock issues
+    const stockIssues = items.filter((item: CartItem) => item.quantity > item.stock);
+    if (stockIssues.length > 0) {
+      toast.error('Please update quantities for out-of-stock items');
+      return;
+    }
+    
     router.push('/checkout');
   };
 
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+        <div className="max-w-7xl mx-auto p-6">
+          <Card className="border-0 shadow-xl">
+            <CardContent className="p-12">
+              <div className="text-center space-y-6">
+                <div className="w-32 h-32 bg-gradient-to-br from-red-100 to-orange-100 dark:from-red-900/20 dark:to-orange-900/20 rounded-full flex items-center justify-center mx-auto">
+                  <AlertTriangle className="w-16 h-16 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    Failed to load cart
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    There was an error loading your cart. Please try again.
+                  </p>
+                </div>
+                <div className="flex gap-4 justify-center">
+                  <Button
+                    size="lg"
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['cart'] })}
+                    className="gap-2"
+                  >
+                    Try Again
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => router.push('/products')}
+                    className="gap-2"
+                  >
+                    Browse Products
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
         <div className="max-w-7xl mx-auto p-6 space-y-6">
           <Skeleton className="h-12 w-64" />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -166,8 +235,10 @@ export default function CartPage() {
     );
   }
 
+  const hasStockIssues = items.some((item: CartItem) => item.quantity > item.stock);
+
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -224,7 +295,7 @@ export default function CartPage() {
           <Card className="border-0 shadow-xl">
             <CardContent className="p-12">
               <div className="text-center space-y-6">
-                <div className="w-32 h-32 bg-linear-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full flex items-center justify-center mx-auto">
+                <div className="w-32 h-32 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full flex items-center justify-center mx-auto">
                   <ShoppingCart className="w-16 h-16 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
@@ -252,7 +323,7 @@ export default function CartPage() {
             {/* Cart Items */}
             <div className="lg:col-span-2 space-y-4">
               <Card className="border-0 shadow-lg">
-                <CardHeader className="border-b bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+                <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
                   <CardTitle className="flex items-center justify-between">
                     <span>Cart Items</span>
                     <Badge variant="secondary">{totalItems} items</Badge>
@@ -267,7 +338,7 @@ export default function CartPage() {
                       <CardContent className="p-4">
                         <div className="flex gap-4">
                           {/* Product Image */}
-                          <div className="relative w-24 h-24 bg-linear-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-lg overflow-hidden shrink-0">
+                          <div className="relative w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-lg overflow-hidden shrink-0">
                             {item.image ? (
                               <Image
                                 src={item.image}
@@ -331,11 +402,12 @@ export default function CartPage() {
                                   type="number"
                                   min="1"
                                   max={item.stock}
-                                  value={item.quantity}
-                                  onChange={(e) => {
-                                    const value = parseInt(e.target.value);
-                                    if (!isNaN(value)) {
-                                      handleQuantityChange(item.productId, value, item.stock);
+                                  value={quantityInputs[item.productId] ?? item.quantity}
+                                  onChange={(e) => handleQuantityInputChange(item.productId, e.target.value)}
+                                  onBlur={() => handleQuantityInputBlur(item.productId, item.stock)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.currentTarget.blur();
                                     }
                                   }}
                                   className="w-16 h-8 text-center"
@@ -403,8 +475,8 @@ export default function CartPage() {
 
                             {/* Stock Warning */}
                             {item.quantity > item.stock && (
-                              <div className="flex items-center space-x-2 text-red-600 text-sm">
-                                <AlertCircle className="w-4 h-4" />
+                              <div className="flex items-center space-x-2 text-red-600 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded">
+                                <AlertCircle className="w-4 h-4 shrink-0" />
                                 <span>
                                   Only {item.stock} available. Please update quantity.
                                 </span>
@@ -422,7 +494,7 @@ export default function CartPage() {
             {/* Order Summary */}
             <div className="lg:col-span-1">
               <Card className="border-0 shadow-xl sticky top-20">
-                <CardHeader className="border-b bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+                <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
                   <CardTitle>Order Summary</CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
@@ -451,12 +523,24 @@ export default function CartPage() {
                     </div>
                   </div>
 
+                  {/* Stock Warning */}
+                  {hasStockIssues && (
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                      <div className="flex items-start space-x-2 text-red-700 dark:text-red-400 text-sm">
+                        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                        <span>
+                          Some items exceed available stock. Please update quantities before checkout.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Checkout Button */}
                   <Button
                     size="lg"
                     className="w-full gap-2"
                     onClick={handleCheckout}
-                    disabled={items.some((item) => item.quantity > item.stock)}
+                    disabled={hasStockIssues}
                   >
                     Proceed to Checkout
                     <ArrowRight className="w-5 h-5" />

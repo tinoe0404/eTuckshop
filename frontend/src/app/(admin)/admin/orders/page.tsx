@@ -1,9 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { orderService } from '@/lib/api/services/order.service';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,7 +42,6 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
 import {
   Search,
   Eye,
@@ -63,85 +60,65 @@ import {
 import { formatCurrency } from '@/lib/utils';
 import { Order } from '@/types';
 
-type OrderStatus = 'ALL' | 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED';
-type PaymentType = 'ALL' | 'CASH' | 'PAYNOW';
+// Import optimized hooks and store
+import { useOrders, useOrderStats, useCompleteOrder, useRejectOrder } from '@/lib/hooks/useOrders';
+import { useOrderUIStore, OrderStatus, PaymentType } from '@/lib/store/useOrderUIStore';
 
 export default function AdminOrdersPage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
-  
-  // Filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<OrderStatus>('ALL');
-  const [paymentFilter, setPaymentFilter] = useState<PaymentType>('ALL');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(10);
 
-  // Dialogs
-  const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
-  const [completingOrderId, setCompletingOrderId] = useState<number | null>(null);
-  const [rejectingOrderId, setRejectingOrderId] = useState<number | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  // UI Store (Zustand)
+  const {
+    searchQuery,
+    statusFilter,
+    paymentFilter,
+    currentPage,
+    viewingOrder,
+    completingOrderId,
+    rejectingOrderId,
+    rejectReason,
+    setSearchQuery,
+    setStatusFilter,
+    setPaymentFilter,
+    setCurrentPage,
+    openViewDialog,
+    closeViewDialog,
+    openCompleteDialog,
+    closeCompleteDialog,
+    openRejectDialog,
+    closeRejectDialog,
+    setRejectReason,
+  } = useOrderUIStore();
 
-  // Fetch orders with filters
-  const { data: ordersResponse, isLoading } = useQuery({
-    queryKey: ['admin-orders', statusFilter, paymentFilter, currentPage, pageSize],
-    queryFn: () => 
-      orderService.getAllOrders({
-        status: statusFilter !== 'ALL' ? statusFilter : undefined,
-        paymentType: paymentFilter !== 'ALL' ? paymentFilter : undefined,
-        page: currentPage,
-        limit: pageSize,
-      }),
+  // Server State (React Query)
+  const { data: ordersResponse, isLoading } = useOrders({
+    status: statusFilter !== 'ALL' ? statusFilter : undefined,
+    paymentType: paymentFilter !== 'ALL' ? paymentFilter : undefined,
+    page: currentPage,
+    limit: 10,
   });
 
-  // Fetch order stats
-  const { data: statsResponse } = useQuery({
-    queryKey: ['order-stats'],
-    queryFn: orderService.getOrderStats,
-  });
+  const { data: statsResponse } = useOrderStats();
+
+  // Mutations with optimistic updates
+  const completeOrderMutation = useCompleteOrder();
+  const rejectOrderMutation = useRejectOrder();
 
   const orders = ordersResponse?.data?.orders || [];
   const pagination = ordersResponse?.data?.pagination;
   const stats = statsResponse?.data;
 
-  // Complete order mutation
-  const completeOrderMutation = useMutation({
-    mutationFn: (orderId: number) => orderService.completeOrder(orderId),
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['order-stats'] });
-      toast.success(response.message || 'Order completed successfully');
-      setCompletingOrderId(null);
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to complete order');
-    },
-  });
+  // Filter orders by search query (client-side for current page)
+  const filteredOrders = useMemo(() => {
+    return orders.filter(
+      (order: Order) =>
+        order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.user?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.user?.email.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [orders, searchQuery]);
 
-  // Reject order mutation
-  const rejectOrderMutation = useMutation({
-    mutationFn: ({ orderId, reason }: { orderId: number; reason?: string }) =>
-      orderService.rejectOrder(orderId, reason),
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['order-stats'] });
-      toast.success(response.message || 'Order rejected successfully');
-      setRejectingOrderId(null);
-      setRejectReason('');
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to reject order');
-    },
-  });
-
-  // Filter orders by search query
-  const filteredOrders = orders.filter((order: Order) =>
-    order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    order.user?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    order.user?.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
+  // Helper functions
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'PENDING':
@@ -172,30 +149,43 @@ export default function AdminOrdersPage() {
     }
   };
 
+  // Handlers
   const handleCompleteOrder = (orderId: number) => {
-    setCompletingOrderId(orderId);
+    openCompleteDialog(orderId);
   };
 
   const confirmComplete = () => {
     if (completingOrderId) {
-      completeOrderMutation.mutate(completingOrderId);
-    }
-  };
-
-  const handleRejectOrder = (orderId: number) => {
-    setRejectingOrderId(orderId);
-  };
-
-  const confirmReject = () => {
-    if (rejectingOrderId) {
-      rejectOrderMutation.mutate({
-        orderId: rejectingOrderId,
-        reason: rejectReason,
+      completeOrderMutation.mutate(completingOrderId, {
+        onSuccess: () => {
+          closeCompleteDialog();
+        },
       });
     }
   };
 
-  if (isLoading) {
+  const handleRejectOrder = (orderId: number) => {
+    openRejectDialog(orderId);
+  };
+
+  const confirmReject = () => {
+    if (rejectingOrderId) {
+      rejectOrderMutation.mutate(
+        {
+          orderId: rejectingOrderId,
+          reason: rejectReason,
+        },
+        {
+          onSuccess: () => {
+            closeRejectDialog();
+          },
+        }
+      );
+    }
+  };
+
+  // Loading state
+  if (isLoading && currentPage === 1) {
     return (
       <div className="min-h-screen bg-[#0f1419] p-6">
         <div className="max-w-7xl mx-auto space-y-6">
@@ -224,9 +214,7 @@ export default function AdminOrdersPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">Orders Management</h1>
-            <p className="text-gray-400 mt-1">
-              View and manage all customer orders
-            </p>
+            <p className="text-gray-400 mt-1">View and manage all customer orders</p>
           </div>
           <Button
             onClick={() => router.push('/admin/scan-qr')}
@@ -238,87 +226,89 @@ export default function AdminOrdersPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Card className="bg-[#1a2332] border-gray-800">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <p className="text-gray-400 text-sm font-medium">Total Orders</p>
-                  <p className="text-3xl font-bold text-white">
-                    {stats?.orders?.total || 0}
-                  </p>
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <Card className="bg-[#1a2332] border-gray-800">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <p className="text-gray-400 text-sm font-medium">Total Orders</p>
+                    <p className="text-3xl font-bold text-white">
+                      {stats.orders?.total || 0}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
+                    <ShoppingCart className="w-6 h-6 text-purple-400" />
+                  </div>
                 </div>
-                <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
-                  <ShoppingCart className="w-6 h-6 text-purple-400" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-[#1a2332] border-gray-800">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <p className="text-gray-400 text-sm font-medium">Pending</p>
-                  <p className="text-3xl font-bold text-yellow-400">
-                    {stats?.orders?.pending || 0}
-                  </p>
+            <Card className="bg-[#1a2332] border-gray-800">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <p className="text-gray-400 text-sm font-medium">Pending</p>
+                    <p className="text-3xl font-bold text-yellow-400">
+                      {stats.orders?.pending || 0}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center">
+                    <Clock className="w-6 h-6 text-yellow-400" />
+                  </div>
                 </div>
-                <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-yellow-400" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-[#1a2332] border-gray-800">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <p className="text-gray-400 text-sm font-medium">Paid</p>
-                  <p className="text-3xl font-bold text-blue-400">
-                    {stats?.orders?.paid || 0}
-                  </p>
+            <Card className="bg-[#1a2332] border-gray-800">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <p className="text-gray-400 text-sm font-medium">Paid</p>
+                    <p className="text-3xl font-bold text-blue-400">
+                      {stats.orders?.paid || 0}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center">
+                    <CreditCard className="w-6 h-6 text-blue-400" />
+                  </div>
                 </div>
-                <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center">
-                  <CreditCard className="w-6 h-6 text-blue-400" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-[#1a2332] border-gray-800">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <p className="text-gray-400 text-sm font-medium">Completed</p>
-                  <p className="text-3xl font-bold text-green-400">
-                    {stats?.orders?.completed || 0}
-                  </p>
+            <Card className="bg-[#1a2332] border-gray-800">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <p className="text-gray-400 text-sm font-medium">Completed</p>
+                    <p className="text-3xl font-bold text-green-400">
+                      {stats.orders?.completed || 0}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6 text-green-400" />
+                  </div>
                 </div>
-                <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-green-400" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-[#1a2332] border-gray-800">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <p className="text-gray-400 text-sm font-medium">Total Revenue</p>
-                  <p className="text-3xl font-bold text-white">
-                    ${(stats?.revenue || 0).toFixed(2)}
-                  </p>
+            <Card className="bg-[#1a2332] border-gray-800">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <p className="text-gray-400 text-sm font-medium">Total Revenue</p>
+                    <p className="text-3xl font-bold text-white">
+                      ${(stats.revenue || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
+                    <DollarSign className="w-6 h-6 text-green-400" />
+                  </div>
                 </div>
-                <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
-                  <DollarSign className="w-6 h-6 text-green-400" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Filters */}
         <Card className="bg-[#1a2332] border-gray-800">
@@ -339,44 +329,56 @@ export default function AdminOrdersPage() {
               {/* Status Filter */}
               <Select
                 value={statusFilter}
-                onValueChange={(value: OrderStatus) => {
-                  setStatusFilter(value);
-                  setCurrentPage(1);
-                }}
+                onValueChange={(value: OrderStatus) => setStatusFilter(value)}
               >
                 <SelectTrigger className="w-[180px] bg-[#0f1419] border-gray-700 text-white">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1a2332] border-gray-700 text-white">
-                  <SelectItem value="ALL" className="hover:bg-gray-700">All Status</SelectItem>
-                  <SelectItem value="PENDING" className="hover:bg-gray-700">Pending</SelectItem>
-                  <SelectItem value="PAID" className="hover:bg-gray-700">Paid</SelectItem>
-                  <SelectItem value="COMPLETED" className="hover:bg-gray-700">Completed</SelectItem>
-                  <SelectItem value="CANCELLED" className="hover:bg-gray-700">Cancelled</SelectItem>
+                  <SelectItem value="ALL" className="hover:bg-gray-700">
+                    All Status
+                  </SelectItem>
+                  <SelectItem value="PENDING" className="hover:bg-gray-700">
+                    Pending
+                  </SelectItem>
+                  <SelectItem value="PAID" className="hover:bg-gray-700">
+                    Paid
+                  </SelectItem>
+                  <SelectItem value="COMPLETED" className="hover:bg-gray-700">
+                    Completed
+                  </SelectItem>
+                  <SelectItem value="CANCELLED" className="hover:bg-gray-700">
+                    Cancelled
+                  </SelectItem>
                 </SelectContent>
               </Select>
 
               {/* Payment Type Filter */}
               <Select
                 value={paymentFilter}
-                onValueChange={(value: PaymentType) => {
-                  setPaymentFilter(value);
-                  setCurrentPage(1);
-                }}
+                onValueChange={(value: PaymentType) => setPaymentFilter(value)}
               >
                 <SelectTrigger className="w-[180px] bg-[#0f1419] border-gray-700 text-white">
                   <SelectValue placeholder="All Payments" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1a2332] border-gray-700 text-white">
-                  <SelectItem value="ALL" className="hover:bg-gray-700">All Payments</SelectItem>
-                  <SelectItem value="CASH" className="hover:bg-gray-700">Cash</SelectItem>
-                  <SelectItem value="PAYNOW" className="hover:bg-gray-700">PayNow</SelectItem>
+                  <SelectItem value="ALL" className="hover:bg-gray-700">
+                    All Payments
+                  </SelectItem>
+                  <SelectItem value="CASH" className="hover:bg-gray-700">
+                    Cash
+                  </SelectItem>
+                  <SelectItem value="PAYNOW" className="hover:bg-gray-700">
+                    PayNow
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="mt-4 text-sm text-gray-400">
-              Showing {filteredOrders.length} of {pagination?.total || 0} orders
-            </div>
+            {pagination && (
+              <div className="mt-4 text-sm text-gray-400">
+                Showing {filteredOrders.length} of {pagination.total} orders
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -405,7 +407,10 @@ export default function AdminOrdersPage() {
                   </TableRow>
                 ) : (
                   filteredOrders.map((order: Order) => (
-                    <TableRow key={order.id} className="border-gray-800 hover:bg-gray-800/50">
+                    <TableRow
+                      key={order.id}
+                      className="border-gray-800 hover:bg-gray-800/50"
+                    >
                       <TableCell>
                         <div>
                           <p className="font-medium text-white">{order.orderNumber}</p>
@@ -447,33 +452,34 @@ export default function AdminOrdersPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => setViewingOrder(order)}
+                            onClick={() => openViewDialog(order)}
                             className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          {order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleCompleteOrder(order.id)}
-                                className="text-green-400 hover:text-green-300 hover:bg-green-900/20"
-                                title="Mark as completed"
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleRejectOrder(order.id)}
-                                className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
-                                title="Reject order"
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
+                          {order.status !== 'COMPLETED' &&
+                            order.status !== 'CANCELLED' && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleCompleteOrder(order.id)}
+                                  className="text-green-400 hover:text-green-300 hover:bg-green-900/20"
+                                  title="Mark as completed"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleRejectOrder(order.id)}
+                                  className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                                  title="Reject order"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </Button>
+                              </>
+                            )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -481,40 +487,40 @@ export default function AdminOrdersPage() {
                 )}
               </TableBody>
             </Table>
+
+            {/* Pagination */}
+            {pagination && pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-800">
+                <p className="text-sm text-gray-400">
+                  Page {pagination.page} of {pagination.totalPages}
+                </p>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    disabled={currentPage === 1 || isLoading}
+                    className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    disabled={currentPage === pagination.totalPages || isLoading}
+                    className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-400">
-              Page {pagination.page} of {pagination.totalPages}
-            </p>
-            <div className="flex space-x-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="border-gray-700 text-gray-300 hover:bg-gray-800"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage(currentPage + 1)}
-                disabled={currentPage === pagination.totalPages}
-                className="border-gray-700 text-gray-300 hover:bg-gray-800"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-
         {/* View Order Dialog */}
-        <Dialog open={viewingOrder !== null} onOpenChange={() => setViewingOrder(null)}>
+        <Dialog open={viewingOrder !== null} onOpenChange={closeViewDialog}>
           <DialogContent className="bg-[#1a2332] border-gray-700 text-white max-w-2xl">
             <DialogHeader>
               <DialogTitle className="text-xl">Order Details</DialogTitle>
@@ -551,7 +557,9 @@ export default function AdminOrdersPage() {
                     </div>
                     <div>
                       <p className="text-gray-400">Status</p>
-                      <Badge className={`${getStatusColor(viewingOrder.status)} mt-1`}>
+                      <Badge
+                        className={`${getStatusColor(viewingOrder.status)} mt-1`}
+                      >
                         {viewingOrder.status}
                       </Badge>
                     </div>
@@ -584,7 +592,8 @@ export default function AdminOrdersPage() {
                         <div>
                           <p className="text-white">{item.product?.name}</p>
                           <p className="text-xs text-gray-400">
-                            Qty: {item.quantity} × {formatCurrency(item.product?.price || 0)}
+                            Qty: {item.quantity} ×{' '}
+                            {formatCurrency(item.product?.price || 0)}
                           </p>
                         </div>
                         <p className="text-blue-400 font-semibold">
@@ -605,7 +614,7 @@ export default function AdminOrdersPage() {
             <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => setViewingOrder(null)}
+                onClick={closeViewDialog}
                 className="border-gray-700 text-gray-300 hover:bg-gray-800"
               >
                 Close
@@ -617,18 +626,21 @@ export default function AdminOrdersPage() {
         {/* Complete Order Dialog */}
         <AlertDialog
           open={completingOrderId !== null}
-          onOpenChange={() => setCompletingOrderId(null)}
+          onOpenChange={closeCompleteDialog}
         >
           <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white">
             <AlertDialogHeader>
               <AlertDialogTitle>Complete Order?</AlertDialogTitle>
               <AlertDialogDescription className="text-gray-400">
-                Mark this order as completed. The QR code will be expired and the order
-                cannot be modified.
+                Mark this order as completed. The QR code will be expired and the
+                order cannot be modified.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel className="border-gray-700 text-gray-300 hover:bg-gray-800">
+              <AlertDialogCancel
+                onClick={closeCompleteDialog}
+                className="border-gray-700 text-gray-300 hover:bg-gray-800"
+              >
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
@@ -650,18 +662,13 @@ export default function AdminOrdersPage() {
         </AlertDialog>
 
         {/* Reject Order Dialog */}
-        <AlertDialog
-          open={rejectingOrderId !== null}
-          onOpenChange={() => {
-            setRejectingOrderId(null);
-            setRejectReason('');
-          }}
-        >
+        <AlertDialog open={rejectingOrderId !== null} onOpenChange={closeRejectDialog}>
           <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white">
             <AlertDialogHeader>
               <AlertDialogTitle>Reject Order?</AlertDialogTitle>
               <AlertDialogDescription className="text-gray-400">
-                This will cancel the order and restore the stock. Optionally provide a reason.
+                This will cancel the order and restore the stock. Optionally provide
+                a reason.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="py-4">
@@ -678,7 +685,10 @@ export default function AdminOrdersPage() {
               />
             </div>
             <AlertDialogFooter>
-              <AlertDialogCancel className="border-gray-700 text-gray-300 hover:bg-gray-800">
+              <AlertDialogCancel
+                onClick={closeRejectDialog}
+                className="border-gray-700 text-gray-300 hover:bg-gray-800"
+              >
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
