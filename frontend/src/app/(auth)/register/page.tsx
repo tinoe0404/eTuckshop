@@ -44,22 +44,20 @@ export default function RegisterPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [callbackUrl, setCallbackUrl] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    watch,
-    setValue,
-  } = useForm<RegisterFormData>({
+  const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: { role: "CUSTOMER" },
   });
 
   const selectedRole = watch("role");
 
-  // Fix hydration error
-  useEffect(() => setMounted(true), []);
+  // Fix hydration error + safe useSearchParams
+  useEffect(() => {
+    setMounted(true);
+    setCallbackUrl(searchParams.get("callbackUrl"));
+  }, [searchParams]);
 
   // ------------------ REGISTER HANDLER ------------------
   const onSubmit = async (data: RegisterFormData) => {
@@ -78,11 +76,8 @@ export default function RegisterPage() {
       toast.success(`Account created successfully! Welcome, ${user.name}`);
 
       // Redirect based on role or callbackUrl if provided
-      const callbackUrl = searchParams.get("callbackUrl");
       const defaultUrl = user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
-      const redirectUrl = callbackUrl || defaultUrl;
-
-      router.push(redirectUrl);
+      router.push(callbackUrl || defaultUrl);
       router.refresh();
     } catch (err: any) {
       toast.error(err?.message || "Failed to create account");
@@ -92,7 +87,6 @@ export default function RegisterPage() {
 
   if (!mounted) return null;
 
-  // ------------------ UI ------------------
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
       <Card className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 shadow-2xl">
@@ -116,20 +110,10 @@ export default function RegisterPage() {
             type="button"
             onClick={() => setValue("role", "CUSTOMER")}
             disabled={isLoading}
-            className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
-              selectedRole === "CUSTOMER"
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
-            }`}
+            className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${selectedRole === "CUSTOMER" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 dark:border-gray-700 hover:border-gray-300"}`}
           >
             <div className="flex flex-col items-center space-y-3">
-              <div
-                className={`p-3 rounded-full ${
-                  selectedRole === "CUSTOMER"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
-                }`}
-              >
+              <div className={`p-3 rounded-full ${selectedRole === "CUSTOMER" ? "bg-blue-500 text-white" : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"}`}>
                 <User className="w-6 h-6" />
               </div>
               <div className="text-center">
@@ -144,20 +128,10 @@ export default function RegisterPage() {
             type="button"
             onClick={() => setValue("role", "ADMIN")}
             disabled={isLoading}
-            className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
-              selectedRole === "ADMIN"
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
-            }`}
+            className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${selectedRole === "ADMIN" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 dark:border-gray-700 hover:border-gray-300"}`}
           >
             <div className="flex flex-col items-center space-y-3">
-              <div
-                className={`p-3 rounded-full ${
-                  selectedRole === "ADMIN"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
-                }`}
-              >
+              <div className={`p-3 rounded-full ${selectedRole === "ADMIN" ? "bg-blue-500 text-white" : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"}`}>
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <div className="text-center">
@@ -192,20 +166,8 @@ export default function RegisterPage() {
             <Label htmlFor="password">Password</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="Enter your password"
-                className="pl-10 pr-10"
-                disabled={isLoading}
-                {...register("password")}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((p) => !p)}
-                disabled={isLoading}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
+              <Input id="password" type={showPassword ? "text" : "password"} placeholder="Enter your password" className="pl-10 pr-10" disabled={isLoading} {...register("password")} />
+              <button type="button" onClick={() => setShowPassword(p => !p)} disabled={isLoading} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
@@ -217,20 +179,8 @@ export default function RegisterPage() {
             <Label htmlFor="confirmPassword">Confirm Password</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <Input
-                id="confirmPassword"
-                type={showConfirmPassword ? "text" : "password"}
-                placeholder="Confirm your password"
-                className="pl-10 pr-10"
-                disabled={isLoading}
-                {...register("confirmPassword")}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword((p) => !p)}
-                disabled={isLoading}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
+              <Input id="confirmPassword" type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" className="pl-10 pr-10" disabled={isLoading} {...register("confirmPassword")} />
+              <button type="button" onClick={() => setShowConfirmPassword(p => !p)} disabled={isLoading} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
