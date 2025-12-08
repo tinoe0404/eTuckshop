@@ -1,4 +1,4 @@
-import apiClient from '../client';
+import apiClient from '@/lib/api/client';
 import type { ApiResponse, User, UpdateProfileData, ChangePasswordData } from '@/types';
 
 // ----------------- TYPES -----------------
@@ -71,4 +71,14 @@ export const authService = {
     const res = await apiClient.put<ApiResponse<null>>('/auth/password', data);
     if (!res.data.success) throw new Error(res.data.message);
   },
+
+  async forgotPassword(email: string) {
+    try {
+      const response = await apiClient.post('/auth/forgot-password', { email });
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error;
+    }
+  }
+  
 };
