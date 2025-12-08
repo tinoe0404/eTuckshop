@@ -1,13 +1,14 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: `${process.env.NEXT_PUBLIC_API_URL}/api`,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
   timeout: 10000,
-  withCredentials: true, // ✅ CRITICAL: Send cookies with every request
+  withCredentials: true,
 });
+
 
 // Track if we're currently refreshing to prevent multiple refresh calls
 let isRefreshing = false;
