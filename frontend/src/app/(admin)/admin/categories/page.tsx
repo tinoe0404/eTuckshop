@@ -56,8 +56,8 @@ import {
   useCreateCategory,
   useUpdateCategory,
   useDeleteCategory,
-} from '@/hooks/useCategories';
-import { useCategoryUIStore } from '@/store/useCategoryUIStore';
+} from '@/lib/hooks/useCategories';
+import { useCategoryUIStore } from '@/lib/store/useCategoryUIStore';
 
 interface CategoryStats {
   id: number;
