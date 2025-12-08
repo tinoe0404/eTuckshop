@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   BarChart3,
+  UserCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -66,6 +67,11 @@ const navItems: NavItem[] = [
     title: 'Customers',
     href: '/admin/customers',
     icon: <Users className="w-5 h-5" />,
+  },
+  {
+    title: 'Profile',
+    href: '/admin/profile',
+    icon: <UserCircle className="w-5 h-5" />,
   },
 ];
 
