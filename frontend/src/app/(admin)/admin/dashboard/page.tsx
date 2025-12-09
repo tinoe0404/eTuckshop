@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useAuthStore } from '@/lib/store/authStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,17 +24,8 @@ export default function AdminDashboard() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
 
-  // AUTH PROTECTION
-  useEffect(() => {
-    if (!user) {
-      router.push('/login');
-      return;
-    }
-    if (user.role !== 'ADMIN') {
-      toast.error('Access denied. Admin only.');
-      router.push('/');
-    }
-  }, [user, router]);
+  // REMOVED: Duplicate auth checks (now handled in layout)
+  // The layout already protects this route
 
   // QUERIES
   const {
@@ -44,9 +34,10 @@ export default function AdminDashboard() {
   } = useQuery({
     queryKey: ['admin-dashboard-stats'],
     queryFn: analyticsService.getDashboardStats,
-    refetchInterval: 30000, refetchOnWindowFocus: true,
-    staleTime: 10000, retry: 2,
-    enabled: !!user && user.role === 'ADMIN',
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
+    staleTime: 10000,
+    retry: 2,
   });
 
   const {
@@ -55,9 +46,9 @@ export default function AdminDashboard() {
   } = useQuery({
     queryKey: ['admin-recent-orders'],
     queryFn: () => orderService.getAllOrders({ page: 1, limit: 5 }),
-    refetchInterval: 20000, refetchOnWindowFocus: true,
+    refetchInterval: 20000,
+    refetchOnWindowFocus: true,
     staleTime: 5000,
-    enabled: !!user && user.role === 'ADMIN',
   });
 
   const {
@@ -66,9 +57,9 @@ export default function AdminDashboard() {
   } = useQuery({
     queryKey: ['admin-order-stats'],
     queryFn: orderService.getOrderStats,
-    refetchInterval: 15000, refetchOnWindowFocus: true,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
     staleTime: 5000,
-    enabled: !!user && user.role === 'ADMIN',
   });
 
   const {
@@ -77,8 +68,8 @@ export default function AdminDashboard() {
   } = useQuery({
     queryKey: ['admin-products-summary'],
     queryFn: productService.getAll,
-    refetchInterval: 60000, staleTime: 30000,
-    enabled: !!user && user.role === 'ADMIN',
+    refetchInterval: 60000,
+    staleTime: 30000,
   });
 
   // DERIVED DATA
@@ -87,24 +78,17 @@ export default function AdminDashboard() {
   const orderStats = orderStatsResponse?.data;
   const lowStockProducts = productsResponse?.data?.filter(p => p.stockLevel === 'LOW') || [];
 
-  // ============================================
-  // OPTIMISTIC MUTATIONS WITH SAFEGUARDS
-  // ============================================
-
-  // Complete Order Mutation (with optimistic update)
+  // MUTATIONS (keeping your existing mutation logic)
   const completeOrderMutation = useMutation({
     mutationFn: (orderId: number) => orderService.completeOrder(orderId),
     
     onMutate: async (orderId) => {
-      // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['admin-recent-orders'] });
       await queryClient.cancelQueries({ queryKey: ['admin-order-stats'] });
       
-      // Snapshot previous values
       const previousOrders = queryClient.getQueryData(['admin-recent-orders']);
       const previousStats = queryClient.getQueryData(['admin-order-stats']);
       
-      // Optimistically update orders list
       queryClient.setQueryData(['admin-recent-orders'], (old: any) => {
         if (!old?.data?.orders) return old;
         return {
@@ -120,7 +104,6 @@ export default function AdminDashboard() {
         };
       });
       
-      // Optimistically update stats
       queryClient.setQueryData(['admin-order-stats'], (old: any) => {
         if (!old?.data) return old;
         return {
@@ -136,17 +119,14 @@ export default function AdminDashboard() {
         };
       });
       
-      // Show immediate feedback
       toast.loading('Completing order...', { id: `complete-${orderId}` });
       
       return { previousOrders, previousStats, orderId };
     },
 
     onSuccess: async (data, variables, context) => {
-      // Update toast
       toast.success('Order completed successfully!', { id: `complete-${context.orderId}` });
       
-      // Invalidate all related queries to get fresh data
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-recent-orders'] }),
@@ -155,7 +135,6 @@ export default function AdminDashboard() {
     },
 
     onError: (error: any, variables, context: any) => {
-      // Rollback optimistic updates
       if (context?.previousOrders) {
         queryClient.setQueryData(['admin-recent-orders'], context.previousOrders);
       }
@@ -163,7 +142,6 @@ export default function AdminDashboard() {
         queryClient.setQueryData(['admin-order-stats'], context.previousStats);
       }
       
-      // Show error
       toast.error(error.response?.data?.message || 'Failed to complete order', {
         id: `complete-${context.orderId}`,
         description: 'Changes have been reverted',
@@ -171,7 +149,6 @@ export default function AdminDashboard() {
     },
   });
 
-  // Reject Order Mutation (with optimistic update)
   const rejectOrderMutation = useMutation({
     mutationFn: ({ orderId, reason }: { orderId: number; reason?: string }) =>
       orderService.rejectOrder(orderId, reason),
@@ -183,7 +160,6 @@ export default function AdminDashboard() {
       const previousOrders = queryClient.getQueryData(['admin-recent-orders']);
       const previousStats = queryClient.getQueryData(['admin-order-stats']);
       
-      // Optimistically update
       queryClient.setQueryData(['admin-recent-orders'], (old: any) => {
         if (!old?.data?.orders) return old;
         return {
@@ -250,8 +226,6 @@ export default function AdminDashboard() {
       { loading: 'Refreshing dashboard...', success: 'Dashboard refreshed!', error: 'Failed to refresh' }
     );
   };
-
-  if (!user || user.role !== 'ADMIN') return null;
 
   const isLoading = statsLoading || ordersLoading || orderStatsLoading || productsLoading;
 

@@ -16,20 +16,45 @@ const app = new Hono();
 
 // Middleware
 app.use(logger());
+
+// ✅ FIXED CORS Configuration
 app.use(
   "*",
   cors({
-    origin: (origin, c) => {
+    origin: (origin) => {
       const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
-
-      // Allow requests from CLIENT_URL or localhost
-      if (!origin) return null; // allow non-browser requests (curl/postman)
-      if (origin === CLIENT_URL || origin.startsWith("http://localhost")) {
-        return origin; // allowed origin
+      
+      // Allow requests with no origin (mobile apps, curl, Postman)
+      if (!origin) return CLIENT_URL;
+      
+      // Allow localhost in development
+      if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
+        return origin;
       }
-      return null; // block other origins
+      
+      // Allow your production frontend URL
+      if (origin === CLIENT_URL) {
+        return origin;
+      }
+      
+      // For Vercel deployments, you might need to allow preview URLs
+      if (origin.includes("vercel.app")) {
+        return origin;
+      }
+      
+      // Block all other origins
+      return CLIENT_URL; // fallback
     },
-    credentials: true,
+    credentials: true, // ✅ Essential for cookies
+    allowHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Cookie",
+      "Set-Cookie",
+    ],
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    exposeHeaders: ["Set-Cookie"],
+    maxAge: 86400, // Cache preflight for 24 hours
   })
 );
 

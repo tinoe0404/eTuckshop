@@ -46,14 +46,17 @@ const verifyResetToken = async (token: string) => {
 };
 
 // Helper to set auth cookies
+// Helper to set auth cookies (UPDATED for deployment)
 const setAuthCookies = (c: Context, accessToken: string, refreshToken: string) => {
   const isProd = process.env.NODE_ENV === "production";
+  const domain = isProd ? process.env.COOKIE_DOMAIN : undefined; // e.g., ".yourdomain.com"
   
   // Access token cookie (15 minutes)
   setCookie(c, "accessToken", accessToken, {
     httpOnly: true,
-    secure: isProd,
-    sameSite: "Lax",
+    secure: isProd, // ✅ true in production (HTTPS only)
+    sameSite: isProd ? "None" : "Lax", // ✅ "None" needed for cross-site in production
+    domain, // ✅ Set domain for cross-subdomain sharing if needed
     path: "/",
     maxAge: 60 * 15, // 15 minutes
   });
@@ -62,7 +65,8 @@ const setAuthCookies = (c: Context, accessToken: string, refreshToken: string) =
   setCookie(c, "refreshToken", refreshToken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: "Lax",
+    sameSite: isProd ? "None" : "Lax",
+    domain,
     path: "/",
     maxAge: 60 * 60 * 24 * 7, // 7 days
   });

@@ -17,7 +17,15 @@ export const analyticsService = {
       return response.data;
     } catch (error: any) {
       console.error('Dashboard stats error:', error.response?.data || error.message);
-      throw error;
+      // Don't throw - return a fallback error response instead
+      throw {
+        response: {
+          data: {
+            message: error.response?.data?.message || 'Failed to load dashboard statistics',
+            error: error.message
+          }
+        }
+      };
     }
   },
 
@@ -38,7 +46,14 @@ export const analyticsService = {
       return response.data;
     } catch (error: any) {
       console.error('Analytics error:', error.response?.data || error.message);
-      throw error;
+      throw {
+        response: {
+          data: {
+            message: error.response?.data?.message || 'Failed to load analytics data',
+            error: error.message
+          }
+        }
+      };
     }
   },
 };

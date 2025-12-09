@@ -58,48 +58,68 @@ export default function LoginPageContent() {
     setMounted(true);
   }, []);
 
-  // ------------------ LOGIN HANDLER ------------------
+  // ------------------ LOGIN HANDLER (FIXED) ------------------
+  // In your LoginPageContent component, update the onSubmit function:
+
   const onSubmit = async (data: LoginFormData) => {
     if (!selectedRole) {
       toast.error("Please select a role to continue");
       return;
     }
-
+  
     setIsLoading(true);
-
+  
     try {
+      console.log("Sending login data:", {
+        email: data.email,
+        password: data.password,
+        selectedRole: selectedRole
+      });
+  
       const response = await authService.login({
         email: data.email,
         password: data.password,
       });
-
-      const user = response.user; // ✅ Correct: authService.login returns { user }
-
+  
+      console.log("Login response:", response);
+  
+      const user = response.user;
+  
+      // Validate role
       if (user.role !== selectedRole) {
         toast.error(`This account is not registered as ${selectedRole.toLowerCase()}`);
         setIsLoading(false);
         return;
       }
-
+  
+      // ✅ IMPROVED: Set user first, then redirect
       setUser(user);
-
+      
+      // Show success message
       toast.success(`Welcome back, ${user.name}!`);
-
+  
+      // ✅ Use router.push instead of window.location.href for better UX
       const callbackUrl = searchParams.get("callbackUrl");
       const defaultUrl = user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
       const redirectUrl = callbackUrl || defaultUrl;
-
+  
+      // Small delay to allow state to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Use Next.js router for better transitions
       router.push(redirectUrl);
-      router.refresh();
+      
     } catch (err: any) {
-      toast.error(err.message || "Invalid email or password");
-      setIsLoading(false);
+      console.error("Login error:", err);
+      console.error("Error response:", err.response?.data);
+      toast.error(err.response?.data?.message || err.message || "Invalid email or password");
+      setIsLoading(false); // Only set loading false on error
     }
   };
 
   if (!mounted) return null;
 
-  // ------------------ UI ------------------
+  // ------------------ UI (unchanged) ------------------
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
       <Card className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 shadow-2xl">
