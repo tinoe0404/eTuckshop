@@ -19,7 +19,7 @@ import Link from "next/link";
 import { authService } from "@/lib/api/services/auth.service";
 import { useAuthStore } from "@/lib/store/authStore";
 
-// ------------------ VALIDATION ------------------
+// Validation Schema
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -29,7 +29,6 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 type UserRole = "CUSTOMER" | "ADMIN" | null;
 
-// ------------------ COMPONENT ------------------
 export default function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -53,13 +52,9 @@ export default function LoginPageContent() {
 
   const rememberMe = watch("rememberMe");
 
-  // Fix hydration error
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // ------------------ LOGIN HANDLER (FIXED) ------------------
-  // In your LoginPageContent component, update the onSubmit function:
 
   const onSubmit = async (data: LoginFormData) => {
     if (!selectedRole) {
@@ -70,63 +65,52 @@ export default function LoginPageContent() {
     setIsLoading(true);
   
     try {
-      console.log("Sending login data:", {
-        email: data.email,
-        password: data.password,
-        selectedRole: selectedRole
-      });
-  
+      // Login request
       const response = await authService.login({
         email: data.email,
         password: data.password,
       });
-  
-      console.log("Login response:", response);
-  
+
       const user = response.user;
-  
-      // Validate role
+
+      // Validate role match
       if (user.role !== selectedRole) {
         toast.error(`This account is not registered as ${selectedRole.toLowerCase()}`);
         setIsLoading(false);
         return;
       }
-  
-      // ✅ IMPROVED: Set user first, then redirect
+
+      // Update Zustand store
       setUser(user);
       
-      // Show success message
       toast.success(`Welcome back, ${user.name}!`);
-  
-      // ✅ Use router.push instead of window.location.href for better UX
+
+      // Get redirect URL
       const callbackUrl = searchParams.get("callbackUrl");
       const defaultUrl = user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
       const redirectUrl = callbackUrl || defaultUrl;
-  
-      // Small delay to allow state to update
+
+      // Small delay to ensure state updates
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Use Next.js router for better transitions
-      router.push(redirectUrl);
+      // Perform redirect
+      router.replace(redirectUrl);
       
     } catch (err: any) {
       console.error("Login error:", err);
-      console.error("Error response:", err.response?.data);
       toast.error(err.response?.data?.message || err.message || "Invalid email or password");
-      setIsLoading(false); // Only set loading false on error
+      setIsLoading(false);
     }
   };
 
   if (!mounted) return null;
 
-  // ------------------ UI (unchanged) ------------------
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
       <Card className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 shadow-2xl">
-
         {/* Logo */}
         <div className="flex justify-center">
-          <div className="w-24 h-24 bg-linear-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+          <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
             <span className="text-white text-3xl font-bold">eT</span>
           </div>
         </div>
@@ -202,7 +186,6 @@ export default function LoginPageContent() {
 
         {/* Login Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-
           {/* Email */}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>

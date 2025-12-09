@@ -7,7 +7,7 @@ import { serverError } from "../utils/serverError";
 import { sendPasswordResetEmail } from "../utils/email";
 import { sign, verify } from "hono/jwt";
 
-// ------------------- HELPER -------------------
+// Store refresh token in Redis
 const storeRefreshToken = async (userId: string, refreshToken: string) => {
   await redis.set(`refresh_token:${userId}`, refreshToken, {
     ex: 7 * 24 * 60 * 60, // 7 days
@@ -45,20 +45,19 @@ const verifyResetToken = async (token: string) => {
   }
 };
 
-// Helper to set auth cookies
-// Helper to set auth cookies (UPDATED for deployment)
+// Set auth cookies with proper settings for production
 const setAuthCookies = (c: Context, accessToken: string, refreshToken: string) => {
   const isProd = process.env.NODE_ENV === "production";
-  const domain = isProd ? process.env.COOKIE_DOMAIN : undefined; // e.g., ".yourdomain.com"
+  const domain = isProd ? process.env.COOKIE_DOMAIN : undefined;
   
   // Access token cookie (15 minutes)
   setCookie(c, "accessToken", accessToken, {
     httpOnly: true,
-    secure: isProd, // ✅ true in production (HTTPS only)
-    sameSite: isProd ? "None" : "Lax", // ✅ "None" needed for cross-site in production
-    domain, // ✅ Set domain for cross-subdomain sharing if needed
+    secure: isProd,
+    sameSite: isProd ? "None" : "Lax",
+    domain,
     path: "/",
-    maxAge: 60 * 15, // 15 minutes
+    maxAge: 60 * 15,
   });
 
   // Refresh token cookie (7 days)
@@ -68,17 +67,26 @@ const setAuthCookies = (c: Context, accessToken: string, refreshToken: string) =
     sameSite: isProd ? "None" : "Lax",
     domain,
     path: "/",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60 * 24 * 7,
   });
 };
 
-// Helper to clear auth cookies
+// Clear auth cookies
 const clearAuthCookies = (c: Context) => {
-  deleteCookie(c, "accessToken", { path: "/" });
-  deleteCookie(c, "refreshToken", { path: "/" });
+  const isProd = process.env.NODE_ENV === "production";
+  const domain = isProd ? process.env.COOKIE_DOMAIN : undefined;
+
+  deleteCookie(c, "accessToken", { 
+    path: "/",
+    domain,
+  });
+  deleteCookie(c, "refreshToken", { 
+    path: "/",
+    domain,
+  });
 };
 
-// ------------------- SIGNUP -------------------
+// SIGNUP
 export const signup = async (c: Context) => {
   try {
     const { name, email, password, role } = await c.req.json();
@@ -99,7 +107,6 @@ export const signup = async (c: Context) => {
     const { accessToken, refreshToken } = await generateTokens(user.id.toString());
     await storeRefreshToken(user.id.toString(), refreshToken);
 
-    // Set httpOnly cookies
     setAuthCookies(c, accessToken, refreshToken);
 
     const { password: _, ...safeUser } = user;
@@ -119,7 +126,7 @@ export const signup = async (c: Context) => {
   }
 };
 
-// ------------------- LOGIN -------------------
+// LOGIN
 export const login = async (c: Context) => {
   try {
     const { email, password } = await c.req.json();
@@ -136,7 +143,6 @@ export const login = async (c: Context) => {
     const { accessToken, refreshToken } = await generateTokens(user.id.toString());
     await storeRefreshToken(user.id.toString(), refreshToken);
 
-    // Set httpOnly cookies
     setAuthCookies(c, accessToken, refreshToken);
 
     const { password: _, ...safeUser } = user;
@@ -152,10 +158,9 @@ export const login = async (c: Context) => {
   }
 };
 
-// ------------------- LOGOUT -------------------
+// LOGOUT
 export const logout = async (c: Context) => {
   try {
-    // Try to get refresh token from cookie first, then body
     const cookieRefreshToken = c.req.header("Cookie")?.match(/refreshToken=([^;]+)/)?.[1];
     const bodyData = await c.req.json().catch(() => ({}));
     const refreshToken = cookieRefreshToken || bodyData.refreshToken;
@@ -168,7 +173,6 @@ export const logout = async (c: Context) => {
       }
     }
 
-    // Clear cookies
     clearAuthCookies(c);
 
     return c.json({ 
@@ -177,7 +181,6 @@ export const logout = async (c: Context) => {
       data: null 
     });
   } catch (error) {
-    // Still clear cookies even if there's an error
     clearAuthCookies(c);
     return c.json({ 
       success: true, 
@@ -187,10 +190,9 @@ export const logout = async (c: Context) => {
   }
 };
 
-// ------------------- REFRESH ACCESS TOKEN -------------------
+// REFRESH TOKEN
 export const refreshToken = async (c: Context) => {
   try {
-    // Try to get refresh token from cookie first, then body
     const cookieRefreshToken = c.req.header("Cookie")?.match(/refreshToken=([^;]+)/)?.[1];
     const bodyData = await c.req.json().catch(() => ({}));
     const refreshToken = cookieRefreshToken || bodyData.refreshToken;
@@ -213,14 +215,16 @@ export const refreshToken = async (c: Context) => {
 
     const { accessToken } = await generateTokens(decoded.userId as string);
 
-    // Update only the access token cookie
     const isProd = process.env.NODE_ENV === "production";
+    const domain = isProd ? process.env.COOKIE_DOMAIN : undefined;
+    
     setCookie(c, "accessToken", accessToken, {
       httpOnly: true,
       secure: isProd,
-      sameSite: "Lax",
+      sameSite: isProd ? "None" : "Lax",
+      domain,
       path: "/",
-      maxAge: 60 * 15, // 15 minutes
+      maxAge: 60 * 15,
     });
 
     return c.json({
@@ -236,7 +240,7 @@ export const refreshToken = async (c: Context) => {
   }
 };
 
-// ------------------- GET PROFILE -------------------
+// GET PROFILE
 export const getProfile = async (c: Context) => {
   try {
     const user = c.get("user");
@@ -253,7 +257,7 @@ export const getProfile = async (c: Context) => {
   }
 };
 
-// ------------------- UPDATE PROFILE -------------------
+// UPDATE PROFILE
 export const updateProfile = async (c: Context) => {
   try {
     const user = c.get("user");
@@ -263,7 +267,6 @@ export const updateProfile = async (c: Context) => {
 
     const { name, email } = await c.req.json();
 
-    // Validate input
     if (!name || !email) {
       return c.json({ 
         success: false, 
@@ -278,7 +281,6 @@ export const updateProfile = async (c: Context) => {
       }, 400);
     }
 
-    // Check if email is already taken by another user
     if (email !== user.email) {
       const existingUser = await prisma.user.findUnique({ 
         where: { email } 
@@ -292,7 +294,6 @@ export const updateProfile = async (c: Context) => {
       }
     }
 
-    // Update user
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: { name, email },
@@ -316,7 +317,7 @@ export const updateProfile = async (c: Context) => {
   }
 };
 
-// ------------------- CHANGE PASSWORD -------------------
+// CHANGE PASSWORD
 export const changePassword = async (c: Context) => {
   try {
     const user = c.get("user");
@@ -326,7 +327,6 @@ export const changePassword = async (c: Context) => {
 
     const { currentPassword, newPassword } = await c.req.json();
 
-    // Validate input
     if (!currentPassword || !newPassword) {
       return c.json({ 
         success: false, 
@@ -341,7 +341,6 @@ export const changePassword = async (c: Context) => {
       }, 400);
     }
 
-    // Get user with password
     const fullUser = await prisma.user.findUnique({
       where: { id: user.id },
     });
@@ -350,7 +349,6 @@ export const changePassword = async (c: Context) => {
       return c.json({ success: false, message: "User not found" }, 404);
     }
 
-    // Verify current password
     const isValid = await Bun.password.verify(currentPassword, fullUser.password);
     if (!isValid) {
       return c.json({ 
@@ -359,7 +357,6 @@ export const changePassword = async (c: Context) => {
       }, 400);
     }
 
-    // Check if new password is same as current
     const isSamePassword = await Bun.password.verify(newPassword, fullUser.password);
     if (isSamePassword) {
       return c.json({ 
@@ -368,19 +365,16 @@ export const changePassword = async (c: Context) => {
       }, 400);
     }
 
-    // Hash new password
     const hashedPassword = await Bun.password.hash(newPassword, {
       algorithm: "bcrypt",
       cost: 10,
     });
 
-    // Update password
     await prisma.user.update({
       where: { id: user.id },
       data: { password: hashedPassword },
     });
 
-    // Invalidate all refresh tokens (force re-login on other devices)
     await redis.del(`refresh_token:${user.id}`);
 
     return c.json({
@@ -393,7 +387,7 @@ export const changePassword = async (c: Context) => {
   }
 };
 
-// ------------------- FORGOT PASSWORD -------------------
+// FORGOT PASSWORD
 export const forgotPassword = async (c: Context) => {
   try {
     const { email } = await c.req.json();
@@ -422,20 +416,17 @@ export const forgotPassword = async (c: Context) => {
 
     await sendPasswordResetEmail(user.email, user.name, resetUrl);
 
-    console.log("📧 Password reset email sent to:", user.email);
-
     return c.json({
       success: true,
       message: "If an account exists with this email, you will receive a password reset link shortly.",
       data: null
     });
   } catch (error) {
-    console.error("Forgot password error:", error);
     return serverError(c, error);
   }
 };
 
-// ------------------- VERIFY RESET TOKEN -------------------
+// VERIFY RESET TOKEN
 export const verifyResetTokenEndpoint = async (c: Context) => {
   try {
     const { token } = await c.req.json();
@@ -465,7 +456,7 @@ export const verifyResetTokenEndpoint = async (c: Context) => {
   }
 };
 
-// ------------------- RESET PASSWORD -------------------
+// RESET PASSWORD
 export const resetPassword = async (c: Context) => {
   try {
     const { token, newPassword } = await c.req.json();
@@ -510,15 +501,12 @@ export const resetPassword = async (c: Context) => {
     await redis.del(`password_reset:${user.id}`);
     await redis.del(`refresh_token:${user.id}`);
 
-    console.log("✅ Password reset successful for:", user.email);
-
     return c.json({
       success: true,
       message: "Password reset successfully. Please login with your new password.",
       data: null
     });
   } catch (error) {
-    console.error("Reset password error:", error);
     return serverError(c, error);
   }
 };

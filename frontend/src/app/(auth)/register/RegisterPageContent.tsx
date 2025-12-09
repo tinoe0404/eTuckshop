@@ -18,7 +18,7 @@ import Link from "next/link";
 import { authService } from "@/lib/api/services/auth.service";
 import { useAuthStore } from "@/lib/store/authStore";
 
-// ------------------ VALIDATION ------------------
+// Validation Schema
 const registerSchema = z
   .object({
     name: z.string().min(2, "Name must be at least 2 characters"),
@@ -34,8 +34,7 @@ const registerSchema = z
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
-// ------------------ COMPONENT ------------------
-export default function RegisterPage() {
+export default function RegisterPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setUser } = useAuthStore();
@@ -44,7 +43,6 @@ export default function RegisterPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [callbackUrl, setCallbackUrl] = useState<string | null>(null);
 
   const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -53,15 +51,13 @@ export default function RegisterPage() {
 
   const selectedRole = watch("role");
 
-  // Fix hydration error + safe useSearchParams
   useEffect(() => {
     setMounted(true);
-    setCallbackUrl(searchParams.get("callbackUrl"));
-  }, [searchParams]);
+  }, []);
 
-  // ------------------ REGISTER HANDLER ------------------
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
+    
     try {
       const response = await authService.signup({
         name: data.name,
@@ -75,12 +71,20 @@ export default function RegisterPage() {
 
       toast.success(`Account created successfully! Welcome, ${user.name}`);
 
-      // Redirect based on role or callbackUrl if provided
+      // Get redirect URL
+      const callbackUrl = searchParams.get("callbackUrl");
       const defaultUrl = user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
-      router.push(callbackUrl || defaultUrl);
-      router.refresh();
+      const redirectUrl = callbackUrl || defaultUrl;
+
+      // Small delay to ensure state updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Perform redirect
+      router.replace(redirectUrl);
+      
     } catch (err: any) {
-      toast.error(err?.message || "Failed to create account");
+      console.error("Registration error:", err);
+      toast.error(err?.response?.data?.message || err?.message || "Failed to create account");
       setIsLoading(false);
     }
   };
@@ -88,11 +92,11 @@ export default function RegisterPage() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
       <Card className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 shadow-2xl">
         {/* Logo */}
         <div className="flex justify-center">
-          <div className="w-24 h-24 bg-linear-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+          <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
             <span className="text-white text-3xl font-bold">eT</span>
           </div>
         </div>
@@ -105,7 +109,6 @@ export default function RegisterPage() {
 
         {/* Role Selection */}
         <div className="grid grid-cols-2 gap-4">
-          {/* CUSTOMER */}
           <button
             type="button"
             onClick={() => setValue("role", "CUSTOMER")}
@@ -123,7 +126,6 @@ export default function RegisterPage() {
             </div>
           </button>
 
-          {/* ADMIN */}
           <button
             type="button"
             onClick={() => setValue("role", "ADMIN")}
