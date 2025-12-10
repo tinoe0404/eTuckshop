@@ -15,27 +15,31 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Define public routes that don't require authentication
+  // Public routes
   const publicRoutes = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
-  const isPublicRoute = publicRoutes.some(route => pathname === route || pathname.startsWith(`${route}/`));
+  const isPublic = publicRoutes.some(route => pathname === route || pathname.startsWith(`${route}/`));
 
-  // Define protected routes
-  const isCustomerRoute = ['/dashboard', '/products', '/cart', '/checkout', '/orders', '/profile'].some((r) => pathname.startsWith(r));
+  // Protected routes
+  const isCustomerRoute = [
+    '/dashboard',
+    '/products',
+    '/cart',
+    '/checkout',
+    '/orders',
+    '/profile'
+  ].some(r => pathname.startsWith(r));
+
   const isAdminRoute = pathname.startsWith('/admin');
+
   const isProtectedRoute = isCustomerRoute || isAdminRoute;
 
-  // If trying to access protected route without token, redirect to login
+  // Redirect unauthenticated users trying to access protected pages
   if (isProtectedRoute && !accessToken) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('callbackUrl', pathname);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // If logged in and trying to access auth pages (login/register)
-  // Allow it - the page itself will handle the redirect after checking role
-  // This prevents middleware conflicts with the page-level logic
+  // If logged in and visiting login or register, just allow
   if (accessToken && (pathname === '/login' || pathname === '/register')) {
-    // Let the page handle it - don't redirect here
     return NextResponse.next();
   }
 
