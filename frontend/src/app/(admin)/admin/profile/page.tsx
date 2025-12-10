@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuthStore } from '@/lib/store/authStore';
 import { authService } from '@/lib/api/services/auth.service';
-import { useLogout } from '@/lib/hooks/useLogout';
+import { useLogout } from '@/lib/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,7 +66,12 @@ export default function AdminProfilePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user, setUser } = useAuthStore();
-  const { logout: handleLogoutAction } = useLogout();
+
+  const logoutMutation = useLogout();
+  
+  const handleLogout = () => {
+    logoutMutation.mutate();
+  };
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -131,7 +136,7 @@ export default function AdminProfilePage() {
       toast.success('Password changed successfully. Please login again.');
       resetPassword();
       setTimeout(() => {
-        handleLogoutAction();
+        handleLogout();
       }, 2000);
     },
     onError: (error: any) => {
@@ -197,7 +202,7 @@ export default function AdminProfilePage() {
               <AlertDialogFooter>
                 <AlertDialogCancel className="bg-gray-700 text-white hover:bg-gray-600 border-0">Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={handleLogoutAction}
+                  onClick={handleLogout}
                   className="bg-red-600 hover:bg-red-700"
                 >
                   Logout
