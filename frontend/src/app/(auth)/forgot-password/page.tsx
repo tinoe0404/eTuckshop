@@ -1,3 +1,7 @@
+// ============================================
+// FILE 1: src/app/(auth)/forgot-password/page.tsx
+// ============================================
+
 'use client';
 
 import { useState } from 'react';
@@ -36,15 +40,11 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      const response = await authService.forgotPassword(data.email);
-
-      if (response.success) {
-        setSubmittedEmail(data.email);
-        setEmailSent(true);
-        toast.success('Password reset link sent!');
-      } else {
-        toast.error(response.message || 'Failed to send reset link');
-      }
+      await authService.forgotPassword(data.email);
+      // If we reach here, it succeeded (no error was thrown)
+      setSubmittedEmail(data.email);
+      setEmailSent(true);
+      toast.success('Password reset link sent!');
     } catch (error: any) {
       // Always show success for security (don't reveal if email exists)
       setSubmittedEmail(data.email);

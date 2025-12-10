@@ -1,4 +1,7 @@
-// lib/api/services/auth.service.ts
+// ============================================
+// FILE 2: lib/api/services/auth.service.ts
+// ============================================
+
 import apiClient from '@/lib/api/client';
 import type { ApiResponse, User, UpdateProfileData, ChangePasswordData } from '@/types';
 
