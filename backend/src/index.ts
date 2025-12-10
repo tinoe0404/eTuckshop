@@ -2,6 +2,7 @@ import "dotenv/config";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
+import { secureHeaders } from "hono/secure-headers"; // ✅ ADD THIS
 import { serve } from "bun";
 import { prisma } from "./utils/db";
 import authRoutes from "./routes/auth.route";
@@ -16,6 +17,15 @@ const app = new Hono();
 
 // Middleware
 app.use(logger());
+
+app.use("*", secureHeaders({
+  xContentTypeOptions: "nosniff",
+  xFrameOptions: "DENY",
+  xXssProtection: "1; mode=block",
+  strictTransportSecurity: "max-age=31536000; includeSubDomains",
+}));
+
+
 
 // ✅ SIMPLIFIED PRODUCTION-READY CORS Configuration
 app.use(
