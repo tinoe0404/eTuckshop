@@ -1,3 +1,4 @@
+// controllers/auth.controller.ts
 import { Context } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
 import { prisma } from "../utils/db";
@@ -45,17 +46,16 @@ const verifyResetToken = async (token: string) => {
   }
 };
 
-// Set auth cookies with proper settings for production
+// ✅ FIXED: Set auth cookies with proper cross-origin settings
 const setAuthCookies = (c: Context, accessToken: string, refreshToken: string) => {
   const isProd = process.env.NODE_ENV === "production";
-  const domain = isProd ? process.env.COOKIE_DOMAIN : undefined;
   
+  // ✅ Don't set domain for cross-origin cookies
   // Access token cookie (15 minutes)
   setCookie(c, "accessToken", accessToken, {
     httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? "None" : "Lax",
-    domain,
+    secure: isProd, // ✅ Must be true in production (HTTPS)
+    sameSite: isProd ? "None" : "Lax", // ✅ CRITICAL: "None" allows cross-origin
     path: "/",
     maxAge: 60 * 15,
   });
@@ -63,26 +63,27 @@ const setAuthCookies = (c: Context, accessToken: string, refreshToken: string) =
   // Refresh token cookie (7 days)
   setCookie(c, "refreshToken", refreshToken, {
     httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? "None" : "Lax",
-    domain,
+    secure: isProd, // ✅ Must be true in production (HTTPS)
+    sameSite: isProd ? "None" : "Lax", // ✅ CRITICAL: "None" allows cross-origin
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });
 };
 
-// Clear auth cookies
+// ✅ FIXED: Clear auth cookies
 const clearAuthCookies = (c: Context) => {
   const isProd = process.env.NODE_ENV === "production";
-  const domain = isProd ? process.env.COOKIE_DOMAIN : undefined;
 
   deleteCookie(c, "accessToken", { 
     path: "/",
-    domain,
+    secure: isProd,
+    sameSite: isProd ? "None" : "Lax",
   });
+  
   deleteCookie(c, "refreshToken", { 
     path: "/",
-    domain,
+    secure: isProd,
+    sameSite: isProd ? "None" : "Lax",
   });
 };
 
@@ -216,13 +217,11 @@ export const refreshToken = async (c: Context) => {
     const { accessToken } = await generateTokens(decoded.userId as string);
 
     const isProd = process.env.NODE_ENV === "production";
-    const domain = isProd ? process.env.COOKIE_DOMAIN : undefined;
     
     setCookie(c, "accessToken", accessToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? "None" : "Lax",
-      domain,
       path: "/",
       maxAge: 60 * 15,
     });
@@ -412,7 +411,7 @@ export const forgotPassword = async (c: Context) => {
       ex: 60 * 60,
     });
 
-    const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
+    const resetUrl = `${process.env.CLIENT_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
 
     await sendPasswordResetEmail(user.email, user.name, resetUrl);
 
@@ -509,4 +508,4 @@ export const resetPassword = async (c: Context) => {
   } catch (error) {
     return serverError(c, error);
   }
-};
+}
