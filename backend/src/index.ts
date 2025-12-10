@@ -17,47 +17,48 @@ const app = new Hono();
 // Middleware
 app.use(logger());
 
-// ✅ FIXED CORS Configuration
+// ✅ SIMPLIFIED PRODUCTION-READY CORS Configuration
 app.use(
   "*",
   cors({
     origin: (origin) => {
-      const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
+      // List of allowed origins
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "http://localhost:5000",
+        "https://e-tuckshop.vercel.app",
+        "https://dashboard.render.com",
+      ];
       
-      // Allow requests with no origin (mobile apps, curl, Postman)
-      if (!origin) return CLIENT_URL;
+      // Allow if no origin (Postman, mobile apps, etc.)
+      if (!origin) return allowedOrigins[0];
       
-      // Allow localhost in development
-      if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
+      // Check if origin is in allowed list
+      if (allowedOrigins.includes(origin)) {
         return origin;
       }
       
-      // Allow your production frontend URL
-      if (origin === CLIENT_URL) {
+      // Allow all Vercel preview deployments (*.vercel.app)
+      if (origin.endsWith(".vercel.app")) {
         return origin;
       }
       
-      // For Vercel deployments, you might need to allow preview URLs
-      if (origin.includes("vercel.app")) {
-        return origin;
-      }
-      
-      // Block all other origins
-      return CLIENT_URL; // fallback
+      // Reject all others
+      return allowedOrigins[0]; // Fallback to localhost
     },
-    credentials: true, // ✅ Essential for cookies
+    credentials: true, // ✅ Essential for httpOnly cookies
     allowHeaders: [
       "Content-Type",
       "Authorization",
       "Cookie",
       "Set-Cookie",
+      "X-Requested-With",
     ],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    exposeHeaders: ["Set-Cookie"],
-    maxAge: 86400, // Cache preflight for 24 hours
+    exposeHeaders: ["Set-Cookie"], // ✅ Let frontend see Set-Cookie headers
+    maxAge: 86400, // Cache preflight requests for 24 hours
   })
 );
-
 
 // Health / root endpoint
 app.get("/api", (c) => {
@@ -65,6 +66,10 @@ app.get("/api", (c) => {
     success: true,
     message: "eTuckshop API is running",
     version: "1.0.0",
+    environment: process.env.NODE_ENV || "development",
+    cors: {
+      allowedOrigin: process.env.CLIENT_URL || "http://localhost:3000",
+    },
     endpoints: {
       auth: "/api/auth",
       products: "/api/products",
@@ -97,11 +102,31 @@ app.route("/api/orders", orderRoutes);
 app.route("/api/analytics", analyticsRoutes);
 app.route("/api/customer", customerRoutes);
 
+// 404 handler for undefined routes
+app.notFound((c) => {
+  return c.json(
+    {
+      success: false,
+      message: "Route not found",
+      requestedPath: c.req.path,
+    },
+    404
+  );
+});
+
 // Global error handler
 app.onError((err: Error, c) => {
   console.error("🔥 Global Error:", err);
+  
+  // Don't expose internal errors in production
+  const isProduction = process.env.NODE_ENV === "production";
+  
   return c.json(
-    { success: false, message: "Internal server error", error: err.message },
+    {
+      success: false,
+      message: isProduction ? "Internal server error" : err.message,
+      ...(isProduction ? {} : { stack: err.stack }),
+    },
     500
   );
 });
@@ -110,9 +135,15 @@ app.onError((err: Error, c) => {
 (async () => {
   await checkDbConnection();
 
-  const port = Number(process.env.PORT) || 3000;
+  const port = Number(process.env.PORT) || 5000;
 
-  serve({ port, fetch: app.fetch });
+  serve({ 
+    port, 
+    fetch: app.fetch,
+    development: process.env.NODE_ENV !== "production",
+  });
 
   console.log(`🚀 Server running on http://localhost:${port}`);
+  console.log(`📦 Environment: ${process.env.NODE_ENV || "development"}`);
+  console.log(`🌐 Client URL: ${process.env.CLIENT_URL || "http://localhost:3000"}`);
 })();

@@ -1,3 +1,4 @@
+// lib/api/services/auth.service.ts
 import apiClient from '@/lib/api/client';
 import type { ApiResponse, User, UpdateProfileData, ChangePasswordData } from '@/types';
 
@@ -14,7 +15,7 @@ interface LoginData {
   password: string;
 }
 
-// Response type (no tokens in body anymore - they're in cookies)
+// Response type (no tokens in body - they're in httpOnly cookies)
 interface AuthResponse {
   user: User;
 }
@@ -25,7 +26,7 @@ export const authService = {
   signup: async (data: SignupData): Promise<AuthResponse> => {
     const res = await apiClient.post<ApiResponse<AuthResponse>>('/auth/signup', data);
     if (!res.data.success) throw new Error(res.data.message);
-    // Cookies are automatically set by backend, no need to store tokens
+    // Cookies are automatically set by backend
     return res.data.data;
   },
 
@@ -33,7 +34,7 @@ export const authService = {
   login: async (data: LoginData): Promise<AuthResponse> => {
     const res = await apiClient.post<ApiResponse<AuthResponse>>('/auth/login', data);
     if (!res.data.success) throw new Error(res.data.message);
-    // Cookies are automatically set by backend, no need to store tokens
+    // Cookies are automatically set by backend
     return res.data.data;
   },
 
@@ -72,13 +73,9 @@ export const authService = {
     if (!res.data.success) throw new Error(res.data.message);
   },
 
-  async forgotPassword(email: string) {
-    try {
-      const response = await apiClient.post('/auth/forgot-password', { email });
-      return response.data;
-    } catch (error: any) {
-      throw error.response?.data || error;
-    }
-  }
-  
+  // -------------- FORGOT PASSWORD --------------
+  forgotPassword: async (email: string): Promise<void> => {
+    const res = await apiClient.post<ApiResponse<null>>('/auth/forgot-password', { email });
+    if (!res.data.success) throw new Error(res.data.message);
+  },
 };

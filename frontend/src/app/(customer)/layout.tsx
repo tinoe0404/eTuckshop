@@ -1,8 +1,7 @@
+// app/(customer)/layout.tsx
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/lib/store/authStore';
+import { CustomerRoute } from '@/components/auth/ProtectedRoute';
 import CustomerHeader from '@/components/layout/CustomerHeader';
 import CustomerSidebar from '@/components/layout/CustomerSidebar';
 import { Toaster } from 'sonner';
@@ -12,40 +11,18 @@ export default function CustomerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
-  const { user, isAuthenticated } = useAuthStore();
-
-  useEffect(() => {
-    // Redirect if not authenticated
-    if (!isAuthenticated) {
-      router.push('/login');
-      return;
-    }
-
-    // Redirect if not customer
-    if (user?.role !== 'CUSTOMER') {
-      router.push('/login');
-    }
-  }, [isAuthenticated, user, router]);
-
-  if (!isAuthenticated || user?.role !== 'CUSTOMER') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <CustomerHeader />
-      <div className="flex">
-        <CustomerSidebar />
-        <main className="flex-1 p-6">
-          {children}
-        </main>
+    <CustomerRoute>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <CustomerHeader />
+        <div className="flex">
+          <CustomerSidebar />
+          <main className="flex-1 p-6">
+            {children}
+          </main>
+        </div>
+        <Toaster position="top-right" richColors />
       </div>
-      <Toaster position="top-right" richColors />
-    </div>
+    </CustomerRoute>
   );
 }

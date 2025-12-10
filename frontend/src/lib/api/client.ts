@@ -1,3 +1,4 @@
+// lib/api/client.ts
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 const apiClient = axios.create({
@@ -6,9 +7,8 @@ const apiClient = axios.create({
     "Content-Type": "application/json",
   },
   timeout: 10000,
-  withCredentials: true,
+  withCredentials: true, // ✅ Essential for httpOnly cookies
 });
-
 
 // Track if we're currently refreshing to prevent multiple refresh calls
 let isRefreshing = false;
@@ -44,7 +44,7 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Handle 401 errors (expired access token)
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       
       // If the failed request was the refresh endpoint itself, don't retry
       if (originalRequest.url?.includes('/auth/refresh')) {
@@ -53,6 +53,9 @@ apiClient.interceptors.response.use(
         
         // Clear auth state and redirect to login
         if (typeof window !== 'undefined') {
+          // Clear localStorage
+          localStorage.clear();
+          // Redirect to login
           window.location.href = '/login';
         }
         return Promise.reject(error);
@@ -92,7 +95,6 @@ apiClient.interceptors.response.use(
         if (typeof window !== 'undefined') {
           // Clear any client-side state
           localStorage.clear();
-          sessionStorage.clear();
           
           // Redirect to login
           window.location.href = '/login';

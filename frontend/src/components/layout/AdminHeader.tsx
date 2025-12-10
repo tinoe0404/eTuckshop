@@ -10,17 +10,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useLogout } from '@/lib/hooks/useLogout';
 import { useAuthStore } from '@/lib/store/authStore';
 import { useRouter } from 'next/navigation';
+import { useLogout } from '@/lib/hooks/useAuth';
 
 export default function AdminHeader() {
   const router = useRouter();
-  const { logout } = useLogout();
+ 
   const { user } = useAuthStore(); // ✅ Get user from auth store
 
-  const handleLogout = async () => {
-    await logout();
+  const logoutMutation = useLogout();
+  
+  const handleLogout = () => {
+    logoutMutation.mutate();
   };
 
   return (

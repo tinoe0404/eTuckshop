@@ -1,3 +1,4 @@
+// middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -26,16 +27,12 @@ export function middleware(request: NextRequest) {
 
   // If trying to access protected route without token, redirect to login
   if (isProtectedRoute && !accessToken) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('callbackUrl', pathname);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // If logged in and trying to access auth pages (login/register)
-  // Allow it - the page itself will handle the redirect after checking role
-  // This prevents middleware conflicts with the page-level logic
+  // If logged in and trying to access login/register, allow it
+  // The page component will handle role-based redirects
   if (accessToken && (pathname === '/login' || pathname === '/register')) {
-    // Let the page handle it - don't redirect here
     return NextResponse.next();
   }
 

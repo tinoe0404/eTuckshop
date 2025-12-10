@@ -1,3 +1,4 @@
+// lib/store/authStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { User } from '@/types';
@@ -7,7 +8,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   setUser: (user: User | null) => void;
-  logout: () => void;
+  clearAuth: () => void;
   setLoading: (loading: boolean) => void;
   _hasHydrated: boolean;
   setHasHydrated: (state: boolean) => void;
@@ -21,6 +22,7 @@ export const useAuthStore = create<AuthState>()(
       isLoading: true,
       _hasHydrated: false,
 
+      // Set user and mark as authenticated
       setUser: (user) =>
         set({
           user,
@@ -28,7 +30,8 @@ export const useAuthStore = create<AuthState>()(
           isLoading: false,
         }),
 
-      logout: () =>
+      // Clear all auth state
+      clearAuth: () =>
         set({
           user: null,
           isAuthenticated: false,

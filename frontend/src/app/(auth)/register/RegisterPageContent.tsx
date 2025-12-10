@@ -1,7 +1,8 @@
+// app/(auth)/register/RegisterPageContent.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -15,7 +16,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import Link from "next/link";
 
-import { authService } from "@/lib/api/services/auth.service";
+import { useSignup } from "@/lib/hooks/useAuth";
 import { useAuthStore } from "@/lib/store/authStore";
 
 // Validation Schema
@@ -36,12 +37,11 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPageContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { setUser } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
+  const signupMutation = useSignup();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<RegisterFormData>({
@@ -53,43 +53,37 @@ export default function RegisterPageContent() {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+
+    // If already logged in, redirect based on role
+    if (isAuthenticated && user) {
+      if (user.role === "ADMIN") {
+        router.replace("/admin/dashboard");
+      } else {
+        router.replace("/dashboard");
+      }
+    }
+  }, [isAuthenticated, user, router]);
 
   const onSubmit = async (data: RegisterFormData) => {
-    setIsLoading(true);
-    
-    try {
-      const response = await authService.signup({
-        name: data.name,
-        email: data.email,
-        password: data.password,
-        role: data.role,
-      });
-
-      const user = response.user;
-      setUser(user);
-
-      toast.success(`Account created successfully! Welcome, ${user.name}`);
-
-      // Get redirect URL
-      const callbackUrl = searchParams.get("callbackUrl");
-      const defaultUrl = user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
-      const redirectUrl = callbackUrl || defaultUrl;
-
-      // Small delay to ensure state updates
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Perform redirect
-      router.replace(redirectUrl);
-      
-    } catch (err: any) {
-      console.error("Registration error:", err);
-      toast.error(err?.response?.data?.message || err?.message || "Failed to create account");
-      setIsLoading(false);
-    }
+    signupMutation.mutate({
+      name: data.name,
+      email: data.email,
+      password: data.password,
+      role: data.role,
+    });
+    // Navigation is handled by the hook
   };
 
   if (!mounted) return null;
+
+  // If already authenticated, show loading while redirecting
+  if (isAuthenticated && user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
@@ -112,7 +106,7 @@ export default function RegisterPageContent() {
           <button
             type="button"
             onClick={() => setValue("role", "CUSTOMER")}
-            disabled={isLoading}
+            disabled={signupMutation.isPending}
             className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${selectedRole === "CUSTOMER" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 dark:border-gray-700 hover:border-gray-300"}`}
           >
             <div className="flex flex-col items-center space-y-3">
@@ -129,7 +123,7 @@ export default function RegisterPageContent() {
           <button
             type="button"
             onClick={() => setValue("role", "ADMIN")}
-            disabled={isLoading}
+            disabled={signupMutation.isPending}
             className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${selectedRole === "ADMIN" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 dark:border-gray-700 hover:border-gray-300"}`}
           >
             <div className="flex flex-col items-center space-y-3">
@@ -149,7 +143,7 @@ export default function RegisterPageContent() {
           {/* Name */}
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
-            <Input id="name" placeholder="Enter your name" disabled={isLoading} {...register("name")} />
+            <Input id="name" placeholder="Enter your name" disabled={signupMutation.isPending} {...register("name")} />
             {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
           </div>
 
@@ -158,7 +152,7 @@ export default function RegisterPageContent() {
             <Label htmlFor="email">Email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <Input id="email" type="email" placeholder="Enter your email" className="pl-10" disabled={isLoading} {...register("email")} />
+              <Input id="email" type="email" placeholder="Enter your email" className="pl-10" disabled={signupMutation.isPending} {...register("email")} />
             </div>
             {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
           </div>
@@ -168,8 +162,8 @@ export default function RegisterPageContent() {
             <Label htmlFor="password">Password</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <Input id="password" type={showPassword ? "text" : "password"} placeholder="Enter your password" className="pl-10 pr-10" disabled={isLoading} {...register("password")} />
-              <button type="button" onClick={() => setShowPassword(p => !p)} disabled={isLoading} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <Input id="password" type={showPassword ? "text" : "password"} placeholder="Enter your password" className="pl-10 pr-10" disabled={signupMutation.isPending} {...register("password")} />
+              <button type="button" onClick={() => setShowPassword(p => !p)} disabled={signupMutation.isPending} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
@@ -181,8 +175,8 @@ export default function RegisterPageContent() {
             <Label htmlFor="confirmPassword">Confirm Password</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <Input id="confirmPassword" type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" className="pl-10 pr-10" disabled={isLoading} {...register("confirmPassword")} />
-              <button type="button" onClick={() => setShowConfirmPassword(p => !p)} disabled={isLoading} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <Input id="confirmPassword" type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" className="pl-10 pr-10" disabled={signupMutation.isPending} {...register("confirmPassword")} />
+              <button type="button" onClick={() => setShowConfirmPassword(p => !p)} disabled={signupMutation.isPending} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
@@ -190,8 +184,8 @@ export default function RegisterPageContent() {
           </div>
 
           {/* Submit */}
-          <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-            {isLoading ? "Creating account..." : "Sign up"}
+          <Button type="submit" className="w-full" size="lg" disabled={signupMutation.isPending}>
+            {signupMutation.isPending ? "Creating account..." : "Sign up"}
           </Button>
         </form>
 

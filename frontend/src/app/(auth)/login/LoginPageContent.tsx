@@ -1,7 +1,8 @@
+// app/(auth)/login/LoginPageContent.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -16,7 +17,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import Link from "next/link";
 
-import { authService } from "@/lib/api/services/auth.service";
+import { useLogin } from "@/lib/hooks/useAuth";
 import { useAuthStore } from "@/lib/store/authStore";
 
 // Validation Schema
@@ -31,12 +32,11 @@ type UserRole = "CUSTOMER" | "ADMIN" | null;
 
 export default function LoginPageContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { setUser } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
+  const loginMutation = useLogin();
 
   const [selectedRole, setSelectedRole] = useState<UserRole>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const {
@@ -54,56 +54,51 @@ export default function LoginPageContent() {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+
+    // If already logged in, redirect based on role
+    if (isAuthenticated && user) {
+      if (user.role === "ADMIN") {
+        router.replace("/admin/dashboard");
+      } else {
+        router.replace("/dashboard");
+      }
+    }
+  }, [isAuthenticated, user, router]);
 
   const onSubmit = async (data: LoginFormData) => {
     if (!selectedRole) {
       toast.error("Please select a role to continue");
       return;
     }
-  
-    setIsLoading(true);
-  
-    try {
-      // Login request
-      const response = await authService.login({
+
+    // Mutate with role validation
+    loginMutation.mutate(
+      {
         email: data.email,
         password: data.password,
-      });
-
-      const user = response.user;
-
-      // Validate role match
-      if (user.role !== selectedRole) {
-        toast.error(`This account is not registered as ${selectedRole.toLowerCase()}`);
-        setIsLoading(false);
-        return;
+      },
+      {
+        onSuccess: (response) => {
+          // Check if role matches selected role
+          if (response.user.role !== selectedRole) {
+            toast.error(`This account is not registered as ${selectedRole.toLowerCase()}`);
+          }
+          // Navigation is handled by the hook
+        },
       }
-
-      // Update Zustand store
-      setUser(user);
-      
-      toast.success(`Welcome back, ${user.name}!`);
-
-      // Get redirect URL
-      const callbackUrl = searchParams.get("callbackUrl");
-      const defaultUrl = user.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
-      const redirectUrl = callbackUrl || defaultUrl;
-
-      // Small delay to ensure state updates
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Perform redirect
-      router.replace(redirectUrl);
-      
-    } catch (err: any) {
-      console.error("Login error:", err);
-      toast.error(err.response?.data?.message || err.message || "Invalid email or password");
-      setIsLoading(false);
-    }
+    );
   };
 
   if (!mounted) return null;
+
+  // If already authenticated, show loading while redirecting
+  if (isAuthenticated && user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
@@ -128,7 +123,7 @@ export default function LoginPageContent() {
           <button
             type="button"
             onClick={() => setSelectedRole("CUSTOMER")}
-            disabled={isLoading}
+            disabled={loginMutation.isPending}
             className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
               selectedRole === "CUSTOMER"
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
@@ -157,7 +152,7 @@ export default function LoginPageContent() {
           <button
             type="button"
             onClick={() => setSelectedRole("ADMIN")}
-            disabled={isLoading}
+            disabled={loginMutation.isPending}
             className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
               selectedRole === "ADMIN"
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
@@ -196,7 +191,7 @@ export default function LoginPageContent() {
                 type="email"
                 placeholder="Enter your email"
                 className="pl-10"
-                disabled={isLoading}
+                disabled={loginMutation.isPending}
                 {...register("email")}
               />
             </div>
@@ -215,14 +210,14 @@ export default function LoginPageContent() {
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
                 className="pl-10 pr-10"
-                disabled={isLoading}
+                disabled={loginMutation.isPending}
                 {...register("password")}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((p) => !p)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                disabled={isLoading}
+                disabled={loginMutation.isPending}
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
@@ -241,7 +236,7 @@ export default function LoginPageContent() {
                 onCheckedChange={(checked) =>
                   setValue("rememberMe", checked as boolean)
                 }
-                disabled={isLoading}
+                disabled={loginMutation.isPending}
               />
               <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
                 Remember me
@@ -261,9 +256,9 @@ export default function LoginPageContent() {
             type="submit"
             className="w-full"
             size="lg"
-            disabled={isLoading || !selectedRole}
+            disabled={loginMutation.isPending || !selectedRole}
           >
-            {isLoading
+            {loginMutation.isPending
               ? "Signing in..."
               : selectedRole
               ? "Sign in"

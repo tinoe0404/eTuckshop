@@ -14,16 +14,17 @@ import {
 import { useCartStore } from '@/lib/store/cartStore';
 import { useAuthStore } from '@/lib/store/authStore';
 import { useRouter } from 'next/navigation';
-import { useLogout } from '@/lib/hooks/useLogout';
+import { useLogout } from '@/lib/hooks/useAuth';
 
 export default function CustomerHeader() {
   const router = useRouter();
   const { totalItems } = useCartStore();
   const { user } = useAuthStore(); // ✅ Get user from auth store
-  const { logout } = useLogout();
 
-  const handleLogout = async () => {
-    await logout();
+  const logoutMutation = useLogout();
+  
+  const handleLogout = () => {
+    logoutMutation.mutate();
   };
 
   return (
