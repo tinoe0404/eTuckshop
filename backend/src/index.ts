@@ -60,7 +60,46 @@ app.use(
   })
 );
 
-// Health / root endpoint
+// ✅ Root endpoint - This fixes the 404 on /
+app.get("/", (c) => {
+  return c.json({
+    success: true,
+    message: "eTuckshop API",
+    status: "online",
+    version: "1.0.0",
+    timestamp: new Date().toISOString(),
+    documentation: "/api",
+  });
+});
+
+// ✅ Health check endpoint - For monitoring services
+app.get("/health", async (c) => {
+  try {
+    // Check database connection
+    await prisma.$queryRaw`SELECT 1`;
+    
+    return c.json({
+      success: true,
+      status: "healthy",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      database: "connected",
+      environment: process.env.NODE_ENV || "development",
+    });
+  } catch (error) {
+    return c.json(
+      {
+        success: false,
+        status: "unhealthy",
+        database: "disconnected",
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      503
+    );
+  }
+});
+
+// ✅ API info endpoint
 app.get("/api", (c) => {
   return c.json({
     success: true,
@@ -79,6 +118,7 @@ app.get("/api", (c) => {
       analytics: "/api/analytics",
       customer: "/api/customer",
     },
+    health: "/health",
   });
 });
 
@@ -87,8 +127,13 @@ async function checkDbConnection() {
   try {
     await prisma.$connect();
     console.log("✅ Database connected successfully!");
+    
+    // Optional: Test query to ensure DB is truly accessible
+    await prisma.$queryRaw`SELECT 1`;
+    console.log("✅ Database query test passed!");
   } catch (error) {
     console.error("❌ Failed to connect to database:", error);
+    console.error("💡 Check your DATABASE_URL environment variable");
     process.exit(1);
   }
 }
@@ -109,6 +154,11 @@ app.notFound((c) => {
       success: false,
       message: "Route not found",
       requestedPath: c.req.path,
+      availableEndpoints: {
+        root: "/",
+        health: "/health",
+        api: "/api",
+      },
     },
     404
   );
@@ -131,19 +181,40 @@ app.onError((err: Error, c) => {
   );
 });
 
+// Graceful shutdown handler
+process.on("SIGTERM", async () => {
+  console.log("📛 SIGTERM received, closing server gracefully...");
+  await prisma.$disconnect();
+  console.log("✅ Database disconnected");
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  console.log("📛 SIGINT received, closing server gracefully...");
+  await prisma.$disconnect();
+  console.log("✅ Database disconnected");
+  process.exit(0);
+});
+
 // Start server
 (async () => {
   await checkDbConnection();
 
   const port = Number(process.env.PORT) || 5000;
+  const host = "0.0.0.0"; // ✅ Bind to all interfaces for Render
 
   serve({ 
-    port, 
+    port,
+    hostname: host, // ✅ Important for cloud platforms
     fetch: app.fetch,
     development: process.env.NODE_ENV !== "production",
   });
 
+  console.log("=".repeat(50));
   console.log(`🚀 Server running on http://localhost:${port}`);
   console.log(`📦 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`🌐 Client URL: ${process.env.CLIENT_URL || "http://localhost:3000"}`);
+  console.log(`💚 Health check: http://localhost:${port}/health`);
+  console.log(`📚 API info: http://localhost:${port}/api`);
+  console.log("=".repeat(50));
 })();
