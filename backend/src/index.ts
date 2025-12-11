@@ -47,7 +47,7 @@ app.use(
         "http://localhost:3000",
         "http://localhost:5000",
         "https://e-tuckshop.vercel.app",
-        "https://dashboard.render.com",
+        "https://etuckshop-backend.onrender.com",
       ];
       
       if (!origin) return allowedOrigins[0];
