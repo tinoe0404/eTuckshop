@@ -32,7 +32,7 @@ app.use("*", async (c, next) => {
   c.header("Pragma", "no-cache");
   c.header("Expires", "0");
   
-  // HTTPS-only in production
+  // httpS-only in production
   if (process.env.NODE_ENV === "production") {
     c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
