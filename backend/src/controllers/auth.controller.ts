@@ -1,6 +1,6 @@
 // controllers/auth.controller.ts
 import { Context } from "hono";
-import { setCookie, deleteCookie } from "hono/cookie";
+import { setCookie, deleteCookie, getCookie } from "hono/cookie";
 import { prisma } from "../utils/db";
 import { redis } from "../utils/redis";
 import { generateTokens, verifyRefreshToken } from "../utils/tokens";
@@ -46,16 +46,15 @@ const verifyResetToken = async (token: string) => {
   }
 };
 
-// ✅ FIXED: Set auth cookies with proper cross-origin settings
+// ✅ Set auth cookies with proper cross-origin settings
 const setAuthCookies = (c: Context, accessToken: string, refreshToken: string) => {
   const isProd = process.env.NODE_ENV === "production";
   
-  // ✅ Don't set domain for cross-origin cookies
   // Access token cookie (15 minutes)
   setCookie(c, "accessToken", accessToken, {
     httpOnly: true,
-    secure: isProd, // ✅ Must be true in production (HTTPS)
-    sameSite: isProd ? "None" : "Lax", // ✅ CRITICAL: "None" allows cross-origin
+    secure: isProd,
+    sameSite: isProd ? "None" : "Lax",
     path: "/",
     maxAge: 60 * 15,
   });
@@ -63,14 +62,14 @@ const setAuthCookies = (c: Context, accessToken: string, refreshToken: string) =
   // Refresh token cookie (7 days)
   setCookie(c, "refreshToken", refreshToken, {
     httpOnly: true,
-    secure: isProd, // ✅ Must be true in production (HTTPS)
-    sameSite: isProd ? "None" : "Lax", // ✅ CRITICAL: "None" allows cross-origin
+    secure: isProd,
+    sameSite: isProd ? "None" : "Lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });
 };
 
-// ✅ FIXED: Clear auth cookies
+// ✅ Clear auth cookies
 const clearAuthCookies = (c: Context) => {
   const isProd = process.env.NODE_ENV === "production";
 
@@ -87,29 +86,54 @@ const clearAuthCookies = (c: Context) => {
   });
 };
 
+// ============================================
 // SIGNUP
+// ============================================
 export const signup = async (c: Context) => {
   try {
     const { name, email, password, role } = await c.req.json();
 
-    const exists = await prisma.user.findUnique({ where: { email } });
-    if (exists)
-      return c.json({ success: false, message: "User already exists" }, 400);
+    // Validation
+    if (!name || !email || !password) {
+      return c.json({ 
+        success: false, 
+        message: "All fields are required" 
+      }, 400);
+    }
 
+    // Check if user exists
+    const exists = await prisma.user.findUnique({ where: { email } });
+    if (exists) {
+      return c.json({ 
+        success: false, 
+        message: "User already exists" 
+      }, 400);
+    }
+
+    // Hash password
     const hashed = await Bun.password.hash(password, {
       algorithm: "bcrypt",
       cost: 10,
     });
 
+    // Create user
     const user = await prisma.user.create({
-      data: { name, email, password: hashed, role },
+      data: { 
+        name, 
+        email, 
+        password: hashed, 
+        role: role || "CUSTOMER" 
+      },
     });
 
+    // Generate tokens
     const { accessToken, refreshToken } = await generateTokens(user.id.toString());
     await storeRefreshToken(user.id.toString(), refreshToken);
 
+    // Set cookies
     setAuthCookies(c, accessToken, refreshToken);
 
+    // Remove password from response
     const { password: _, ...safeUser } = user;
 
     return c.json(
@@ -118,7 +142,12 @@ export const signup = async (c: Context) => {
         message: "User created successfully",
         data: {
           user: safeUser,
-        }
+        },
+        // ✅ ALSO return tokens for cross-domain
+        tokens: {
+          accessToken,
+          refreshToken,
+        },
       },
       201
     );
@@ -127,42 +156,80 @@ export const signup = async (c: Context) => {
   }
 };
 
+// ============================================
 // LOGIN
+// ============================================
 export const login = async (c: Context) => {
   try {
     const { email, password } = await c.req.json();
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    // Validation
+    if (!email || !password) {
+      return c.json({ 
+        success: false, 
+        message: "Email and password are required" 
+      }, 400);
+    }
 
-    if (!user)
-      return c.json({ success: false, message: "Invalid email or password" }, 400);
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
 
-    const valid = await Bun.password.verify(password, user.password);
-    if (!valid)
-      return c.json({ success: false, message: "Invalid email or password" }, 400);
+    if (!user) {
+      return c.json({ 
+        success: false, 
+        message: "Invalid credentials" 
+      }, 401);
+    }
 
+    // Verify password
+    const isValid = await Bun.password.verify(password, user.password);
+    if (!isValid) {
+      return c.json({ 
+        success: false, 
+        message: "Invalid credentials" 
+      }, 401);
+    }
+
+    // Generate tokens
     const { accessToken, refreshToken } = await generateTokens(user.id.toString());
     await storeRefreshToken(user.id.toString(), refreshToken);
 
+    // Set cookies
     setAuthCookies(c, accessToken, refreshToken);
 
+    // Remove password from response
     const { password: _, ...safeUser } = user;
 
     return c.json({
       success: true,
-      message: "Logged in successfully",
-      data: { user: safeUser }
+      message: "Login successful",
+      data: {
+        user: safeUser,
+      },
+      // ✅ ALSO return tokens for cross-domain
+      tokens: {
+        accessToken,
+        refreshToken,
+      },
     });
-
   } catch (error) {
-    return serverError(c, error);
+    console.error("Login error:", error);
+    return c.json({ 
+      success: false, 
+      message: "Login failed" 
+    }, 500);
   }
 };
 
+// ============================================
 // LOGOUT
+// ============================================
 export const logout = async (c: Context) => {
   try {
-    const cookieRefreshToken = c.req.header("Cookie")?.match(/refreshToken=([^;]+)/)?.[1];
+    // Try to get refresh token from cookie or body
+    const cookieRefreshToken = getCookie(c, "refreshToken");
     const bodyData = await c.req.json().catch(() => ({}));
     const refreshToken = cookieRefreshToken || bodyData.refreshToken;
 
@@ -191,33 +258,49 @@ export const logout = async (c: Context) => {
   }
 };
 
+// ============================================
 // REFRESH TOKEN
+// ============================================
 export const refreshToken = async (c: Context) => {
   try {
-    const cookieRefreshToken = c.req.header("Cookie")?.match(/refreshToken=([^;]+)/)?.[1];
+    // Try to get refresh token from cookie or body
+    const cookieRefreshToken = getCookie(c, "refreshToken");
     const bodyData = await c.req.json().catch(() => ({}));
     const refreshToken = cookieRefreshToken || bodyData.refreshToken;
 
-    if (!refreshToken)
-      return c.json({ success: false, message: "No refresh token provided" }, 401);
+    if (!refreshToken) {
+      return c.json({ 
+        success: false, 
+        message: "No refresh token provided" 
+      }, 401);
+    }
 
+    // Verify refresh token
     const decoded = await verifyRefreshToken(refreshToken);
     
     if (!decoded || !decoded.userId) {
       clearAuthCookies(c);
-      return c.json({ success: false, message: "Invalid refresh token" }, 401);
+      return c.json({ 
+        success: false, 
+        message: "Invalid refresh token" 
+      }, 401);
     }
 
+    // Check if token is stored in Redis
     const storedToken = await redis.get(`refresh_token:${decoded.userId}`);
     if (storedToken !== refreshToken) {
       clearAuthCookies(c);
-      return c.json({ success: false, message: "Invalid refresh token" }, 401);
+      return c.json({ 
+        success: false, 
+        message: "Invalid refresh token" 
+      }, 401);
     }
 
+    // Generate new access token (keep same refresh token)
     const { accessToken } = await generateTokens(decoded.userId as string);
 
+    // Set new access token cookie
     const isProd = process.env.NODE_ENV === "production";
-    
     setCookie(c, "accessToken", accessToken, {
       httpOnly: true,
       secure: isProd,
@@ -231,7 +314,12 @@ export const refreshToken = async (c: Context) => {
       message: "Token refreshed successfully",
       data: {
         accessToken,
-      }
+      },
+      // ✅ ALSO return tokens for cross-domain
+      tokens: {
+        accessToken,
+        refreshToken, // Return same refresh token
+      },
     });
   } catch (error) {
     clearAuthCookies(c);
@@ -239,12 +327,18 @@ export const refreshToken = async (c: Context) => {
   }
 };
 
+// ============================================
 // GET PROFILE
+// ============================================
 export const getProfile = async (c: Context) => {
   try {
     const user = c.get("user");
-    if (!user)
-      return c.json({ success: false, message: "Unauthorized" }, 401);
+    if (!user) {
+      return c.json({ 
+        success: false, 
+        message: "Unauthorized" 
+      }, 401);
+    }
 
     return c.json({
       success: true,
@@ -256,12 +350,17 @@ export const getProfile = async (c: Context) => {
   }
 };
 
+// ============================================
 // UPDATE PROFILE
+// ============================================
 export const updateProfile = async (c: Context) => {
   try {
     const user = c.get("user");
     if (!user) {
-      return c.json({ success: false, message: "Unauthorized" }, 401);
+      return c.json({ 
+        success: false, 
+        message: "Unauthorized" 
+      }, 401);
     }
 
     const { name, email } = await c.req.json();
@@ -280,6 +379,7 @@ export const updateProfile = async (c: Context) => {
       }, 400);
     }
 
+    // Check if email is already taken by another user
     if (email !== user.email) {
       const existingUser = await prisma.user.findUnique({ 
         where: { email } 
@@ -293,6 +393,7 @@ export const updateProfile = async (c: Context) => {
       }
     }
 
+    // Update user
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: { name, email },
@@ -316,12 +417,17 @@ export const updateProfile = async (c: Context) => {
   }
 };
 
+// ============================================
 // CHANGE PASSWORD
+// ============================================
 export const changePassword = async (c: Context) => {
   try {
     const user = c.get("user");
     if (!user) {
-      return c.json({ success: false, message: "Unauthorized" }, 401);
+      return c.json({ 
+        success: false, 
+        message: "Unauthorized" 
+      }, 401);
     }
 
     const { currentPassword, newPassword } = await c.req.json();
@@ -340,14 +446,19 @@ export const changePassword = async (c: Context) => {
       }, 400);
     }
 
+    // Get full user with password
     const fullUser = await prisma.user.findUnique({
       where: { id: user.id },
     });
 
     if (!fullUser) {
-      return c.json({ success: false, message: "User not found" }, 404);
+      return c.json({ 
+        success: false, 
+        message: "User not found" 
+      }, 404);
     }
 
+    // Verify current password
     const isValid = await Bun.password.verify(currentPassword, fullUser.password);
     if (!isValid) {
       return c.json({ 
@@ -356,6 +467,7 @@ export const changePassword = async (c: Context) => {
       }, 400);
     }
 
+    // Check if new password is same as current
     const isSamePassword = await Bun.password.verify(newPassword, fullUser.password);
     if (isSamePassword) {
       return c.json({ 
@@ -364,16 +476,19 @@ export const changePassword = async (c: Context) => {
       }, 400);
     }
 
+    // Hash new password
     const hashedPassword = await Bun.password.hash(newPassword, {
       algorithm: "bcrypt",
       cost: 10,
     });
 
+    // Update password
     await prisma.user.update({
       where: { id: user.id },
       data: { password: hashedPassword },
     });
 
+    // Invalidate all refresh tokens
     await redis.del(`refresh_token:${user.id}`);
 
     return c.json({
@@ -386,17 +501,23 @@ export const changePassword = async (c: Context) => {
   }
 };
 
+// ============================================
 // FORGOT PASSWORD
+// ============================================
 export const forgotPassword = async (c: Context) => {
   try {
     const { email } = await c.req.json();
 
     if (!email) {
-      return c.json({ success: false, message: "Email is required" }, 400);
+      return c.json({ 
+        success: false, 
+        message: "Email is required" 
+      }, 400);
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
 
+    // Always return success to prevent email enumeration
     if (!user) {
       return c.json({
         success: true,
@@ -405,14 +526,18 @@ export const forgotPassword = async (c: Context) => {
       });
     }
 
+    // Generate reset token
     const resetToken = await generateResetToken(user.id, user.email);
 
+    // Store in Redis
     await redis.set(`password_reset:${user.id}`, resetToken, {
-      ex: 60 * 60,
+      ex: 60 * 60, // 1 hour
     });
 
+    // Create reset URL
     const resetUrl = `${process.env.CLIENT_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
 
+    // Send email
     await sendPasswordResetEmail(user.email, user.name, resetUrl);
 
     return c.json({
@@ -425,24 +550,36 @@ export const forgotPassword = async (c: Context) => {
   }
 };
 
+// ============================================
 // VERIFY RESET TOKEN
+// ============================================
 export const verifyResetTokenEndpoint = async (c: Context) => {
   try {
     const { token } = await c.req.json();
 
     if (!token) {
-      return c.json({ success: false, message: "Token is required" }, 400);
+      return c.json({ 
+        success: false, 
+        message: "Token is required" 
+      }, 400);
     }
 
     const decoded = await verifyResetToken(token);
 
     if (!decoded || !decoded.userId) {
-      return c.json({ success: false, message: "Invalid or expired token" }, 400);
+      return c.json({ 
+        success: false, 
+        message: "Invalid or expired token" 
+      }, 400);
     }
 
+    // Verify token exists in Redis
     const storedToken = await redis.get(`password_reset:${decoded.userId}`);
     if (storedToken !== token) {
-      return c.json({ success: false, message: "Invalid or expired token" }, 400);
+      return c.json({ 
+        success: false, 
+        message: "Invalid or expired token" 
+      }, 400);
     }
 
     return c.json({
@@ -455,48 +592,71 @@ export const verifyResetTokenEndpoint = async (c: Context) => {
   }
 };
 
+// ============================================
 // RESET PASSWORD
+// ============================================
 export const resetPassword = async (c: Context) => {
   try {
     const { token, newPassword } = await c.req.json();
 
     if (!token || !newPassword) {
-      return c.json({ success: false, message: "Token and new password are required" }, 400);
+      return c.json({ 
+        success: false, 
+        message: "Token and new password are required" 
+      }, 400);
     }
 
     if (newPassword.length < 6) {
-      return c.json({ success: false, message: "Password must be at least 6 characters" }, 400);
+      return c.json({ 
+        success: false, 
+        message: "Password must be at least 6 characters" 
+      }, 400);
     }
 
+    // Verify token
     const decoded = await verifyResetToken(token);
 
     if (!decoded || !decoded.userId) {
-      return c.json({ success: false, message: "Invalid or expired token" }, 400);
+      return c.json({ 
+        success: false, 
+        message: "Invalid or expired token" 
+      }, 400);
     }
 
+    // Verify token exists in Redis
     const storedToken = await redis.get(`password_reset:${decoded.userId}`);
     if (storedToken !== token) {
-      return c.json({ success: false, message: "Invalid or expired token" }, 400);
+      return c.json({ 
+        success: false, 
+        message: "Invalid or expired token" 
+      }, 400);
     }
 
+    // Get user
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId as number },
     });
 
     if (!user) {
-      return c.json({ success: false, message: "User not found" }, 404);
+      return c.json({ 
+        success: false, 
+        message: "User not found" 
+      }, 404);
     }
 
+    // Hash new password
     const hashedPassword = await Bun.password.hash(newPassword, {
       algorithm: "bcrypt",
       cost: 10,
     });
 
+    // Update password
     await prisma.user.update({
       where: { id: user.id },
       data: { password: hashedPassword },
     });
 
+    // Delete reset token and refresh tokens
     await redis.del(`password_reset:${user.id}`);
     await redis.del(`refresh_token:${user.id}`);
 
@@ -508,4 +668,4 @@ export const resetPassword = async (c: Context) => {
   } catch (error) {
     return serverError(c, error);
   }
-}
+};
