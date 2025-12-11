@@ -1,8 +1,9 @@
+// src/index.ts - COMPLETE FIX
+
 import "dotenv/config";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
-import { secureHeaders } from "hono/secure-headers"; // ✅ ADD THIS
 import { serve } from "bun";
 import { prisma } from "./utils/db";
 import authRoutes from "./routes/auth.route";
@@ -18,21 +19,30 @@ const app = new Hono();
 // Middleware
 app.use(logger());
 
-app.use("*", secureHeaders({
-  xContentTypeOptions: "nosniff",
-  xFrameOptions: "DENY",
-  xXssProtection: "1; mode=block",
-  strictTransportSecurity: "max-age=31536000; includeSubDomains",
-}));
+// ✅ SECURITY HEADERS MIDDLEWARE (MUST BE BEFORE CORS)
+app.use("*", async (c, next) => {
+  await next();
+  
+  // Set security headers on every response
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "DENY");
+  c.header("X-XSS-Protection", "1; mode=block");
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+  c.header("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  c.header("Pragma", "no-cache");
+  c.header("Expires", "0");
+  
+  // HTTPS-only in production
+  if (process.env.NODE_ENV === "production") {
+    c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+});
 
-
-
-// ✅ SIMPLIFIED PRODUCTION-READY CORS Configuration
+// ✅ CORS Configuration
 app.use(
   "*",
   cors({
     origin: (origin) => {
-      // List of allowed origins
       const allowedOrigins = [
         "http://localhost:3000",
         "http://localhost:5000",
@@ -40,23 +50,13 @@ app.use(
         "https://dashboard.render.com",
       ];
       
-      // Allow if no origin (Postman, mobile apps, etc.)
       if (!origin) return allowedOrigins[0];
+      if (allowedOrigins.includes(origin)) return origin;
+      if (origin.endsWith(".vercel.app")) return origin;
       
-      // Check if origin is in allowed list
-      if (allowedOrigins.includes(origin)) {
-        return origin;
-      }
-      
-      // Allow all Vercel preview deployments (*.vercel.app)
-      if (origin.endsWith(".vercel.app")) {
-        return origin;
-      }
-      
-      // Reject all others
-      return allowedOrigins[0]; // Fallback to localhost
+      return allowedOrigins[0];
     },
-    credentials: true, // ✅ Essential for httpOnly cookies
+    credentials: true,
     allowHeaders: [
       "Content-Type",
       "Authorization",
@@ -65,12 +65,12 @@ app.use(
       "X-Requested-With",
     ],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    exposeHeaders: ["Set-Cookie"], // ✅ Let frontend see Set-Cookie headers
-    maxAge: 86400, // Cache preflight requests for 24 hours
+    exposeHeaders: ["Set-Cookie"],
+    maxAge: 86400,
   })
 );
 
-// ✅ Root endpoint - This fixes the 404 on /
+// Root endpoint
 app.get("/", (c) => {
   return c.json({
     success: true,
@@ -82,10 +82,9 @@ app.get("/", (c) => {
   });
 });
 
-// ✅ Health check endpoint - For monitoring services
+// Health check endpoint
 app.get("/health", async (c) => {
   try {
-    // Check database connection
     await prisma.$queryRaw`SELECT 1`;
     
     return c.json({
@@ -109,7 +108,7 @@ app.get("/health", async (c) => {
   }
 });
 
-// ✅ API info endpoint
+// API info endpoint
 app.get("/api", (c) => {
   return c.json({
     success: true,
@@ -137,8 +136,6 @@ async function checkDbConnection() {
   try {
     await prisma.$connect();
     console.log("✅ Database connected successfully!");
-    
-    // Optional: Test query to ensure DB is truly accessible
     await prisma.$queryRaw`SELECT 1`;
     console.log("✅ Database query test passed!");
   } catch (error) {
@@ -148,16 +145,20 @@ async function checkDbConnection() {
   }
 }
 
-// Attach routes
-app.route("/api/auth", authRoutes);
-app.route("/api/products", productRoutes);
-app.route("/api/categories", categoryRoutes);
-app.route("/api/cart", cartRoutes);
-app.route("/api/orders", orderRoutes);
-app.route("/api/analytics", analyticsRoutes);
-app.route("/api/customer", customerRoutes);
+// Attach routes (mount under /api base path)
+const api = new Hono();
+api.route("/auth", authRoutes);
+api.route("/products", productRoutes);
+api.route("/categories", categoryRoutes);
+api.route("/cart", cartRoutes);
+api.route("/orders", orderRoutes);
+api.route("/analytics", analyticsRoutes);
+api.route("/customer", customerRoutes);
 
-// 404 handler for undefined routes
+// Mount all API routes under /api
+app.route("/api", api);
+
+// 404 handler
 app.notFound((c) => {
   return c.json(
     {
@@ -178,7 +179,6 @@ app.notFound((c) => {
 app.onError((err: Error, c) => {
   console.error("🔥 Global Error:", err);
   
-  // Don't expose internal errors in production
   const isProduction = process.env.NODE_ENV === "production";
   
   return c.json(
@@ -191,7 +191,7 @@ app.onError((err: Error, c) => {
   );
 });
 
-// Graceful shutdown handler
+// Graceful shutdown
 process.on("SIGTERM", async () => {
   console.log("📛 SIGTERM received, closing server gracefully...");
   await prisma.$disconnect();
@@ -211,11 +211,11 @@ process.on("SIGINT", async () => {
   await checkDbConnection();
 
   const port = Number(process.env.PORT) || 5000;
-  const host = "0.0.0.0"; // ✅ Bind to all interfaces for Render
+  const host = "0.0.0.0";
 
   serve({ 
     port,
-    hostname: host, // ✅ Important for cloud platforms
+    hostname: host,
     fetch: app.fetch,
     development: process.env.NODE_ENV !== "production",
   });
