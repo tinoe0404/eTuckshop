@@ -1,34 +1,36 @@
+// File: src/routes/auth.route.ts
+
 import { Hono } from "hono";
 import {
-  signup,
+  register,
   login,
   logout,
   refreshToken,
   getProfile,
-  updateProfile,     
-  changePassword,     
-  forgotPassword,
-  verifyResetTokenEndpoint,
-  resetPassword,
+  updateProfile,
+  changePassword,
+  getUserByEmail,
+  getUserById,
+  verifyCredentials,
 } from "../controllers/auth.controller";
 import { protectRoute } from "../middlewares/auth.middleware";
 
 const router = new Hono();
 
-// Public routes
-router.post("/signup", signup);
-router.post("/login", login);
+// ========== NextAuth-Compatible Endpoints ==========
+router.post("/register", register);           // For NextAuth Credentials signup
+router.post("/login", login);                 // For NextAuth Credentials login
+router.post("/verify-credentials", verifyCredentials); // For NextAuth authorize()
+router.post("/user/email", getUserByEmail);   // For NextAuth getUserByEmail
+router.get("/user/:id", getUserById);         // For NextAuth getUserById
+
+// ========== Standard Auth Endpoints ==========
 router.post("/logout", logout);
 router.post("/refresh", refreshToken);
 
-// Password reset routes (public - no authentication needed)
-router.post("/forgot-password", forgotPassword);
-router.post("/verify-reset-token", verifyResetTokenEndpoint);
-router.post("/reset-password", resetPassword);
-
-// Protected routes
+// ========== Protected Endpoints ==========
 router.get("/profile", protectRoute, getProfile);
-router.put("/profile", protectRoute, updateProfile);      // ADD THIS LINE
-router.put("/password", protectRoute, changePassword);    // ADD THIS LINE
+router.put("/profile", protectRoute, updateProfile);
+router.put("/password", protectRoute, changePassword);
 
 export default router;
