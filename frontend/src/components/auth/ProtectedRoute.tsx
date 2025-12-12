@@ -1,9 +1,10 @@
-// components/auth/ProtectedRoute.tsx
+// File: src/components/auth/ProtectedRoute.tsx (UPDATED FOR NEXTAUTH)
+
 'use client';
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/lib/store/authStore';
+import { useSession } from 'next-auth/react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -19,33 +20,33 @@ export default function ProtectedRoute({
   redirectTo = '/login',
 }: ProtectedRouteProps) {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading } = useAuthStore();
+  const { data: session, status } = useSession();
 
   useEffect(() => {
-    // Wait for store to hydrate
-    if (isLoading) return;
+    // Wait for session to load
+    if (status === 'loading') return;
 
     // Check authentication
-    if (requireAuth && !isAuthenticated) {
+    if (requireAuth && status === 'unauthenticated') {
       router.replace(redirectTo);
       return;
     }
 
     // Check role
-    if (requiredRole && user?.role !== requiredRole) {
+    if (requiredRole && session?.user?.role !== requiredRole) {
       // Redirect to appropriate dashboard based on actual role
-      if (user?.role === 'ADMIN') {
+      if (session?.user?.role === 'ADMIN') {
         router.replace('/admin/dashboard');
-      } else if (user?.role === 'CUSTOMER') {
+      } else if (session?.user?.role === 'CUSTOMER') {
         router.replace('/dashboard');
       } else {
         router.replace(redirectTo);
       }
     }
-  }, [isAuthenticated, user, isLoading, requireAuth, requiredRole, redirectTo, router]);
+  }, [status, session, requireAuth, requiredRole, redirectTo, router]);
 
   // Show loading spinner while checking auth
-  if (isLoading) {
+  if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
@@ -54,7 +55,7 @@ export default function ProtectedRoute({
   }
 
   // Show loading if not authenticated but should be
-  if (requireAuth && !isAuthenticated) {
+  if (requireAuth && status === 'unauthenticated') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
@@ -63,7 +64,7 @@ export default function ProtectedRoute({
   }
 
   // Show loading if role doesn't match
-  if (requiredRole && user?.role !== requiredRole) {
+  if (requiredRole && session?.user?.role !== requiredRole) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />

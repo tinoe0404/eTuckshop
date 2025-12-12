@@ -8,15 +8,56 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  role      Role     @default(CUSTOMER)
-  updatedAt DateTime @updatedAt
-  cart      Cart?
-  orders    Order[]
+  id            Int       @id @default(autoincrement())
+  name          String
+  email         String    @unique
+  password      String?
+  createdAt     DateTime  @default(now())
+  role          Role      @default(CUSTOMER)
+  updatedAt     DateTime  @updatedAt
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  cart          Cart?
+  orders        Order[]
+  sessions      Session[]
+}
+
+model Account {
+  id                Int     @id @default(autoincrement())
+  userId            Int
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           Int      @id @default(autoincrement())
+  sessionToken String   @unique
+  userId       Int
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 model Cart {
@@ -39,6 +80,8 @@ model CartItem {
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([cartId, productId])
+  @@index([cartId])
+  @@index([productId])
 }
 
 model Category {
@@ -62,6 +105,8 @@ model Product {
   cartItems   CartItem[]
   orderItems  OrderItem[]
   category    Category    @relation(fields: [categoryId], references: [id])
+
+  @@index([categoryId])
 }
 
 model Order {
@@ -78,6 +123,9 @@ model Order {
   user        User        @relation(fields: [userId], references: [id])
   orderItems  OrderItem[]
   paymentQR   PaymentQR?
+
+  @@index([userId])
+  @@index([status])
 }
 
 model OrderItem {
@@ -86,8 +134,11 @@ model OrderItem {
   productId Int
   quantity  Int
   subtotal  Float
-  order     Order   @relation(fields: [orderId], references: [id])
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product   Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 model PaymentQR {

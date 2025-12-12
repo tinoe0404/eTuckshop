@@ -1,53 +1,24 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+// File: src/middleware.ts
 
-export function middleware(request: NextRequest) {
-  const accessToken = request.cookies.get('accessToken')?.value;
-  const { pathname } = request.nextUrl;
+import { withAuth } from "next-auth/middleware";
 
-  // Skip middleware for API routes, static files, and Next.js internals
-  if (
-    pathname.startsWith('/api') ||
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/static') ||
-    pathname.includes('.')
-  ) {
-    return NextResponse.next();
-  }
-
-  // Public routes
-  const publicRoutes = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
-  const isPublic = publicRoutes.some(route => pathname === route || pathname.startsWith(`${route}/`));
-
-  // Protected routes
-  const isCustomerRoute = [
-    '/dashboard',
-    '/products',
-    '/cart',
-    '/checkout',
-    '/orders',
-    '/profile'
-  ].some(r => pathname.startsWith(r));
-
-  const isAdminRoute = pathname.startsWith('/admin');
-
-  const isProtectedRoute = isCustomerRoute || isAdminRoute;
-
-  // Redirect unauthenticated users trying to access protected pages
-  if (isProtectedRoute && !accessToken) {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-
-  // If logged in and visiting login or register, just allow
-  if (accessToken && (pathname === '/login' || pathname === '/register')) {
-    return NextResponse.next();
-  }
-
-  return NextResponse.next();
-}
+export default withAuth({
+  pages: {
+    signIn: "/login",  // ❌ Should be /login not /auth/login
+  },
+  callbacks: {
+    authorized: ({ token }) => !!token, // Only allow if token exists
+  },
+});
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|public).*)',
+    "/dashboard/:path*",
+    "/admin/:path*",
+    "/products/:path*",
+    "/cart/:path*",
+    "/checkout/:path*",
+    "/orders/:path*",
+    "/profile/:path*",
   ],
 };

@@ -1,8 +1,10 @@
-// app/(auth)/register/RegisterPageContent.tsx
+// File: src/app/(auth)/register/RegisterPageContent.tsx (UPDATED FOR NEXTAUTH)
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -17,7 +19,6 @@ import { toast } from "sonner";
 import Link from "next/link";
 
 import { useSignup } from "@/lib/hooks/useAuth";
-import { useAuthStore } from "@/lib/store/authStore";
 
 // Validation Schema
 const registerSchema = z
@@ -37,7 +38,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPageContent() {
   const router = useRouter();
-  const { user, isAuthenticated } = useAuthStore();
+  const { data: session, status } = useSession();
   const signupMutation = useSignup();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -53,16 +54,18 @@ export default function RegisterPageContent() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
 
-    // If already logged in, redirect based on role
-    if (isAuthenticated && user) {
-      if (user.role === "ADMIN") {
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      if (session.user.role === "ADMIN") {
         router.replace("/admin/dashboard");
       } else {
         router.replace("/dashboard");
       }
     }
-  }, [isAuthenticated, user, router]);
+  }, [status, session, router]);
 
   const onSubmit = async (data: RegisterFormData) => {
     signupMutation.mutate({
@@ -71,13 +74,21 @@ export default function RegisterPageContent() {
       password: data.password,
       role: data.role,
     });
-    // Navigation is handled by the hook
   };
 
   if (!mounted) return null;
 
-  // If already authenticated, show loading while redirecting
-  if (isAuthenticated && user) {
+  // Show loading while checking session
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  // If authenticated, show loading while redirecting
+  if (status === "authenticated") {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />

@@ -1,5 +1,5 @@
 import { Context } from "hono";
-import { prisma } from "../utils/db";
+import { prisma } from "../utils/prisma";
 import { serverError } from "../utils/serverError";
 
 // ==============================

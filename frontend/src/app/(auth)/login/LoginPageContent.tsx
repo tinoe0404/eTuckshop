@@ -1,8 +1,10 @@
-// app/(auth)/login/LoginPageContent.tsx
+// File: src/app/(auth)/login/LoginPageContent.tsx (UPDATED FOR NEXTAUTH)
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -18,7 +20,6 @@ import { toast } from "sonner";
 import Link from "next/link";
 
 import { useLogin } from "@/lib/hooks/useAuth";
-import { useAuthStore } from "@/lib/store/authStore";
 
 // Validation Schema
 const loginSchema = z.object({
@@ -32,7 +33,7 @@ type UserRole = "CUSTOMER" | "ADMIN" | null;
 
 export default function LoginPageContent() {
   const router = useRouter();
-  const { user, isAuthenticated } = useAuthStore();
+  const { data: session, status } = useSession();
   const loginMutation = useLogin();
 
   const [selectedRole, setSelectedRole] = useState<UserRole>(null);
@@ -54,16 +55,18 @@ export default function LoginPageContent() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
 
-    // If already logged in, redirect based on role
-    if (isAuthenticated && user) {
-      if (user.role === "ADMIN") {
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      if (session.user.role === "ADMIN") {
         router.replace("/admin/dashboard");
       } else {
         router.replace("/dashboard");
       }
     }
-  }, [isAuthenticated, user, router]);
+  }, [status, session, router]);
 
   const onSubmit = async (data: LoginFormData) => {
     if (!selectedRole) {
@@ -71,19 +74,18 @@ export default function LoginPageContent() {
       return;
     }
 
-    // Mutate with role validation
     loginMutation.mutate(
       {
         email: data.email,
         password: data.password,
+        role: selectedRole,
       },
       {
-        onSuccess: (response) => {
+        onSuccess: (user) => {
           // Check if role matches selected role
-          if (response.user.role !== selectedRole) {
+          if (user.role !== selectedRole) {
             toast.error(`This account is not registered as ${selectedRole.toLowerCase()}`);
           }
-          // Navigation is handled by the hook
         },
       }
     );
@@ -91,8 +93,17 @@ export default function LoginPageContent() {
 
   if (!mounted) return null;
 
-  // If already authenticated, show loading while redirecting
-  if (isAuthenticated && user) {
+  // Show loading while checking session
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  // If authenticated, show loading while redirecting
+  if (status === "authenticated") {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />

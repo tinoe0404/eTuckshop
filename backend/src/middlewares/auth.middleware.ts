@@ -1,7 +1,7 @@
 import { Context, Next } from "hono";
 import { getCookie } from "hono/cookie";
 import { verify } from "hono/jwt";
-import { prisma } from "../utils/db";
+import { prisma } from "../utils/prisma";
 
 // Custom middleware to verify JWT and fetch user
 export const protectRoute = async (c: Context, next: Next) => {

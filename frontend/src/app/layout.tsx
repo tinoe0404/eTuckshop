@@ -1,14 +1,18 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import './globals.css';
-import { ThemeProvider } from '@/components/providers/ThemeProvider';
-import { ReactQueryProvider } from '@/components/providers/ReactQueryProvider';
+// File: src/app/layout.tsx (UPDATED FOR NEXTAUTH)
 
-const inter = Inter({ subsets: ['latin'] });
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+
+import SessionProvider from "@/components/providers/SessionProvider";
+import { ReactQueryProvider } from "@/components/providers/ReactQueryProvider";
+import { Toaster } from "sonner";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'eTuckshop - Your Digital Tuckshop',
-  description: 'Shop conveniently with eTuckshop',
+  title: "eTuckshop - Your Online Tuckshop",
+  description: "Shop for your favorite products online",
 };
 
 export default function RootLayout({
@@ -17,18 +21,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body className={inter.className}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
+        <SessionProvider>
           <ReactQueryProvider>
             {children}
+            <Toaster position="top-right" richColors />
           </ReactQueryProvider>
-        </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );

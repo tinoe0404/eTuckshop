@@ -1,5 +1,5 @@
 // ============================================
-// FILE 2: lib/api/services/auth.service.ts
+// FILE: lib/api/services/auth.service.ts
 // ============================================
 
 import apiClient from '@/lib/api/client';
@@ -13,12 +13,6 @@ interface SignupData {
   role?: 'CUSTOMER' | 'ADMIN';
 }
 
-interface LoginData {
-  email: string;
-  password: string;
-}
-
-// Response type (no tokens in body - they're in httpOnly cookies)
 interface AuthResponse {
   user: User;
 }
@@ -29,40 +23,17 @@ export const authService = {
   signup: async (data: SignupData): Promise<AuthResponse> => {
     const res = await apiClient.post<ApiResponse<AuthResponse>>('/auth/signup', data);
     if (!res.data.success) throw new Error(res.data.message);
-    // Cookies are automatically set by backend
     return res.data.data;
   },
 
-  // ---------------- LOGIN ----------------
-  login: async (data: LoginData): Promise<AuthResponse> => {
-    const res = await apiClient.post<ApiResponse<AuthResponse>>('/auth/login', data);
-    if (!res.data.success) throw new Error(res.data.message);
-    // Cookies are automatically set by backend
-    return res.data.data;
-  },
+  // -----------------* NO LOGIN FUNCTION *-----------------
+  // Login is handled entirely by NextAuth (signIn("credentials")).
+  // ---------------------------------------------------------
 
-  // ---------------- LOGOUT ----------------
-  logout: async (): Promise<void> => {
-    // Backend will clear cookies and invalidate refresh token
-    const res = await apiClient.post<ApiResponse<null>>('/auth/logout', {});
-    if (!res.data.success) throw new Error(res.data.message);
-  },
+  // -----------------* NO LOGOUT FUNCTION *-----------------
+  // Logout uses NextAuth (signOut()).
+  // ---------------------------------------------------------
 
-  // -------------- REFRESH TOKEN --------------
-  refreshToken: async (): Promise<void> => {
-    // Refresh token is automatically sent via cookie
-    const res = await apiClient.post<ApiResponse<{ accessToken: string }>>('/auth/refresh', {});
-    if (!res.data.success) throw new Error(res.data.message);
-    // New access token is automatically set as cookie by backend
-  },
-
-  // -------------- GET PROFILE --------------
-  getProfile: async (): Promise<User> => {
-    const res = await apiClient.get<ApiResponse<User>>('/auth/profile');
-    if (!res.data.success) throw new Error(res.data.message);
-    return res.data.data;
-  },
-  
   // -------------- UPDATE PROFILE --------------
   updateProfile: async (data: UpdateProfileData): Promise<User> => {
     const res = await apiClient.put<ApiResponse<User>>('/auth/profile', data);

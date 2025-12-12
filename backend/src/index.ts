@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
 import { serve } from "bun";
-import { prisma } from "./utils/db";
+import { prisma } from "./utils/prisma";
 import authRoutes from "./routes/auth.route";
 import productRoutes from "./routes/products.route";
 import categoryRoutes from "./routes/category.route";
