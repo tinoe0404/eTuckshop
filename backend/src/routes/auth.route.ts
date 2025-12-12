@@ -3,34 +3,32 @@
 import { Hono } from "hono";
 import {
   register,
+  verifyCredentials,
+  getUserByEmail,
+  getUserById,
+  updateUser,
+  getProfile,
   login,
   logout,
   refreshToken,
-  getProfile,
-  updateProfile,
-  changePassword,
-  getUserByEmail,
-  getUserById,
-  verifyCredentials,
 } from "../controllers/auth.controller";
 import { protectRoute } from "../middlewares/auth.middleware";
 
 const router = new Hono();
 
-// ========== NextAuth-Compatible Endpoints ==========
-router.post("/register", register);           // For NextAuth Credentials signup
-router.post("/login", login);                 // For NextAuth Credentials login
-router.post("/verify-credentials", verifyCredentials); // For NextAuth authorize()
-router.post("/user/email", getUserByEmail);   // For NextAuth getUserByEmail
-router.get("/user/:id", getUserById);         // For NextAuth getUserById
-
-// ========== Standard Auth Endpoints ==========
-router.post("/logout", logout);
-router.post("/refresh", refreshToken);
+// ========== NextAuth Endpoints ==========
+router.post("/register", register);
+router.post("/verify-credentials", verifyCredentials);
+router.post("/user/email", getUserByEmail);
+router.get("/user/:id", getUserById);
 
 // ========== Protected Endpoints ==========
 router.get("/profile", protectRoute, getProfile);
-router.put("/profile", protectRoute, updateProfile);
-router.put("/password", protectRoute, changePassword);
+router.put("/profile", protectRoute, updateUser);
+
+// ========== Legacy Endpoints (Optional - for direct API/mobile) ==========
+router.post("/login", login);
+router.post("/logout", logout);
+router.post("/refresh", refreshToken);
 
 export default router;
