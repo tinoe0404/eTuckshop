@@ -11,15 +11,59 @@ datasource db {
 // USER MODEL (Admin & Customer)
 // =====================================
 model User {
-  id         Int       @id @default(autoincrement())
-  name       String
-  email      String    @unique
-  password   String
-  role       Role      @default(CUSTOMER)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  orders     Order[]
-  cart       Cart?     // Add this line
+  id            Int       @id @default(autoincrement())
+  name          String
+  email         String    @unique
+  password      String?   // Nullable for OAuth users
+  emailVerified DateTime?
+  image         String?   // For OAuth profile images
+  role          Role      @default(CUSTOMER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  orders        Order[]
+  cart          Cart?
+  accounts      Account[]
+  sessions      Session[]
+}
+
+// NextAuth Account Model (for OAuth providers)
+model Account {
+  id                Int     @id @default(autoincrement())
+  userId            Int
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// NextAuth Session Model
+model Session {
+  id           Int      @id @default(autoincrement())
+  sessionToken String   @unique
+  userId       Int
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// NextAuth Verification Token Model
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 model Cart {
@@ -41,12 +85,9 @@ model CartItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([cartId, productId]) // Prevent duplicate products in same cart
+  @@unique([cartId, productId])
 }
 
-// =====================================
-// ENUMS (Roles, Order Status, etc.)
-// =====================================
 enum Role {
   ADMIN
   CUSTOMER
@@ -59,35 +100,29 @@ enum OrderStatus {
   CANCELLED
 }
 
-// =====================================
-// PRODUCT MANAGEMENT
-// =====================================
 model Category {
-  id          Int        @id @default(autoincrement())
-  name        String     @unique
-  description String?    // Added description field
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime @updatedAt
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   products    Product[]
 }
 
 model Product {
-  id          Int        @id @default(autoincrement())
+  id          Int         @id @default(autoincrement())
   name        String
   description String?
   price       Float
-  stock       Int        @default(0)
+  stock       Int         @default(0)
   categoryId  Int
-  category    Category   @relation(fields: [categoryId], references: [id])
+  category    Category    @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
-  cartItems   CartItem[] // Add this line
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  cartItems   CartItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
-// =====================================
-// ORDER MANAGEMENT
-// =====================================
 model Order {
   id          Int         @id @default(autoincrement())
   orderNumber String      @unique @default(cuid())
@@ -105,13 +140,13 @@ model Order {
 }
 
 model OrderItem {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   orderId   Int
   productId Int
   quantity  Int
   subtotal  Float
-  product   Product  @relation(fields: [productId], references: [id])
-  order     Order    @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+  order     Order   @relation(fields: [orderId], references: [id])
 }
 
 model PaymentQR {
