@@ -1,59 +1,46 @@
 // components/providers/AuthProvider.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useAuthStore } from '@/lib/store/authStore';
-import { authService } from '@/lib/api/services/auth.service';
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { data: session, status } = useSession();
   const { setUser, clearAuth, setLoading } = useAuthStore();
-  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Only run once on mount
-    if (initialized) return;
+    setLoading(true);
 
-    const initializeAuth = async () => {
-      // ✅ Define public routes that don't need auth
-      const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password'];
-      const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
-      
-      if (isPublicPath) {
-        console.log('📍 Public page, skipping auth check');
-        setLoading(false);
-        setInitialized(true);
-        return;
-      }
+    const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password'];
+    const isPublic = publicPaths.some((p) => pathname.startsWith(p));
 
-      console.log('🔐 Checking authentication...');
-      setLoading(true);
+    if (status === 'loading') return;
 
-      try {
-        // Try to get the user profile with a timeout
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Auth check timeout')), 5000)
-        );
-        
-        const user = await Promise.race([
-          authService.getProfile(),
-          timeoutPromise
-        ]);
-        
-        console.log('✅ User authenticated:', user);
-        setUser(user as any);
-      } catch (error: any) {
-        console.log('❌ Auth check failed:', error.message);
-        clearAuth();
-      } finally {
-        setLoading(false);
-        setInitialized(true);
-      }
-    };
+    // Public routes → no need for auth check
+    if (isPublic) {
+      clearAuth();
+      setLoading(false);
+      return;
+    }
 
-    initializeAuth();
-  }, []); // Only run once on mount
+    // Authenticated
+    if (status === 'authenticated' && session?.user) {
+      setUser(session.user as any);
+      setLoading(false);
+      return;
+    }
+
+    // Not authenticated → redirect
+    if (status === 'unauthenticated') {
+      clearAuth();
+      router.replace('/login');
+      setLoading(false);
+    }
+  }, [status, session, pathname, router]);
 
   return <>{children}</>;
 }

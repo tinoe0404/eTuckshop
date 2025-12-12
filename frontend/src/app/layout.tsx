@@ -1,4 +1,4 @@
-// File: src/app/layout.tsx (UPDATED FOR NEXTAUTH)
+// File: src/app/layout.tsx
 
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
@@ -23,11 +23,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        {/* NextAuth provider */}
         <SessionProvider>
+          {/* React Query provider */}
           <ReactQueryProvider>
             {children}
-            <Toaster position="top-right" richColors />
           </ReactQueryProvider>
+
+          {/* Toast notifications (should be outside data layers) */}
+          <Toaster position="top-right" richColors />
         </SessionProvider>
       </body>
     </html>
