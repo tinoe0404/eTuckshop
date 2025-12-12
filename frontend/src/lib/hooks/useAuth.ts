@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation';
 import { getSession, signIn, signOut } from 'next-auth/react';
 import { toast } from 'sonner';
 import apiClient from '@/lib/api/client';
-import type { ApiResponse, User } from '@/types';
+import axios from "axios";
+import { ApiResponse } from '@/types';
+import { User } from 'next-auth';
+
 
 // ---------------- SIGNUP HOOK ----------------
 interface SignupData {
@@ -16,67 +19,37 @@ interface SignupData {
 }
 
 // File: src/lib/hooks/useAuth.ts
-
-export const useSignup = () => {
-  const router = useRouter();
-
+export function useSignup() {
   return useMutation({
-    mutationFn: async (data: SignupData) => {
-      const res = await apiClient.post<ApiResponse<{ user: User }>>(
-        '/auth/register',
-        data
-      );
-      
-      if (!res.data.success) {
-        throw new Error(res.data.message);
-      }
-      
-      return { user: res.data.data.user, credentials: data };
+    mutationFn: async (data: { name: string; email: string; password: string; role: string }) => {
+      const res = await axios.post("/api/auth/register", data);
+      return res.data;
     },
-    onSuccess: async ({ user, credentials }) => {
-      toast.success(`Account created! Signing you in...`);
 
-      // Auto sign in after registration
-      const result = await signIn('credentials', {
-        email: credentials.email,
-        password: credentials.password,
+    onSuccess: async (data, variables) => {
+      toast.success("Account created successfully!");
+
+      // Auto-login using the same credentials
+      const login = await signIn("credentials", {
         redirect: false,
+        email: variables.email,
+        password: variables.password,
       });
 
-      if (result?.error) {
-        toast.error('Account created but login failed. Please sign in manually.');
-        router.push('/login');
+      if (login?.error) {
+        toast.error("Account created, but auto-login failed. Please sign in manually.");
         return;
       }
 
-      // Get session to verify
-      const session = await getSession();
-      
-      if (!session?.user) {
-        toast.error('Please sign in to continue');
-        router.push('/login');
-        return;
-      }
+      toast.success("Logged in!");
+      window.location.href = variables.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
+    },
 
-      // Role-based redirect
-      if (session.user.role === 'ADMIN') {
-        router.push('/admin/dashboard');
-      } else {
-        router.push('/dashboard');
-      }
-    },
-    onError: (error: any) => {
-      const message = error.response?.data?.message || error.message;
-      
-      // Better error messages
-      if (message.includes('already exists')) {
-        toast.error('This email is already registered. Please login instead.');
-      } else {
-        toast.error(message || 'Signup failed');
-      }
-    },
+    onError: () => {
+      toast.error("Failed to create account. Try again.");
+    }
   });
-};
+}
 
 // ---------------- LOGIN HOOK ----------------
 interface LoginData {

@@ -1,10 +1,8 @@
-// File: src/app/(auth)/login/LoginPageContent.tsx (UPDATED FOR NEXTAUTH)
-
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -19,8 +17,6 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import Link from "next/link";
 
-import { useLogin } from "@/lib/hooks/useAuth";
-
 // Validation Schema
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -34,11 +30,11 @@ type UserRole = "CUSTOMER" | "ADMIN" | null;
 export default function LoginPageContent() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const loginMutation = useLogin();
 
   const [selectedRole, setSelectedRole] = useState<UserRole>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const {
     register,
@@ -74,27 +70,28 @@ export default function LoginPageContent() {
       return;
     }
 
-    loginMutation.mutate(
-      {
-        email: data.email,
-        password: data.password,
-        role: selectedRole,
-      },
-      {
-        onSuccess: (user) => {
-          // Check if role matches selected role
-          if (user.role !== selectedRole) {
-            toast.error(`This account is not registered as ${selectedRole.toLowerCase()}`);
-          }
-        },
-      }
-    );
+    setLoading(true);
+
+    const result = await signIn("credentials", {
+      email: data.email,
+      password: data.password,
+      role: selectedRole, // 👈 Your provider must return this
+      redirect: false,
+    });
+
+    setLoading(false);
+
+    if (result?.error) {
+      toast.error(result.error);
+      return;
+    }
+
+    toast.success("Login successful! Redirecting...");
   };
 
   if (!mounted) return null;
 
-  // Show loading while checking session
-  if (status === "loading") {
+  if (status === "loading" || status === "authenticated") {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
@@ -102,18 +99,13 @@ export default function LoginPageContent() {
     );
   }
 
-  // If authenticated, show loading while redirecting
-  if (status === "authenticated") {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-      </div>
-    );
-  }
-
+  // ---------------------------
+  // UI (unchanged)
+  // ---------------------------
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
       <Card className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 shadow-2xl">
+
         {/* Logo */}
         <div className="flex justify-center">
           <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -134,7 +126,7 @@ export default function LoginPageContent() {
           <button
             type="button"
             onClick={() => setSelectedRole("CUSTOMER")}
-            disabled={loginMutation.isPending}
+            disabled={loading}
             className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
               selectedRole === "CUSTOMER"
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
@@ -151,19 +143,15 @@ export default function LoginPageContent() {
               >
                 <User className="w-6 h-6" />
               </div>
-              <div className="text-center">
-                <p className="font-semibold text-gray-900 dark:text-white">Customer</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Shop for products
-                </p>
-              </div>
+              <p className="font-semibold text-gray-900 dark:text-white">Customer</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Shop for products</p>
             </div>
           </button>
 
           <button
             type="button"
             onClick={() => setSelectedRole("ADMIN")}
-            disabled={loginMutation.isPending}
+            disabled={loading}
             className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
               selectedRole === "ADMIN"
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
@@ -180,12 +168,8 @@ export default function LoginPageContent() {
               >
                 <ShieldCheck className="w-6 h-6" />
               </div>
-              <div className="text-center">
-                <p className="font-semibold text-gray-900 dark:text-white">Admin</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Manage the shop
-                </p>
-              </div>
+              <p className="font-semibold text-gray-900 dark:text-white">Admin</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Manage the shop</p>
             </div>
           </button>
         </div>
@@ -202,13 +186,11 @@ export default function LoginPageContent() {
                 type="email"
                 placeholder="Enter your email"
                 className="pl-10"
-                disabled={loginMutation.isPending}
+                disabled={loading}
                 {...register("email")}
               />
             </div>
-            {errors.email && (
-              <p className="text-sm text-red-500">{errors.email.message}</p>
-            )}
+            {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
           </div>
 
           {/* Password */}
@@ -221,21 +203,19 @@ export default function LoginPageContent() {
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
                 className="pl-10 pr-10"
-                disabled={loginMutation.isPending}
+                disabled={loading}
                 {...register("password")}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((p) => !p)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                disabled={loginMutation.isPending}
+                disabled={loading}
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
-            {errors.password && (
-              <p className="text-sm text-red-500">{errors.password.message}</p>
-            )}
+            {errors.password && <p className="text-sm text-red-500">{errors.password.message}</p>}
           </div>
 
           {/* Remember Me */}
@@ -244,10 +224,8 @@ export default function LoginPageContent() {
               <Checkbox
                 id="rememberMe"
                 checked={rememberMe}
-                onCheckedChange={(checked) =>
-                  setValue("rememberMe", checked as boolean)
-                }
-                disabled={loginMutation.isPending}
+                onCheckedChange={(checked) => setValue("rememberMe", checked as boolean)}
+                disabled={loading}
               />
               <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
                 Remember me
@@ -263,13 +241,8 @@ export default function LoginPageContent() {
           </div>
 
           {/* Submit */}
-          <Button
-            type="submit"
-            className="w-full"
-            size="lg"
-            disabled={loginMutation.isPending || !selectedRole}
-          >
-            {loginMutation.isPending
+          <Button type="submit" className="w-full" size="lg" disabled={loading || !selectedRole}>
+            {loading
               ? "Signing in..."
               : selectedRole
               ? "Sign in"
