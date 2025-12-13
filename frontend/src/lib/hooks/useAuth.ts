@@ -1,167 +1,152 @@
-// File: src/lib/hooks/useAuth.ts (UPDATED FOR NEXTAUTH)
+// File: src/lib/hooks/useAuth.ts (CREATE THIS FILE)
 
+import { useSession, signOut } from 'next-auth/react';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { getSession, signIn, signOut } from 'next-auth/react';
 import { toast } from 'sonner';
-import apiClient from '@/lib/api/client';
-import axios from "axios";
-import { ApiResponse } from '@/types';
-import { User } from 'next-auth';
+import { profileService } from '@/lib/api/services/profile.service';
 
-
-// ---------------- SIGNUP HOOK ----------------
-interface SignupData {
-  name: string;
-  email: string;
-  password: string;
-  role?: 'CUSTOMER' | 'ADMIN';
+/**
+ * Custom hook for authentication with NextAuth
+ * Provides user, loading, and authenticated state
+ */
+export function useAuth() {
+  const { data: session, status, update } = useSession();
+  
+  return {
+    user: session?.user,
+    session,
+    status,
+    isLoading: status === 'loading',
+    isAuthenticated: status === 'authenticated',
+    isUnauthenticated: status === 'unauthenticated',
+    updateSession: update,
+  };
 }
 
-// File: src/lib/hooks/useAuth.ts
-export function useSignup() {
-  return useMutation({
-    mutationFn: async (data: { name: string; email: string; password: string; role: string }) => {
-      const res = await axios.post("/api/auth/register", data);
-      return res.data;
-    },
-
-    onSuccess: async (data, variables) => {
-      toast.success("Account created successfully!");
-
-      // Auto-login using the same credentials
-      const login = await signIn("credentials", {
-        redirect: false,
-        email: variables.email,
-        password: variables.password,
-      });
-
-      if (login?.error) {
-        toast.error("Account created, but auto-login failed. Please sign in manually.");
-        return;
-      }
-
-      toast.success("Logged in!");
-      window.location.href = variables.role === "ADMIN" ? "/admin/dashboard" : "/dashboard";
-    },
-
-    onError: () => {
-      toast.error("Failed to create account. Try again.");
-    }
-  });
-}
-
-// ---------------- LOGIN HOOK ----------------
-interface LoginData {
-  email: string;
-  password: string;
-  role?: 'CUSTOMER' | 'ADMIN';
-}
-
-// File: src/lib/hooks/useAuth.ts
-
-export const useLogin = () => {
+/**
+ * Hook for logout functionality
+ */
+export function useLogout() {
   const router = useRouter();
-
-  return useMutation({
-    mutationFn: async (data: LoginData) => {
-      const result = await signIn('credentials', {
-        email: data.email,
-        password: data.password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        throw new Error(result.error);
-      }
-
-      // Return a simple success object
-      return { success: true };
-    },
-    onSuccess: async () => {
-      // Get the session (which has user info)
-      const session = await getSession();
-      
-      if (!session?.user) {
-        throw new Error('Failed to get session');
-      }
-
-      toast.success(`Welcome back, ${session.user.name}!`);
-
-      // Role-based redirect
-      if (session.user.role === 'ADMIN') {
-        router.push('/admin/dashboard');
-      } else {
-        router.push('/dashboard');
-      }
-    },
-    onError: (error: any) => {
-      toast.error(error.message || 'Login failed');
-    },
-  });
-};
-
-// ---------------- LOGOUT HOOK ----------------
-export const useLogout = () => {
-  const router = useRouter();
-
+  
   return useMutation({
     mutationFn: async () => {
       await signOut({ redirect: false });
     },
     onSuccess: () => {
       toast.success('Logged out successfully');
-      router.push('/login');
+      router.replace('/login');
     },
     onError: (error: any) => {
-      toast.error('Logout failed');
-      // Force logout anyway
-      router.push('/login');
+      console.error('Logout error:', error);
+      toast.error('Failed to logout');
     },
   });
-};
-
-// ---------------- UPDATE PROFILE HOOK ----------------
-interface UpdateProfileData {
-  name: string;
-  email: string;
-  image?: string;
 }
 
-export const useUpdateProfile = () => {
+/**
+ * Hook for updating user profile
+ */
+export function useUpdateProfile() {
+  const { user, updateSession } = useAuth();
+  
   return useMutation({
-    mutationFn: async (data: UpdateProfileData) => {
-      const res = await apiClient.put<ApiResponse<User>>('/auth/profile', data);
-      if (!res.data.success) throw new Error(res.data.message);
-      return res.data.data;
+    mutationFn: async (data: { name: string; email: string; image?: string }) => {
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+      return profileService.updateProfile(user.id, data);
     },
-    onSuccess: () => {
+    onSuccess: async (response) => {
+      // Update NextAuth session with new data
+      await updateSession({
+        name: response.data.name,
+        email: response.data.email,
+        image: response.data.image,
+      });
+      
       toast.success('Profile updated successfully');
+      return response.data;
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to update profile');
+      const message = error?.response?.data?.message || 'Failed to update profile';
+      toast.error(message);
     },
   });
-};
-
-// ---------------- CHANGE PASSWORD HOOK ----------------
-interface ChangePasswordData {
-  currentPassword: string;
-  newPassword: string;
 }
 
-export const useChangePassword = () => {
+/**
+ * Hook to check if user has specific role
+ */
+export function useRequireRole(requiredRole: 'ADMIN' | 'CUSTOMER') {
+  const { user, isLoading, isAuthenticated } = useAuth();
+  const router = useRouter();
+  
+  if (isLoading) {
+    return { hasAccess: false, isLoading: true };
+  }
+  
+  if (!isAuthenticated) {
+    router.replace('/login');
+    return { hasAccess: false, isLoading: false };
+  }
+  
+  if (user?.role !== requiredRole) {
+    const redirectTo = user?.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard';
+    router.replace(redirectTo);
+    toast.error('Access denied');
+    return { hasAccess: false, isLoading: false };
+  }
+  
+  return { hasAccess: true, isLoading: false };
+}
+
+/**
+ * Hook to check if user is admin
+ */
+export function useIsAdmin() {
+  const { user } = useAuth();
+  return user?.role === 'ADMIN';
+}
+
+/**
+ * Hook to check if user is customer
+ */
+export function useIsCustomer() {
+  const { user } = useAuth();
+  return user?.role === 'CUSTOMER';
+}
+
+/**
+ * Hook for user registration (signup)
+ */
+export function useSignup() {
+  const router = useRouter();
+  
   return useMutation({
-    mutationFn: async (data: ChangePasswordData) => {
-      const res = await apiClient.put<ApiResponse<null>>('/auth/password', data);
-      if (!res.data.success) throw new Error(res.data.message);
+    mutationFn: async (data: { name: string; email: string; password: string; role?: string }) => {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Registration failed');
+      }
+      
+      return result;
     },
     onSuccess: () => {
-      toast.success('Password changed successfully');
+      toast.success('Registration successful! Please login.');
+      router.push('/login');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to change password');
+      const message = error.message || 'Failed to register';
+      toast.error(message);
     },
   });
-};
-
+}

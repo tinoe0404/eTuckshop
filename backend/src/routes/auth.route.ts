@@ -6,27 +6,40 @@ import {
   verifyCredentials,
   getUserByEmail,
   getUserById,
-  updateUser,
+  getProfileById,
+  updateUserProfile,
+  // Legacy JWT endpoints (optional - keep for backward compatibility)
+  login,
+  logout,
+  refreshToken,
   getProfile,
+  updateUser,
 } from "../controllers/auth.controller";
 import { protectRoute } from "../middlewares/auth.middleware";
 
 const router = new Hono();
 
-// ========== NextAuth Specific Endpoints ==========
-// These are called by NextAuth during authentication
+// ========== NextAuth Specific Endpoints (Public) ==========
+// These are called BY NextAuth during authentication flow
 router.post("/register", register);
 router.post("/verify-credentials", verifyCredentials);
 router.post("/user/email", getUserByEmail);
 router.get("/user/:id", getUserById);
 
-// ========== Protected Endpoints ==========
-// These require NextAuth session
+// ========== Frontend Protected Endpoints ==========
+// These endpoints DON'T use JWT middleware
+// Frontend validates session via NextAuth, sends userId in request body
+router.post("/profile/by-id", getProfileById);
+router.put("/profile/update", updateUserProfile);
+
+// ========== Legacy JWT Endpoints (Optional) ==========
+// Keep these ONLY if you have mobile apps or other clients using JWT
+// Remove if you're doing full NextAuth migration
+router.post("/login", login);
+router.post("/logout", logout);
+router.post("/refresh", refreshToken);
 router.get("/profile", protectRoute, getProfile);
 router.put("/profile", protectRoute, updateUser);
-
-// ========== NOTE ==========
-// Remove legacy login/logout/refresh endpoints if you're doing full migration
-// Or keep them for backward compatibility with mobile apps
+router.put("/profile/update", updateUserProfile);
 
 export default router;

@@ -227,12 +227,9 @@ export const getUserById = async (c: Context) => {
 export const getProfileById = async (c: Context) => {
   try {
     const { userId } = await c.req.json();
-
+    
     if (!userId) {
-      return c.json({ 
-        success: false, 
-        message: "User ID is required" 
-      }, 400);
+      return c.json({ success: false, message: "User ID required" }, 400);
     }
 
     const user = await prisma.user.findUnique({
@@ -250,16 +247,10 @@ export const getProfileById = async (c: Context) => {
     });
 
     if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "User not found" 
-      }, 404);
+      return c.json({ success: false, message: "User not found" }, 404);
     }
 
-    return c.json({
-      success: true,
-      data: user,
-    });
+    return c.json({ success: true, data: user });
   } catch (error) {
     return serverError(c, error);
   }
@@ -274,55 +265,23 @@ export const getProfileById = async (c: Context) => {
 
 export const updateUserProfile = async (c: Context) => {
   try {
-    // ✅ User comes from auth/session middleware (NextAuth bridge)
-    const user = c.get("user");
+    const { userId, name, email, image } = await c.req.json();
 
-    if (!user || !user.id) {
-      return c.json(
-        { success: false, message: "Unauthorized" },
-        401
-      );
+    if (!userId || !name || !email) {
+      return c.json({ success: false, message: "Required fields missing" }, 400);
     }
 
-    const { name, email, image } = await c.req.json();
-
-    // ✅ Validation
-    if (!name || !email) {
-      return c.json(
-        { success: false, message: "Name and email are required" },
-        400
-      );
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser && existingUser.id !== parseInt(userId)) {
+      return c.json({ success: false, message: "Email already in use" }, 400);
     }
 
-    // ✅ Check if email is already used by another user
-    const existingEmailUser = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existingEmailUser && existingEmailUser.id !== user.id) {
-      return c.json(
-        { success: false, message: "Email already taken" },
-        400
-      );
-    }
-
-    // ✅ Update profile
     const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        name,
-        email,
-        ...(image && { image }),
-      },
+      where: { id: parseInt(userId) },
+      data: { name, email, ...(image !== undefined && { image }) },
       select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        image: true,
-        emailVerified: true,
-        createdAt: true,
-        updatedAt: true,
+        id: true, name: true, email: true, role: true,
+        image: true, emailVerified: true, createdAt: true, updatedAt: true,
       },
     });
 

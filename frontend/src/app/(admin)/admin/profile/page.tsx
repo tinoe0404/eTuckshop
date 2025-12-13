@@ -1,4 +1,4 @@
-// File: src/app/(admin)/admin/profile/page.tsx (FIXED)
+// File: src/app/(admin)/admin/profile/page.tsx (NEXTAUTH FIXED)
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,8 +7,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useSession } from 'next-auth/react';
-import { useUpdateProfile, useLogout } from '@/lib/hooks/useAuth';
+import { useSession, signOut } from 'next-auth/react';
+import { profileService } from '@/lib/api/services/profile.service';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,13 +65,8 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 export default function AdminProfilePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-
-  // ✅ Fixed: Use NextAuth session (only once!)
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const user = session?.user;
-
-  const logoutMutation = useLogout();
-  const updateProfileMutation = useUpdateProfile();
   
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -132,18 +127,44 @@ export default function AdminProfilePage() {
     }
   }, [user, resetProfile]);
 
-  // ✅ Fixed: Change password mutation
+  // ✅ Update profile mutation with NextAuth
+  const updateProfileMutation = useMutation({
+    mutationFn: async (data: ProfileFormData) => {
+      if (!user?.id) throw new Error('User ID not found');
+      return profileService.updateProfile(user.id, data);
+    },
+    onSuccess: async (response) => {
+      // Update NextAuth session
+      await update({
+        name: response.data.name,
+        email: response.data.email,
+        image: response.data.image,
+      });
+      
+      toast.success('Profile updated successfully');
+      setIsEditingProfile(false);
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.message || error.message || 'Failed to update profile';
+      toast.error(message);
+    },
+  });
+
+  // ✅ Change password mutation
   const changePasswordMutation = useMutation({
     mutationFn: async (data: PasswordFormData) => {
-      // Note: You'll need to create this endpoint in your backend
-      // For now, we'll show a toast
+      // You'll need to implement this endpoint in your backend
       throw new Error('Password change endpoint not implemented yet');
+      // return profileService.changePassword(user.id, {
+      //   currentPassword: data.currentPassword,
+      //   newPassword: data.newPassword,
+      // });
     },
     onSuccess: () => {
       toast.success('Password changed successfully. Please login again.');
       resetPassword();
-      setTimeout(() => {
-        logoutMutation.mutate();
+      setTimeout(async () => {
+        await signOut({ redirect: true, callbackUrl: '/login' });
       }, 2000);
     },
     onError: (error: any) => {
@@ -168,12 +189,11 @@ export default function AdminProfilePage() {
     });
   };
 
-  const handleLogout = () => {
-    logoutMutation.mutate();
+  const handleLogout = async () => {
+    await signOut({ redirect: true, callbackUrl: '/login' });
   };
 
-  // ✅ Fixed: Get member since date (use current date as fallback)
-  const memberSince = new Date().toLocaleDateString(); // NextAuth user doesn't have createdAt by default
+  const memberSince = new Date().toLocaleDateString();
 
   return (
     <div className="min-h-screen bg-[#0f1724] p-6">
@@ -205,11 +225,7 @@ export default function AdminProfilePage() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel className="bg-gray-700 text-white hover:bg-gray-600 border-0">Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleLogout}
-                  className="bg-red-600 hover:bg-red-700"
-                  disabled={logoutMutation.isPending}
-                >
+                <AlertDialogAction onClick={handleLogout} className="bg-red-600 hover:bg-red-700">
                   Logout
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -406,17 +422,11 @@ export default function AdminProfilePage() {
                           onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
                         >
-                          {showCurrentPassword ? (
-                            <EyeOff className="w-5 h-5" />
-                          ) : (
-                            <Eye className="w-5 h-5" />
-                          )}
+                          {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
                       </div>
                       {passwordErrors.currentPassword && (
-                        <p className="text-sm text-red-500">
-                          {passwordErrors.currentPassword.message}
-                        </p>
+                        <p className="text-sm text-red-500">{passwordErrors.currentPassword.message}</p>
                       )}
                     </div>
 
@@ -437,11 +447,7 @@ export default function AdminProfilePage() {
                           onClick={() => setShowNewPassword(!showNewPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
                         >
-                          {showNewPassword ? (
-                            <EyeOff className="w-5 h-5" />
-                          ) : (
-                            <Eye className="w-5 h-5" />
-                          )}
+                          {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
                       </div>
                       {passwordErrors.newPassword && (
@@ -466,17 +472,11 @@ export default function AdminProfilePage() {
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
                         >
-                          {showConfirmPassword ? (
-                            <EyeOff className="w-5 h-5" />
-                          ) : (
-                            <Eye className="w-5 h-5" />
-                          )}
+                          {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
                       </div>
                       {passwordErrors.confirmPassword && (
-                        <p className="text-sm text-red-500">
-                          {passwordErrors.confirmPassword.message}
-                        </p>
+                        <p className="text-sm text-red-500">{passwordErrors.confirmPassword.message}</p>
                       )}
                     </div>
 
@@ -499,7 +499,6 @@ export default function AdminProfilePage() {
                       )}
                     </Button>
 
-                    {/* Note about password change */}
                     <p className="text-sm text-gray-400 text-center">
                       Note: You'll be logged out after changing your password
                     </p>
