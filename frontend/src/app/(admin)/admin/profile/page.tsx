@@ -82,17 +82,30 @@ export default function AdminProfilePage() {
     );
   }
 
-  if (status === 'unauthenticated' || !user) {
-    router.replace('/login');
-    return null;
-  }
+  // Show loading if not authenticated (middleware will redirect)
+if (status === 'unauthenticated') {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#0f1724]">
+      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+    </div>
+  );
+}
 
-  if (user.role !== 'ADMIN') {
-    toast.error('Access denied. Admin only.');
-    router.replace('/dashboard');
-    return null;
-  }
+// Role check - only for authenticated users
+if (status === 'authenticated' && user?.role !== 'ADMIN') {
+  toast.error('Access denied. Admin only.');
+  router.replace('/dashboard');
+  return null;
+}
 
+// Safety check
+if (!user) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#0f1724]">
+      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+    </div>
+  );
+}
   // Profile form
   const {
     register: registerProfile,
