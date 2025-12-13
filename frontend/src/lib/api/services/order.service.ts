@@ -1,9 +1,22 @@
+// File: src/lib/api/services/order.service.ts (UPDATED FOR NEXTAUTH)
+
 import apiClient from '@/lib/api/client';
-import { ApiResponse, Order,  } from '@/types';
+import { getSession } from 'next-auth/react';
+import { ApiResponse, Order } from '@/types';
+
+// Helper to get userId from session
+const getUserId = async (): Promise<string> => {
+  const session = await getSession();
+  if (!session?.user?.id) {
+    throw new Error('Not authenticated');
+  }
+  return session.user.id;
+};
 
 export const orderService = {
   // Checkout - create order from cart
   checkout: async (data: { paymentType: 'CASH' | 'PAYNOW' }) => {
+    const userId = await getUserId();
     const response = await apiClient.post<
       ApiResponse<{
         orderId: number;
@@ -18,12 +31,13 @@ export const orderService = {
           note: string;
         };
       }>
-    >('/orders/checkout', data);
+    >('/orders/checkout', { userId, ...data });
     return response.data;
   },
 
   // Generate QR for cash payment
   generateCashQR: async (orderId: number) => {
+    const userId = await getUserId();
     const response = await apiClient.post<
       ApiResponse<{
         orderId: number;
@@ -43,7 +57,7 @@ export const orderService = {
         expiresAt: string;
         expiresIn: string;
       }>
-    >(`/orders/generate-qr/${orderId}`);
+    >(`/orders/generate-qr/${orderId}`, { userId });
     return response.data;
   },
 
@@ -63,18 +77,10 @@ export const orderService = {
     return response.data;
   },
 
-
-/*  // Get order QR code
-  getOrderQR: async (orderId: number) => {
-    const response = await apiClient.get<ApiResponse<QRPayload & { qrCode: string }>>(
-      `/orders/qr/${orderId}`
-    );
-    return response.data;
-  }, */
-
   // Get user orders
   getUserOrders: async () => {
-    const response = await apiClient.get<ApiResponse<Order[]>>('/orders');
+    const userId = await getUserId();
+    const response = await apiClient.post<ApiResponse<Order[]>>('/orders/user-orders', { userId });
     return response.data;
   },
 
@@ -86,8 +92,10 @@ export const orderService = {
 
   // Cancel order
   cancelOrder: async (orderId: number) => {
+    const userId = await getUserId();
     const response = await apiClient.post<ApiResponse<{ message: string }>>(
-      `/orders/cancel/${orderId}`
+      `/orders/cancel/${orderId}`,
+      { userId }
     );
     return response.data;
   },
@@ -215,7 +223,4 @@ export const orderService = {
 
     return response.data;
   },
-
-
-  
 };
