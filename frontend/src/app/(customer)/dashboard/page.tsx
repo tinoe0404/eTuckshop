@@ -4,7 +4,6 @@ import { useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuthStore } from '@/lib/store/authStore';
 import { useCartStore } from '@/lib/store/cartStore';
 import { productService } from '@/lib/api/services/product.service';
 import { cartService } from '@/lib/api/services/cart.service';
@@ -22,6 +21,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency, getStockLevelColor } from '@/lib/utils';
 import { Product, Order } from '@/types';
+import { useSession } from 'next-auth/react';
 
 // Separate components for better performance
 const ProductCard = ({ 
@@ -180,20 +180,27 @@ const StatCard = ({
 export default function CustomerDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  const { data: session, status } = useSession();
+  const user = session?.user;
   const { setTotalItems } = useCartStore();
 
   // Auth protection
-  useEffect(() => {
-    if (!user) {
-      router.push('/login');
-      return;
-    }
-    if (user.role !== 'CUSTOMER') {
-      toast.error('Access denied. Customer only.');
-      router.push('/admin');
-    }
-  }, [user, router]);
+  if (status === 'loading') {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+    </div>;
+  }
+  
+  if (status === 'unauthenticated') {
+    router.replace('/login');
+    return null;
+  }
+  
+  if (session?.user?.role !== 'CUSTOMER') {
+    toast.error('Access denied. Customer only.');
+    router.replace('/admin/dashboard');
+    return null;
+  }
 
   // Queries with optimized config
   const {
@@ -207,7 +214,7 @@ export default function CustomerDashboard() {
     refetchOnWindowFocus: true,
     staleTime: 60000, // 1 minute
     retry: 2,
-    enabled: !!user && user.role === 'CUSTOMER',
+    enabled: status === 'authenticated' && session?.user?.role === 'CUSTOMER',
   });
 
   const {
@@ -221,7 +228,7 @@ export default function CustomerDashboard() {
     refetchOnWindowFocus: true,
     staleTime: 60000,
     retry: 2,
-    enabled: !!user && user.role === 'CUSTOMER',
+    enabled: status === 'authenticated' && session?.user?.role === 'CUSTOMER',
   });
 
   const {
@@ -235,7 +242,7 @@ export default function CustomerDashboard() {
     refetchOnWindowFocus: true,
     staleTime: 300000, // 5 minutes for products
     retry: 2,
-    enabled: !!user && user.role === 'CUSTOMER',
+    enabled: status === 'authenticated' && session?.user?.role === 'CUSTOMER',
   });
 
   // Memoized derived data

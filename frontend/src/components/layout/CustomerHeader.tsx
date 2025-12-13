@@ -3,6 +3,7 @@
 import { ShoppingCart, Bell, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useSession } from 'next-auth/react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,14 +13,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useCartStore } from '@/lib/store/cartStore';
-import { useAuthStore } from '@/lib/store/authStore';
+
 import { useRouter } from 'next/navigation';
 import { useLogout } from '@/lib/hooks/useAuth';
 
 export default function CustomerHeader() {
   const router = useRouter();
   const { totalItems } = useCartStore();
-  const { user } = useAuthStore(); // ✅ Get user from auth store
+
+  const { data: session } = useSession();
+const user = session?.user;
+  
 
   const logoutMutation = useLogout();
   

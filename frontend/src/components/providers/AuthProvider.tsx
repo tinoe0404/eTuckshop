@@ -4,7 +4,7 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useAuthStore } from '@/lib/store/authStore';
+import { useSession } from 'next-auth/react';
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

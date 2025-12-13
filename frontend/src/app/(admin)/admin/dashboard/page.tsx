@@ -1,11 +1,12 @@
+// File: src/app/(admin)/admin/dashboard/page.tsx (FIXED)
 'use client';
 
-import { useAuthStore } from '@/lib/store/authStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react'; // ✅ Changed from useAuthStore
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { analyticsService } from '@/lib/api/services/analytics.service';
 import { orderService } from '@/lib/api/services/order.service';
@@ -22,10 +23,29 @@ import { Order } from '@/types';
 export default function AdminDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  const { data: session, status } = useSession(); // ✅ Use NextAuth session
 
-  // REMOVED: Duplicate auth checks (now handled in layout)
-  // The layout already protects this route
+  // ✅ Guard: Redirect if not authenticated or not admin
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  if (status === 'unauthenticated') {
+    router.replace('/login');
+    return null;
+  }
+
+  if (session?.user?.role !== 'ADMIN') {
+    toast.error('Access denied. Admin only.');
+    router.replace('/dashboard');
+    return null;
+  }
+
+  const user = session.user; // ✅ Get user from session
 
   // QUERIES
   const {

@@ -270,54 +270,49 @@ export const getProfileById = async (c: Context) => {
  * Frontend sends userId from NextAuth session
  * No backend auth required - frontend validates session
  */
+// File: src/controllers/auth.controller.ts
+
 export const updateUserProfile = async (c: Context) => {
   try {
-    const { userId, name, email, image } = await c.req.json();
+    // ✅ User comes from auth/session middleware (NextAuth bridge)
+    const user = c.get("user");
 
-    if (!userId) {
-      return c.json({ 
-        success: false, 
-        message: "User ID is required" 
-      }, 400);
+    if (!user || !user.id) {
+      return c.json(
+        { success: false, message: "Unauthorized" },
+        401
+      );
     }
 
+    const { name, email, image } = await c.req.json();
+
+    // ✅ Validation
     if (!name || !email) {
-      return c.json({ 
-        success: false, 
-        message: "Name and email are required" 
-      }, 400);
+      return c.json(
+        { success: false, message: "Name and email are required" },
+        400
+      );
     }
 
-    // Check if user exists
-    const existingUser = await prisma.user.findUnique({ 
-      where: { id: parseInt(userId) } 
+    // ✅ Check if email is already used by another user
+    const existingEmailUser = await prisma.user.findUnique({
+      where: { email },
     });
 
-    if (!existingUser) {
-      return c.json({ 
-        success: false, 
-        message: "User not found" 
-      }, 404);
+    if (existingEmailUser && existingEmailUser.id !== user.id) {
+      return c.json(
+        { success: false, message: "Email already taken" },
+        400
+      );
     }
 
-    // Check if email is taken by another user
-    if (email !== existingUser.email) {
-      const emailTaken = await prisma.user.findUnique({ where: { email } });
-      if (emailTaken && emailTaken.id !== parseInt(userId)) {
-        return c.json({ 
-          success: false, 
-          message: "Email already taken" 
-        }, 400);
-      }
-    }
-
-    // Update user
-    const updated = await prisma.user.update({
-      where: { id: parseInt(userId) },
-      data: { 
-        name, 
-        email, 
-        ...(image && { image }) 
+    // ✅ Update profile
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        name,
+        email,
+        ...(image && { image }),
       },
       select: {
         id: true,
@@ -334,12 +329,13 @@ export const updateUserProfile = async (c: Context) => {
     return c.json({
       success: true,
       message: "Profile updated successfully",
-      data: updated,
+      data: updatedUser,
     });
   } catch (error) {
     return serverError(c, error);
   }
 };
+
 
 // ============================================
 // LEGACY JWT ENDPOINTS (Protected with JWT Middleware)

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuthStore } from '@/lib/store/authStore';
+import { useSession } from 'next-auth/react';
 import { productService } from '@/lib/api/services/product.service';
 import { categoryService } from '@/lib/api/services/category.service';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,7 +31,8 @@ export default function AdminProductsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { user } = useAuthStore();
+  const { data: session } = useSession();
+const user = session?.user;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');

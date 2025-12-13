@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { cartService } from '@/lib/api/services/cart.service';
 import { orderService } from '@/lib/api/services/order.service';
-import { useAuthStore } from '@/lib/store/authStore';
+import { useSession } from 'next-auth/react';
 import { useCartStore } from '@/lib/store/cartStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,7 +46,8 @@ type PaymentMethod = 'CASH' | 'PAYNOW' | null;
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { data: session } = useSession();
+const user = session?.user;
   const { setTotalItems } = useCartStore();
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
