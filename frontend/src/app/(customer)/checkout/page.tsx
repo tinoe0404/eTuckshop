@@ -47,7 +47,7 @@ type PaymentMethod = 'CASH' | 'PAYNOW' | null;
 export default function CheckoutPage() {
   const router = useRouter();
   const { data: session } = useSession();
-const user = session?.user;
+  const user = session?.user;
   const { setTotalItems } = useCartStore();
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);

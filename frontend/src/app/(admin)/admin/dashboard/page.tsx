@@ -34,16 +34,33 @@ export default function AdminDashboard() {
     );
   }
 
-  if (status === 'unauthenticated') {
-    router.replace('/login');
-    return null;
-  }
+  // ✅ Guard: Wait for session to load, then check role
+if (status === 'loading') {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+    </div>
+  );
+}
 
-  if (session?.user?.role !== 'ADMIN') {
-    toast.error('Access denied. Admin only.');
-    router.replace('/dashboard');
-    return null;
-  }
+// If unauthenticated, show loading (middleware will redirect)
+if (status === 'unauthenticated') {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+    </div>
+  );
+}
+
+// Role check - only for authenticated users
+if (status === 'authenticated' && session?.user?.role !== 'ADMIN') {
+  toast.error('Access denied. Admin only.');
+  router.replace('/dashboard');
+  return null;
+}
+
+// Now safe to use user
+const user = session?.user;
 
   const user = session.user; // ✅ Get user from session
 
