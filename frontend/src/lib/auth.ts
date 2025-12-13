@@ -14,8 +14,8 @@ interface User {
 }
 
 export const authOptions: NextAuthOptions = {
-  // Use Prisma adapter (optional - only if you want session in DB)
-  // adapter: PrismaAdapter(prisma) as any,
+  // Secret for JWT encryption (REQUIRED in production)
+  secret: process.env.NEXTAUTH_SECRET,
   
   providers: [
     CredentialsProvider({
@@ -143,7 +143,4 @@ export const authOptions: NextAuthOptions = {
 
   // Enable debug in development
   debug: process.env.NODE_ENV === "development",
-
-  // Secret for JWT encryption
-  secret: process.env.NEXTAUTH_SECRET,
 };
