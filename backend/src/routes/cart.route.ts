@@ -1,3 +1,5 @@
+// File: src/routes/cart.route.ts (UPDATED FOR NEXTAUTH)
+
 import { Hono } from "hono";
 import {
   getCart,
@@ -7,19 +9,18 @@ import {
   clearCart,
   getCartSummary,
 } from "../controllers/cart.controller";
-import { protectRoute } from "../middlewares/auth.middleware";
 
 const router = new Hono();
 
-// All cart routes require authentication
-router.use("*", protectRoute);
+// All cart routes now accept userId in request body
+// Frontend sends userId from NextAuth session
+// No backend auth middleware required
 
-// Cart operations
-router.get("/", getCart);
-router.get("/summary", getCartSummary);
+router.post("/", getCart); // Changed from GET to POST to accept userId in body
+router.post("/summary", getCartSummary); // Changed from GET to POST
 router.post("/add", addToCart);
 router.patch("/update", updateCartItem);
-router.delete("/remove/:productId", removeFromCart);
-router.delete("/clear", clearCart);
+router.delete("/remove/:productId", removeFromCart); // Sends userId in body
+router.post("/clear", clearCart); // Changed from DELETE to POST
 
 export default router;

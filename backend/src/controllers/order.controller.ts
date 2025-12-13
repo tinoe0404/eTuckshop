@@ -42,8 +42,14 @@ const buildQRPayload = (order: any, expiresAt?: Date): QRPayload => {
 // ==========================================
 export const checkout = async (c: Context) => {
   try {
-    const user = c.get("user");
-    const { paymentType = "CASH" } = await c.req.json();
+    const { userId, paymentType = "CASH" } = await c.req.json();
+
+    if (!userId) {
+      return c.json({
+        success: false,
+        message: "User ID is required"
+      }, 400);
+    }
 
     if (!["CASH", "PAYNOW"].includes(paymentType)) {
       return c.json({ success: false, message: "Invalid payment type" }, 400);
@@ -51,7 +57,7 @@ export const checkout = async (c: Context) => {
 
     // Get cart
     const cart = await prisma.cart.findUnique({
-      where: { userId: user.id },
+      where: { userId: parseInt(userId) },
       include: { items: { include: { product: true } } },
     });
 
@@ -79,7 +85,7 @@ export const checkout = async (c: Context) => {
       const newOrder = await tx.order.create({
         data: {
           orderNumber: generateOrderNumber(),
-          userId: user.id,
+          userId: parseInt(userId),
           totalAmount: parseFloat(totalAmount.toFixed(2)),
           paymentType,
           status: "PENDING",
@@ -143,7 +149,6 @@ export const checkout = async (c: Context) => {
     return serverError(c, error);
   }
 };
-
 // ==========================================
 // GENERATE QR CODE FOR CASH PAYMENT
 // (Expires in 15 minutes) ⬅️ CHANGED FROM 1 MINUTE
@@ -385,10 +390,17 @@ export const getOrderQR = async (c: Context) => {
 // ==========================================
 export const getUserOrders = async (c: Context) => {
   try {
-    const user = c.get("user");
+    const { userId } = await c.req.json();
+
+    if (!userId) {
+      return c.json({
+        success: false,
+        message: "User ID is required"
+      }, 400);
+    }
 
     const orders = await prisma.order.findMany({
-      where: { userId: user.id },
+      where: { userId: parseInt(userId) },
       include: { orderItems: { include: { product: true } } },
       orderBy: { createdAt: "desc" },
     });
