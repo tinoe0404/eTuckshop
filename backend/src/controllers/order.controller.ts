@@ -750,3 +750,33 @@ export const getOrderStats = async (c: Context) => {
     return serverError(c, error);
   }
 };
+
+export const getUserOrdersGet = async (c: Context) => {
+  try {
+    const userId = c.req.query('userId');
+
+    if (!userId) {
+      return c.json(
+        { success: false, message: 'User ID is required' },
+        400
+      );
+    }
+
+    const orders = await prisma.order.findMany({
+      where: { userId: Number(userId) },
+      include: {
+        orderItems: { include: { product: true } },
+        paymentQR: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return c.json({
+      success: true,
+      message: 'Orders retrieved',
+      data: orders,
+    });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};

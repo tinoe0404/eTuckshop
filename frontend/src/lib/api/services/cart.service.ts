@@ -1,5 +1,3 @@
-// File: src/lib/api/services/cart.service.ts (UPDATED FOR NEXTAUTH)
-
 import apiClient from '@/lib/api/client';
 import { getSession } from 'next-auth/react';
 import { ApiResponse, Cart } from '@/types';
@@ -14,6 +12,18 @@ const getUserId = async (): Promise<string> => {
 };
 
 export const cartService = {
+  // Get cart summary - USE GET with query param
+  getCartSummary: async () => {
+    const userId = await getUserId();
+    const response = await apiClient.get<
+      ApiResponse<{
+        totalItems: number;
+        totalAmount: number;
+      }>
+    >(`/cart/summary?userId=${userId}`);
+    return response.data;
+  },
+
   // Get cart
   getCart: async () => {
     const userId = await getUserId();
@@ -55,18 +65,6 @@ export const cartService = {
   clearCart: async () => {
     const userId = await getUserId();
     const response = await apiClient.post<ApiResponse<Cart>>('/cart/clear', { userId });
-    return response.data;
-  },
-
-  // Get cart summary
-  getCartSummary: async () => {
-    const userId = await getUserId();
-    const response = await apiClient.post<
-      ApiResponse<{
-        totalItems: number;
-        totalAmount: number;
-      }>
-    >('/cart/summary', { userId });
     return response.data;
   },
 };

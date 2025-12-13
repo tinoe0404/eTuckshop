@@ -1,5 +1,3 @@
-// File: src/routes/orders.route.ts (UPDATED FOR NEXTAUTH)
-
 import { Hono } from "hono";
 import {
   checkout,
@@ -8,6 +6,7 @@ import {
   processPayNowPayment,
   getOrderQR,
   getUserOrders,
+  getUserOrdersGet, // NEW function
   getOrderById,
   cancelOrder,
   getAllOrders,
@@ -23,16 +22,20 @@ const router = new Hono();
 // ========== PAYNOW CALLBACK (Public) ==========
 router.get("/pay/paynow/process/:orderId", processPayNowPayment);
 
-// ========== CUSTOMER ROUTES (No Auth - uses userId from NextAuth session) ==========
+// ========== CUSTOMER ROUTES ==========
 router.post("/checkout", checkout);
 router.post("/generate-qr/:orderId", generateCashQR);
 router.get("/pay/paynow/:orderId", initiatePayNow);
 router.get("/qr/:orderId", getOrderQR);
 router.post("/cancel/:orderId", cancelOrder);
-router.post("/user-orders", getUserOrders); // Changed to POST to accept userId
+
+// Support both GET and POST for orders
+router.get("/", getUserOrdersGet); // GET with userId query param
+router.post("/user-orders", getUserOrders); // POST with userId in body
+
 router.get("/:id", getOrderById);
 
-// ========== ADMIN ROUTES (Still protected with JWT middleware) ==========
+// ========== ADMIN ROUTES ==========
 router.get("/admin/all", protectRoute, adminRoute, getAllOrders);
 router.get("/admin/stats", protectRoute, adminRoute, getOrderStats);
 router.post("/admin/scan-qr", protectRoute, adminRoute, scanQRCode);

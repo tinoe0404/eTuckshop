@@ -1,5 +1,3 @@
-// File: src/lib/api/services/order.service.ts (UPDATED FOR NEXTAUTH)
-
 import apiClient from '@/lib/api/client';
 import { getSession } from 'next-auth/react';
 import { ApiResponse, Order } from '@/types';
@@ -14,6 +12,13 @@ const getUserId = async (): Promise<string> => {
 };
 
 export const orderService = {
+  // Get user orders - USE GET with query param
+  getUserOrders: async () => {
+    const userId = await getUserId();
+    const response = await apiClient.get<ApiResponse<Order[]>>(`/orders?userId=${userId}`);
+    return response.data;
+  },
+
   // Checkout - create order from cart
   checkout: async (data: { paymentType: 'CASH' | 'PAYNOW' }) => {
     const userId = await getUserId();
@@ -74,13 +79,6 @@ export const orderService = {
         instructions: string;
       }>
     >(`/orders/pay/paynow/${orderId}`);
-    return response.data;
-  },
-
-  // Get user orders
-  getUserOrders: async () => {
-    const userId = await getUserId();
-    const response = await apiClient.post<ApiResponse<Order[]>>('/orders/user-orders', { userId });
     return response.data;
   },
 

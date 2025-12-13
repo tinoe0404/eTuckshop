@@ -428,3 +428,42 @@ export const getCartSummary = async (c: Context) => {
     return serverError(c, error);
   }
 };
+
+// ==============================
+// GET CART SUMMARY (GET request with query param)
+// For backward compatibility with existing frontend
+// ==============================
+export const getCartSummaryGet = async (c: Context) => {
+  try {
+    // Get userId from query param
+    const userId = c.req.query("userId");
+
+    if (!userId) {
+      return c.json({
+        success: false,
+        message: "User ID is required"
+      }, 400);
+    }
+
+    const cart = await getOrCreateCart(parseInt(userId));
+
+    const totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+    const totalAmount = parseFloat(
+      cart.items.reduce(
+        (sum, item) => sum + item.product.price * item.quantity,
+        0
+      ).toFixed(2)
+    );
+
+    return c.json({
+      success: true,
+      message: "Cart summary retrieved successfully",
+      data: {
+        totalItems,
+        totalAmount
+      },
+    });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};
