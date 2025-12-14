@@ -1,3 +1,5 @@
+// src/routes/orders.route.ts - FIXED
+
 import { Hono } from "hono";
 import {
   checkout,
@@ -6,7 +8,7 @@ import {
   processPayNowPayment,
   getOrderQR,
   getUserOrders,
-  getUserOrdersGet, // NEW function
+  getUserOrdersGet,
   getOrderById,
   cancelOrder,
   getAllOrders,
@@ -22,20 +24,19 @@ const router = new Hono();
 // ========== PAYNOW CALLBACK (Public) ==========
 router.get("/pay/paynow/process/:orderId", processPayNowPayment);
 
-// ========== CUSTOMER ROUTES ==========
+// ========== CUSTOMER ROUTES (No auth - frontend handles with NextAuth) ==========
 router.post("/checkout", checkout);
 router.post("/generate-qr/:orderId", generateCashQR);
 router.get("/pay/paynow/:orderId", initiatePayNow);
 router.get("/qr/:orderId", getOrderQR);
 router.post("/cancel/:orderId", cancelOrder);
 
-// Support both GET and POST for orders
+// Support both GET and POST for user orders
 router.get("/", getUserOrdersGet); // GET with userId query param
 router.post("/user-orders", getUserOrders); // POST with userId in body
-
 router.get("/:id", getOrderById);
 
-// ========== ADMIN ROUTES ==========
+// ========== ADMIN ROUTES (Keep auth protection) ==========
 router.get("/admin/all", protectRoute, adminRoute, getAllOrders);
 router.get("/admin/stats", protectRoute, adminRoute, getOrderStats);
 router.post("/admin/scan-qr", protectRoute, adminRoute, scanQRCode);

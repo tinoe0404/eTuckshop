@@ -1,3 +1,5 @@
+// src/routes/cart.route.ts - FIXED
+
 import { Hono } from "hono";
 import {
   getCart,
@@ -6,10 +8,13 @@ import {
   removeFromCart,
   clearCart,
   getCartSummary,
-  getCartSummaryGet, // NEW function
+  getCartSummaryGet,
 } from "../controllers/cart.controller";
 
 const router = new Hono();
+
+// ✅ ALL auth middleware REMOVED - cart operations are public
+// Frontend NextAuth validates the user, then sends userId in requests
 
 // GET endpoint for cart summary (with userId in query param)
 router.get("/summary", getCartSummaryGet);
