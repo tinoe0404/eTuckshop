@@ -126,7 +126,7 @@ app.get("/api", (c) => {
       cart: "/api/cart",
       orders: "/api/orders",
       analytics: "/api/analytics",
-      customer: "/api/customer",
+      customer: "/api/customers",
     },
     health: "/health",
   });
@@ -154,7 +154,7 @@ api.route("/categories", categoryRoutes);
 api.route("/cart", cartRoutes);
 api.route("/orders", orderRoutes);
 api.route("/analytics", analyticsRoutes);
-api.route("/customer", customerRoutes);
+api.route("/customers", customerRoutes);
 
 // Mount all API routes under /api
 app.route("/api", api);

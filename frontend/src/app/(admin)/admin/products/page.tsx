@@ -73,38 +73,7 @@ type SortOrder = 'asc' | 'desc';
 export default function AdminProductsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-
-  /* =========================
-     AUTH FIX (APPLIED)
-  ========================= */
   const { data: session, status } = useSession();
-
-  // Wait for session to load
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  // Not authenticated (middleware will redirect)
-  if (status === 'unauthenticated') {
-    return (
-      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  // Role check
-  if (status === 'authenticated' && session?.user?.role !== 'ADMIN') {
-    toast.error('Access denied. Admin only.');
-    router.replace('/dashboard');
-    return null;
-  }
-
-  const user = session?.user;
 
   /* =========================
      STATE
@@ -132,7 +101,7 @@ export default function AdminProductsPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   /* =========================
-     QUERIES (FIXED)
+     QUERIES
   ========================= */
   const {
     data: productsData,
@@ -147,8 +116,7 @@ export default function AdminProductsPage() {
     refetchOnWindowFocus: true,
     staleTime: 15000,
     retry: 2,
-    enabled:
-      status === 'authenticated' && session?.user?.role === 'ADMIN'
+    enabled: status === 'authenticated' && session?.user?.role === 'ADMIN'
   });
 
   const {
@@ -158,8 +126,7 @@ export default function AdminProductsPage() {
     queryKey: ['categories'],
     queryFn: categoryService.getAll,
     staleTime: 60000,
-    enabled:
-      status === 'authenticated' && session?.user?.role === 'ADMIN'
+    enabled: status === 'authenticated' && session?.user?.role === 'ADMIN'
   });
 
   const products = productsData?.data || [];
@@ -168,19 +135,405 @@ export default function AdminProductsPage() {
   /* =========================
      MUTATIONS
   ========================= */
-  // (UNCHANGED — all your mutation logic remains exactly the same)
-  // --- createProductMutation
-  // --- updateProductMutation
-  // --- deleteProductMutation
-  // --- bulkDeleteMutation
+  const createProductMutation = useMutation({
+    mutationFn: (data: any) => productService.create(data),
+    onSuccess: () => {
+      toast.success('Product created successfully');
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      setIsCreateDialogOpen(false);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Failed to create product');
+    }
+  });
+
+  const updateProductMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      productService.update(id, data),
+    onSuccess: () => {
+      toast.success('Product updated successfully');
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      setIsEditDialogOpen(false);
+      setEditingProduct(null);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Failed to update product');
+    }
+  });
+
+  const deleteProductMutation = useMutation({
+    mutationFn: (id: number) => productService.delete(id),
+    onSuccess: () => {
+      toast.success('Product deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      setDeleteProductId(null);
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Failed to delete product');
+    }
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const results = await Promise.allSettled(
+        ids.map(id => productService.delete(id))
+      );
+      
+      const failed = results.filter(r => r.status === 'rejected').length;
+      if (failed > 0) {
+        throw new Error(`Failed to delete ${failed} product(s)`);
+      }
+      
+      return results;
+    },
+    onSuccess: () => {
+      toast.success('Products deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      setSelectedProducts(new Set());
+      setShowBulkDelete(false);
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || 'Failed to delete some products');
+    }
+  });
 
   /* =========================
-     VALIDATION / FILTER / SORT
+     UTILITY FUNCTIONS
   ========================= */
-  // (UNCHANGED — same logic you already had)
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      price: '',
+      stock: '',
+      categoryId: '',
+      image: ''
+    });
+    setFormErrors({});
+  };
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.name.trim()) {
+      errors.name = 'Product name is required';
+    }
+
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      errors.price = 'Valid price is required';
+    }
+
+    if (!formData.stock || parseInt(formData.stock) < 0) {
+      errors.stock = 'Valid stock quantity is required';
+    }
+
+    if (!formData.categoryId) {
+      errors.categoryId = 'Category is required';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleRefresh = () => {
+    refetchProducts();
+    refetchCategories();
+    toast.success('Data refreshed');
+  };
+
+  const handleExport = () => {
+    const csv = [
+      ['Name', 'Category', 'Price', 'Stock', 'Status'],
+      ...products.map((p: Product) => [
+        p.name,
+        p.category.name,
+        p.price,
+        p.stock,
+        p.stockLevel
+      ])
+    ]
+      .map((row) => row.join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `products-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+
+    toast.success('Products exported');
+  };
 
   /* =========================
-     RENDERING
+     HANDLERS
+  ========================= */
+  const handleCreateProduct = () => {
+    if (!validateForm()) return;
+
+    const payload = {
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      price: parseFloat(formData.price),
+      stock: parseInt(formData.stock),
+      categoryId: parseInt(formData.categoryId),
+      image: formData.image.trim() || undefined
+    };
+
+    createProductMutation.mutate(payload);
+  };
+
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setFormData({
+      name: product.name,
+      description: product.description || '',
+      price: product.price.toString(),
+      stock: product.stock.toString(),
+      categoryId: product.categoryId.toString(),
+      image: product.image || ''
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateProduct = () => {
+    if (!editingProduct || !validateForm()) return;
+
+    const payload = {
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      price: parseFloat(formData.price),
+      stock: parseInt(formData.stock),
+      categoryId: parseInt(formData.categoryId),
+      image: formData.image.trim() || undefined
+    };
+
+    updateProductMutation.mutate({
+      id: editingProduct.id,
+      data: payload
+    });
+  };
+
+  const handleSelectProduct = (id: number, checked: boolean) => {
+    const newSelected = new Set(selectedProducts);
+    if (checked) {
+      newSelected.add(id);
+    } else {
+      newSelected.delete(id);
+    }
+    setSelectedProducts(newSelected);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedProducts(
+        new Set(filteredAndSortedProducts.map((p: Product) => p.id))
+      );
+    } else {
+      setSelectedProducts(new Set());
+    }
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  /* =========================
+     COMPUTED VALUES
+  ========================= */
+  const filteredAndSortedProducts = useMemo(() => {
+    let filtered = products.filter((p: Product) => {
+      const matchesSearch =
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.description?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesCategory =
+        selectedCategory === 'all' ||
+        p.categoryId.toString() === selectedCategory;
+
+      return matchesSearch && matchesCategory;
+    });
+
+    filtered.sort((a: Product, b: Product) => {
+      let aVal: any, bVal: any;
+
+      switch (sortField) {
+        case 'name':
+          aVal = a.name.toLowerCase();
+          bVal = b.name.toLowerCase();
+          break;
+        case 'price':
+          aVal = a.price;
+          bVal = b.price;
+          break;
+        case 'stock':
+          aVal = a.stock;
+          bVal = b.stock;
+          break;
+        case 'category':
+          aVal = a.category.name.toLowerCase();
+          bVal = b.category.name.toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [products, searchQuery, selectedCategory, sortField, sortOrder]);
+
+  /* =========================
+     COMPONENTS
+  ========================= */
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-4 h-4 ml-1" />;
+    }
+    return sortOrder === 'asc' ? (
+      <ArrowUp className="w-4 h-4 ml-1" />
+    ) : (
+      <ArrowDown className="w-4 h-4 ml-1" />
+    );
+  };
+
+  const ProductFormFields = () => (
+    <>
+      <div className="space-y-2">
+        <Label htmlFor="name">Product Name *</Label>
+        <Input
+          id="name"
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          className="bg-[#0f1419] border-gray-700 text-white"
+          placeholder="Enter product name"
+        />
+        {formErrors.name && (
+          <p className="text-sm text-red-400">{formErrors.name}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          value={formData.description}
+          onChange={(e) =>
+            setFormData({ ...formData, description: e.target.value })
+          }
+          className="bg-[#0f1419] border-gray-700 text-white min-h-[100px]"
+          placeholder="Enter product description"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="price">Price ($) *</Label>
+          <Input
+            id="price"
+            type="number"
+            step="0.01"
+            value={formData.price}
+            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+            className="bg-[#0f1419] border-gray-700 text-white"
+            placeholder="0.00"
+          />
+          {formErrors.price && (
+            <p className="text-sm text-red-400">{formErrors.price}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="stock">Stock Quantity *</Label>
+          <Input
+            id="stock"
+            type="number"
+            value={formData.stock}
+            onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+            className="bg-[#0f1419] border-gray-700 text-white"
+            placeholder="0"
+          />
+          {formErrors.stock && (
+            <p className="text-sm text-red-400">{formErrors.stock}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="category">Category *</Label>
+        <Select
+          value={formData.categoryId}
+          onValueChange={(value) =>
+            setFormData({ ...formData, categoryId: value })
+          }
+        >
+          <SelectTrigger className="bg-[#0f1419] border-gray-700 text-white">
+            <SelectValue placeholder="Select category" />
+          </SelectTrigger>
+          <SelectContent className="bg-[#1a2332] border-gray-700 text-white">
+            {categories.map((c: Category) => (
+              <SelectItem key={c.id} value={c.id.toString()}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {formErrors.categoryId && (
+          <p className="text-sm text-red-400">{formErrors.categoryId}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="image">Image URL</Label>
+        <Input
+          id="image"
+          value={formData.image}
+          onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+          className="bg-[#0f1419] border-gray-700 text-white"
+          placeholder="https://example.com/image.jpg"
+        />
+      </div>
+    </>
+  );
+
+  /* =========================
+     AUTH CHECKS
+  ========================= */
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (status === 'authenticated' && session?.user?.role !== 'ADMIN') {
+    toast.error('Access denied. Admin only.');
+    router.replace('/dashboard');
+    return null;
+  }
+
+  /* =========================
+     LOADING/ERROR STATES
   ========================= */
   if (productsLoading) {
     return (
@@ -225,12 +578,420 @@ export default function AdminProductsPage() {
   }
 
   /* =========================
-     MAIN UI
+     MAIN RENDER
   ========================= */
   return (
     <div className="min-h-screen bg-[#0f1419] p-6">
-      {/* 🔹 REST OF YOUR UI IS 100% UNCHANGED */}
-      {/* 🔹 Tables, dialogs, forms, bulk delete, export, etc. */}
+      <div className="max-w-7xl mx-auto space-y-6">
+
+        {/* HEADER */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white">Products Management</h1>
+            <p className="text-gray-400 mt-1">Manage inventory</p>
+          </div>
+
+          <div className="flex gap-2">
+            <Button onClick={handleRefresh} variant="outline" size="sm">
+              <RefreshCw className="w-4 h-4 mr-2" /> Refresh
+            </Button>
+
+            <Button onClick={handleExport} variant="outline" size="sm">
+              <Download className="w-4 h-4 mr-2" /> Export
+            </Button>
+
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="w-4 h-4 mr-2" /> Add
+                </Button>
+              </DialogTrigger>
+
+              <DialogContent className="bg-[#1a2332] border-gray-700 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Create Product</DialogTitle>
+                  <DialogDescription className="text-gray-400">
+                    Add new product
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  <ProductFormFields />
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    className="border-gray-700"
+                    onClick={() => {
+                      setIsCreateDialogOpen(false);
+                      resetForm();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700"
+                    onClick={handleCreateProduct}
+                    disabled={createProductMutation.isPending}
+                  >
+                    {createProductMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Creating
+                      </>
+                    ) : (
+                      'Create'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {/* BULK DELETE BANNER */}
+        {selectedProducts.size > 0 && (
+          <Alert className="bg-blue-900/20 border-blue-700">
+            <AlertDescription className="flex items-center justify-between">
+              <span className="text-blue-300">
+                {selectedProducts.size} selected
+              </span>
+
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setShowBulkDelete(true)}
+              >
+                <Trash2 className="w-4 h-4 mr-2" /> Delete
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* SEARCH + FILTER BAR */}
+        <Card className="bg-[#1a2332] border-gray-800">
+          <CardContent className="p-6">
+            <div className="flex flex-col md:flex-row gap-4">
+
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+
+                <Input
+                  placeholder="Search..."
+                  value={searchQuery}
+                  className="pl-10 bg-[#0f1419] border-gray-700 text-white"
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <Select
+                value={selectedCategory}
+                onValueChange={setSelectedCategory}
+              >
+                <SelectTrigger className="w-[200px] bg-[#0f1419] border-gray-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+
+                <SelectContent className="bg-[#1a2332] border-gray-700 text-white">
+                  <SelectItem value="all">All</SelectItem>
+
+                  {categories.map((c: Category) => (
+                    <SelectItem key={c.id} value={c.id.toString()}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+            </div>
+
+            <div className="mt-4 text-sm text-gray-400">
+              Showing {filteredAndSortedProducts.length} of {products.length}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* TABLE */}
+        <Card className="bg-[#1a2332] border-gray-800">
+          <CardContent className="p-0">
+            <Table>
+
+              <TableHeader>
+                <TableRow className="border-gray-800 hover:bg-transparent">
+                  
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={
+                        selectedProducts.size === filteredAndSortedProducts.length &&
+                        filteredAndSortedProducts.length > 0
+                      }
+                      onCheckedChange={(checked) =>
+                        handleSelectAll(Boolean(checked))
+                      }
+                    />
+                  </TableHead>
+
+                  <TableHead
+                    className="text-gray-400 cursor-pointer"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center">
+                      Product <SortIcon field="name" />
+                    </div>
+                  </TableHead>
+
+                  <TableHead
+                    className="text-gray-400 cursor-pointer"
+                    onClick={() => handleSort('category')}
+                  >
+                    <div className="flex items-center">
+                      Category <SortIcon field="category" />
+                    </div>
+                  </TableHead>
+
+                  <TableHead
+                    className="text-gray-400 cursor-pointer"
+                    onClick={() => handleSort('price')}
+                  >
+                    <div className="flex items-center">
+                      Price <SortIcon field="price" />
+                    </div>
+                  </TableHead>
+
+                  <TableHead
+                    className="text-gray-400 cursor-pointer"
+                    onClick={() => handleSort('stock')}
+                  >
+                    <div className="flex items-center">
+                      Stock <SortIcon field="stock" />
+                    </div>
+                  </TableHead>
+
+                  <TableHead className="text-gray-400">Status</TableHead>
+
+                  <TableHead className="text-gray-400 text-right">
+                    Actions
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {filteredAndSortedProducts.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={7}
+                      className="text-center py-12 text-gray-400"
+                    >
+                      <Package className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+                      <p>No products found</p>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredAndSortedProducts.map((p: Product) => (
+                    <TableRow
+                      key={p.id}
+                      className="border-gray-800 hover:bg-gray-800/50"
+                    >
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedProducts.has(p.id)}
+                          onCheckedChange={(checked) =>
+                            handleSelectProduct(p.id, Boolean(checked))
+                          }
+                        />
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-gray-700 rounded flex items-center justify-center">
+                            {p.image ? (
+                              <img
+                                src={p.image}
+                                alt={p.name}
+                                className="w-full h-full object-cover rounded"
+                              />
+                            ) : (
+                              <Package className="w-5 h-5 text-gray-400" />
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="font-medium text-white">{p.name}</p>
+
+                            {p.description && (
+                              <p className="text-xs text-gray-400 line-clamp-1">
+                                {p.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="text-gray-300">
+                        <Badge variant="outline" className="border-gray-700">
+                          {p.category.name}
+                        </Badge>
+                      </TableCell>
+
+                      <TableCell className="text-blue-400 font-semibold">
+                        {formatCurrency(p.price)}
+                      </TableCell>
+
+                      <TableCell className="text-gray-300">{p.stock}</TableCell>
+
+                      <TableCell>
+                        <Badge className={getStockLevelColor(p.stockLevel)}>
+                          {p.stockLevel}
+                        </Badge>
+                      </TableCell>
+
+                      <TableCell className="text-right">
+                        <div className="flex justify-end space-x-2">
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-blue-400 hover:bg-blue-900/20"
+                            onClick={() => handleEditProduct(p)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-400 hover:bg-red-900/20"
+                            onClick={() => setDeleteProductId(p.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* EDIT DIALOG */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="bg-[#1a2332] border-gray-700 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Product</DialogTitle>
+              <DialogDescription className="text-gray-400">
+                Update product info
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <ProductFormFields />
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                className="border-gray-700"
+                onClick={() => {
+                  setIsEditDialogOpen(false);
+                  setEditingProduct(null);
+                  resetForm();
+                }}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                className="bg-blue-600 hover:bg-blue-700"
+                disabled={updateProductMutation.isPending}
+                onClick={handleUpdateProduct}
+              >
+                {updateProductMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Updating
+                  </>
+                ) : (
+                  'Update'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* DELETE SINGLE */}
+        <AlertDialog open={deleteProductId !== null} onOpenChange={() => setDeleteProductId(null)}>
+          <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete product?</AlertDialogTitle>
+              <AlertDialogDescription className="text-gray-400">
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-gray-700">Cancel</AlertDialogCancel>
+
+              <AlertDialogAction
+                className="bg-red-600 hover:bg-red-700"
+                disabled={deleteProductMutation.isPending}
+                onClick={() =>
+                  deleteProductId && deleteProductMutation.mutate(deleteProductId)
+                }
+              >
+                {deleteProductMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Deleting
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* BULK DELETE */}
+        <AlertDialog open={showBulkDelete} onOpenChange={setShowBulkDelete}>
+          <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Delete {selectedProducts.size} products?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-gray-400">
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-gray-700">Cancel</AlertDialogCancel>
+
+              <AlertDialogAction
+                className="bg-red-600 hover:bg-red-700"
+                disabled={bulkDeleteMutation.isPending}
+                onClick={() =>
+                  bulkDeleteMutation.mutate(Array.from(selectedProducts))
+                }
+              >
+                {bulkDeleteMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Deleting
+                  </>
+                ) : (
+                  'Delete All'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+      </div>
     </div>
   );
 }
