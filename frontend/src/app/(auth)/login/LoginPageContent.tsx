@@ -53,16 +53,16 @@ export default function LoginPageContent() {
     setMounted(true);
   }, []);
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (status === "authenticated" && session?.user) {
-      if (session.user.role === "ADMIN") {
-        router.replace("/admin/dashboard");
-      } else {
-        router.replace("/dashboard");
-      }
-    }
-  }, [status, session, router]);
+  // ❌ REMOVE AUTO-REDIRECT - we'll redirect manually after backend login
+  // useEffect(() => {
+  //   if (status === "authenticated" && session?.user) {
+  //     if (session.user.role === "ADMIN") {
+  //       router.replace("/admin/dashboard");
+  //     } else {
+  //       router.replace("/dashboard");
+  //     }
+  //   }
+  // }, [status, session, router]);
 
   const onSubmit = async (data: LoginFormData) => {
     if (!selectedRole) {
@@ -72,21 +72,62 @@ export default function LoginPageContent() {
 
     setLoading(true);
 
-    const result = await signIn("credentials", {
-      email: data.email,
-      password: data.password,
-      role: selectedRole, // 👈 Your provider must return this
-      redirect: false,
-    });
+    try {
+      // ✅ STEP 1: Sign in with NextAuth
+      const result = await signIn("credentials", {
+        email: data.email,
+        password: data.password,
+        role: selectedRole,
+        redirect: false,
+      });
 
-    setLoading(false);
+      if (result?.error) {
+        toast.error(result.error);
+        setLoading(false);
+        return;
+      }
 
-    if (result?.error) {
-      toast.error(result.error);
-      return;
+      // ✅ STEP 2: For ADMIN users, call backend to get JWT tokens BEFORE redirecting
+      if (selectedRole === "ADMIN") {
+        // Must use same domain as backend for cookies to work
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+        
+        const backendResponse = await fetch(`${apiUrl}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include", // Important: This sends cookies
+          body: JSON.stringify({
+            email: data.email,
+            password: data.password,
+          }),
+        });
+
+        const backendData = await backendResponse.json();
+
+        if (!backendResponse.ok || !backendData.success) {
+          toast.error("Failed to authenticate with backend");
+          setLoading(false);
+          return;
+        }
+
+        console.log("✅ Backend JWT tokens set");
+        
+        // ✅ Now redirect to admin dashboard
+        toast.success("Login successful! Redirecting...");
+        setLoading(false);
+        router.replace("/admin/dashboard");
+      } else {
+        // ✅ Customer redirect
+        toast.success("Login successful! Redirecting...");
+        setLoading(false);
+        router.replace("/dashboard");
+      }
+
+    } catch (error) {
+      console.error("Login error:", error);
+      toast.error("An error occurred during login");
+      setLoading(false);
     }
-
-    toast.success("Login successful! Redirecting...");
   };
 
   if (!mounted) return null;

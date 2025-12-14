@@ -63,6 +63,7 @@ app.use(
       "Cookie",
       "Set-Cookie",
       "X-Requested-With",
+      "X-User-ID",  // ✅ ADD THIS LINE
     ],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     exposeHeaders: ["Set-Cookie"],

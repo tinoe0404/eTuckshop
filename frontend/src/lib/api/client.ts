@@ -1,9 +1,10 @@
-// File: src/lib/api/client.ts (UPDATED FOR NEXTAUTH)
+// File: src/lib/api/client.ts (FIXED)
 
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { getSession, signOut } from 'next-auth/react';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://etuckshop-backend.onrender.com/api';
+// ✅ Use localhost in development, production URL in production
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 console.log('🔧 API Base URL:', BASE_URL);
 
@@ -13,7 +14,7 @@ const apiClient = axios.create({
     "Content-Type": "application/json",
   },
   timeout: 30000,
-  withCredentials: true, // For cookies if backend still uses them
+  withCredentials: true, // Critical for sending cookies cross-origin
 });
 
 // Request interceptor - add NextAuth session token to headers
@@ -23,9 +24,8 @@ apiClient.interceptors.request.use(
     const session = await getSession();
     
     if (session?.user) {
-      // You can add custom headers if needed
-      // For example, if your backend expects a user ID header:
-      // config.headers['X-User-ID'] = session.user.id;
+      // Add user ID to headers for customer routes that need it
+      config.headers['X-User-ID'] = session.user.id || session.user.userId;
     }
     
     if (process.env.NODE_ENV === 'development') {
