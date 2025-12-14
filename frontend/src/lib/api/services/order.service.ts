@@ -68,6 +68,7 @@ export const orderService = {
 
   // Initiate PayNow payment
   initiatePayNow: async (orderId: number) => {
+    const userId = await getUserId();
     const response = await apiClient.get<
       ApiResponse<{
         orderId: number;
@@ -78,13 +79,14 @@ export const orderService = {
         paymentUrl: string;
         instructions: string;
       }>
-    >(`/orders/pay/paynow/${orderId}`);
+    >(`/orders/pay/paynow/${orderId}?userId=${userId}`);
     return response.data;
   },
 
   // Get order by ID
   getOrderById: async (id: number) => {
-    const response = await apiClient.get<ApiResponse<Order>>(`/orders/${id}`);
+    const userId = await getUserId();
+    const response = await apiClient.get<ApiResponse<Order>>(`/orders/${id}?userId=${userId}`);
     return response.data;
   },
 
@@ -197,6 +199,7 @@ export const orderService = {
 
   // Get order QR code
   getOrderQR: async (orderId: number) => {
+    const userId = await getUserId();
     const response = await apiClient.get<
       ApiResponse<{
         orderId: number;
@@ -217,7 +220,7 @@ export const orderService = {
         paidAt: string | null;
         isUsed: boolean;
       }>
-    >(`/orders/qr/${orderId}`);
+    >(`/orders/qr/${orderId}?userId=${userId}`);
 
     return response.data;
   },

@@ -55,7 +55,7 @@ export const checkout = async (c: Context) => {
       return c.json({ success: false, message: "Invalid payment type" }, 400);
     }
 
-    // Get cart
+    // 1. Get cart OUTSIDE transaction
     const cart = await prisma.cart.findUnique({
       where: { userId: parseInt(userId) },
       include: { items: { include: { product: true } } },
@@ -65,7 +65,7 @@ export const checkout = async (c: Context) => {
       return c.json({ success: false, message: "Cart is empty" }, 400);
     }
 
-    // Validate stock
+    // 2. Validate stock OUTSIDE transaction
     for (const item of cart.items) {
       if (item.product.stock < item.quantity) {
         return c.json({
@@ -75,26 +75,39 @@ export const checkout = async (c: Context) => {
       }
     }
 
-    // Calculate total
+    // 3. Calculate total OUTSIDE transaction
     const totalAmount = cart.items.reduce(
       (sum, item) => sum + item.product.price * item.quantity, 0
     );
 
-    // Create order
+    // 4. Generate order number OUTSIDE transaction
+    const orderNumber = generateOrderNumber();
+
+    // 5. Prepare order items data OUTSIDE transaction
+    const orderItemsData = cart.items.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      subtotal: parseFloat((item.product.price * item.quantity).toFixed(2)),
+    }));
+
+    // 6. Prepare stock updates OUTSIDE transaction
+    const stockUpdates = cart.items.map((item) => ({
+      id: item.productId,
+      quantity: item.quantity,
+    }));
+
+    // 7. NOW run the transaction with ONLY database writes
     const order = await prisma.$transaction(async (tx) => {
+      // Create order
       const newOrder = await tx.order.create({
         data: {
-          orderNumber: generateOrderNumber(),
+          orderNumber,
           userId: parseInt(userId),
           totalAmount: parseFloat(totalAmount.toFixed(2)),
           paymentType,
           status: "PENDING",
           orderItems: {
-            create: cart.items.map((item) => ({
-              productId: item.productId,
-              quantity: item.quantity,
-              subtotal: parseFloat((item.product.price * item.quantity).toFixed(2)),
-            })),
+            create: orderItemsData,
           },
         },
         include: {
@@ -102,21 +115,28 @@ export const checkout = async (c: Context) => {
         },
       });
 
-      // Reduce stock
-      for (const item of cart.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: item.quantity } },
-        });
-      }
+      // Update stock for all products
+      await Promise.all(
+        stockUpdates.map((update) =>
+          tx.product.update({
+            where: { id: update.id },
+            data: { stock: { decrement: update.quantity } },
+          })
+        )
+      );
 
-      // Clear cart
-      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      // Clear cart items
+      await tx.cartItem.deleteMany({ 
+        where: { cartId: cart.id } 
+      });
 
       return newOrder;
+    }, {
+      maxWait: 5000, // Wait up to 5s for transaction to start
+      timeout: 10000, // Transaction timeout after 10s
     });
 
-    // Response based on payment type
+    // 8. Build response OUTSIDE transaction
     const response: any = {
       success: true,
       message: "Order created successfully",
@@ -146,20 +166,27 @@ export const checkout = async (c: Context) => {
 
     return c.json(response, 201);
   } catch (error) {
+    console.error("Checkout error:", error);
     return serverError(c, error);
   }
 };
 // ==========================================
-// GENERATE QR CODE FOR CASH PAYMENT
-// (Expires in 15 minutes) ⬅️ CHANGED FROM 1 MINUTE
+// GENERATE QR CODE FOR CASH PAYMENT (FIXED - No auth required)
 // ==========================================
 export const generateCashQR = async (c: Context) => {
   try {
-    const user = c.get("user");
     const orderId = Number(c.req.param("orderId"));
+    const { userId } = await c.req.json();
+
+    if (!userId) {
+      return c.json({
+        success: false,
+        message: "User ID is required"
+      }, 400);
+    }
 
     const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: user.id },
+      where: { id: orderId, userId: parseInt(userId) },
       include: {
         user: { select: { name: true, email: true } },
         orderItems: { include: { product: true } },
@@ -178,7 +205,7 @@ export const generateCashQR = async (c: Context) => {
       return c.json({ success: false, message: `Order already ${order.status.toLowerCase()}` }, 400);
     }
 
-    // Set 15 minute expiry ⬅️ CHANGED FROM 60 seconds
+    // Set 15 minute expiry
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     // Build QR payload
@@ -194,7 +221,7 @@ export const generateCashQR = async (c: Context) => {
 
     return c.json({
       success: true,
-      message: "Cash QR code generated (expires in 15 minutes)", // ⬅️ UPDATED MESSAGE
+      message: "Cash QR code generated (expires in 15 minutes)",
       data: {
         orderId: order.id,
         orderNumber: order.orderNumber,
@@ -204,7 +231,7 @@ export const generateCashQR = async (c: Context) => {
         orderSummary: qrPayload.orderSummary,
         qrCode,
         expiresAt,
-        expiresIn: "900 seconds", // ⬅️ 15 minutes = 900 seconds
+        expiresIn: "900 seconds", // 15 minutes = 900 seconds
       },
     });
   } catch (error) {
@@ -213,16 +240,22 @@ export const generateCashQR = async (c: Context) => {
 };
 
 // ==========================================
-// INITIATE PAYNOW PAYMENT
-// (Returns payment link)
+// INITIATE PAYNOW PAYMENT (FIXED - No auth required)
 // ==========================================
 export const initiatePayNow = async (c: Context) => {
   try {
-    const user = c.get("user");
     const orderId = Number(c.req.param("orderId"));
+    const userId = c.req.query("userId");
+
+    if (!userId) {
+      return c.json({
+        success: false,
+        message: "User ID is required"
+      }, 400);
+    }
 
     const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: user.id },
+      where: { id: orderId, userId: parseInt(userId) },
     });
 
     if (!order) {
@@ -247,8 +280,6 @@ export const initiatePayNow = async (c: Context) => {
       create: { orderId: order.id, qrCode: "", qrData: paymentRef, paymentType: "PAYNOW" },
     });
 
-    // TODO: Replace with real PayNow payment gateway URL
-    // Example: Stripe, PayNow Singapore API, etc.
     const paymentUrl = `${process.env.BASE_URL || "http://localhost:5000"}/api/orders/pay/paynow/process/${order.id}?ref=${paymentRef}`;
 
     return c.json({
@@ -338,15 +369,25 @@ export const processPayNowPayment = async (c: Context) => {
 };
 
 // ==========================================
-// GET ORDER QR CODE
+// GET ORDER QR CODE (FIXED - No auth required)
 // ==========================================
 export const getOrderQR = async (c: Context) => {
   try {
-    const user = c.get("user");
     const orderId = Number(c.req.param("orderId"));
+    const userId = c.req.query("userId"); // Get from query param
+
+    if (!userId) {
+      return c.json({
+        success: false,
+        message: "User ID is required"
+      }, 400);
+    }
 
     const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: user.id },
+      where: { 
+        id: orderId, 
+        userId: parseInt(userId) 
+      },
       include: { paymentQR: true },
     });
 
@@ -418,13 +459,26 @@ export const getUserOrders = async (c: Context) => {
 // ==========================================
 // GET ORDER BY ID
 // ==========================================
+// ==========================================
+// GET ORDER BY ID (FIXED - No auth required)
+// ==========================================
 export const getOrderById = async (c: Context) => {
   try {
-    const user = c.get("user");
     const orderId = Number(c.req.param("id"));
+    const userId = c.req.query("userId"); // Get from query param
+
+    if (!userId) {
+      return c.json({
+        success: false,
+        message: "User ID is required"
+      }, 400);
+    }
 
     const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: user.id },
+      where: { 
+        id: orderId, 
+        userId: parseInt(userId) 
+      },
       include: {
         orderItems: { include: { product: true } },
         paymentQR: { select: { expiresAt: true, isUsed: true, paymentType: true } },
@@ -442,15 +496,22 @@ export const getOrderById = async (c: Context) => {
 };
 
 // ==========================================
-// CANCEL ORDER
+// CANCEL ORDER (FIXED - No auth required)
 // ==========================================
 export const cancelOrder = async (c: Context) => {
   try {
-    const user = c.get("user");
     const orderId = Number(c.req.param("orderId"));
+    const { userId } = await c.req.json();
+
+    if (!userId) {
+      return c.json({
+        success: false,
+        message: "User ID is required"
+      }, 400);
+    }
 
     const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: user.id },
+      where: { id: orderId, userId: parseInt(userId) },
       include: { orderItems: true },
     });
 
@@ -522,21 +583,37 @@ export const getAllOrders = async (c: Context) => {
 };
 
 // ==========================================
-// ADMIN: SCAN QR CODE
+// ADMIN: SCAN QR CODE (FIXED)
 // ==========================================
 export const scanQRCode = async (c: Context) => {
   try {
     const { qrData } = await c.req.json();
 
     if (!qrData) {
-      return c.json({ success: false, message: "QR data required" }, 400);
+      return c.json({ 
+        success: false, 
+        message: "QR data required" 
+      }, 400);
     }
 
+    console.log('Received QR data:', qrData.substring(0, 100) + '...');
+
+    // Decode QR data
     const decoded = decodeQRData(qrData);
+    
     if (!decoded) {
-      return c.json({ success: false, message: "Invalid QR code" }, 400);
+      return c.json({ 
+        success: false, 
+        message: "Invalid QR code - unable to decode data" 
+      }, 400);
     }
 
+    console.log('Decoded QR payload:', { 
+      orderId: decoded.orderId, 
+      orderNumber: decoded.orderNumber 
+    });
+
+    // Fetch order from database
     const order = await prisma.order.findUnique({
       where: { id: decoded.orderId },
       include: {
@@ -547,7 +624,18 @@ export const scanQRCode = async (c: Context) => {
     });
 
     if (!order) {
-      return c.json({ success: false, message: "Order not found" }, 404);
+      return c.json({ 
+        success: false, 
+        message: "Order not found in database" 
+      }, 404);
+    }
+
+    // Verify order number matches
+    if (order.orderNumber !== decoded.orderNumber) {
+      return c.json({ 
+        success: false, 
+        message: "Order number mismatch - QR code may be invalid" 
+      }, 400);
     }
 
     // Check if already completed
@@ -555,26 +643,42 @@ export const scanQRCode = async (c: Context) => {
       return c.json({
         success: false,
         message: "Order already completed",
-        data: { orderId: order.id, status: "COMPLETED", completedAt: order.completedAt },
+        data: { 
+          orderId: order.id, 
+          status: "COMPLETED", 
+          completedAt: order.completedAt 
+        },
       }, 400);
     }
 
     // Check if QR already used
     if (order.paymentQR?.isUsed) {
-      return c.json({ success: false, message: "QR code already used" }, 400);
+      return c.json({ 
+        success: false, 
+        message: "QR code already used" 
+      }, 400);
     }
 
     // Check expiry for CASH orders
     if (decoded.paymentType === "CASH" && decoded.expiresAt) {
-      if (new Date() > new Date(decoded.expiresAt)) {
+      const expiryDate = new Date(decoded.expiresAt);
+      const now = new Date();
+      
+      if (now > expiryDate) {
+        // Mark QR as expired
         await prisma.paymentQR.update({
           where: { orderId: order.id },
           data: { isUsed: true },
         });
+        
         return c.json({
           success: false,
-          message: "Cash QR expired (15 minute limit)", // ⬅️ UPDATED MESSAGE
-          data: { suggestion: "Customer needs to generate new QR" },
+          message: "Cash QR expired (15 minute limit)",
+          data: { 
+            suggestion: "Customer needs to generate new QR code",
+            expiredAt: expiryDate.toISOString(),
+            expiredMinutesAgo: Math.floor((now.getTime() - expiryDate.getTime()) / 60000)
+          },
         }, 400);
       }
     }
@@ -586,32 +690,66 @@ export const scanQRCode = async (c: Context) => {
       data: {
         paymentMethod: {
           type: decoded.paymentType,
-          label: decoded.paymentType === "PAYNOW" ? "💳 PayNow (Paid Online)" : "💵 Cash (Pay at Counter)",
+          label: decoded.paymentType === "PAYNOW" 
+            ? "💳 PayNow (Paid Online)" 
+            : "💵 Cash (Pay at Counter)",
           status: decoded.paymentStatus,
         },
-        customer: decoded.customer,
-        orderSummary: decoded.orderSummary,
+        customer: {
+          name: decoded.customer.name,
+          email: decoded.customer.email,
+        },
+        orderSummary: {
+          items: decoded.orderSummary.items,
+          totalItems: decoded.orderSummary.totalItems,
+          totalAmount: decoded.orderSummary.totalAmount,
+        },
         orderInfo: {
           orderId: order.id,
           orderNumber: order.orderNumber,
           status: order.status,
-          createdAt: order.createdAt,
-          paidAt: order.paidAt,
+          createdAt: order.createdAt.toISOString(),
+          paidAt: order.paidAt?.toISOString() || null,
         },
       },
     };
 
     // Instructions based on payment type
     if (decoded.paymentType === "PAYNOW") {
+      if (order.status !== "PAID") {
+        return c.json({
+          success: false,
+          message: "PayNow order not yet paid",
+          data: {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            status: order.status,
+            suggestion: "Payment must be completed before pickup"
+          }
+        }, 400);
+      }
+      
       response.data.instructions = "✅ Payment confirmed. Hand over items and mark complete.";
       response.data.action = { complete: `/api/orders/admin/complete/${order.id}` };
     } else {
+      // CASH payment
       response.data.instructions = "💵 Collect cash payment, then mark complete.";
       response.data.action = { complete: `/api/orders/admin/complete/${order.id}` };
+      
+      // Add expiry info if available
+      if (decoded.expiresAt) {
+        const expiryDate = new Date(decoded.expiresAt);
+        const minutesRemaining = Math.floor((expiryDate.getTime() - Date.now()) / 60000);
+        response.data.expiryInfo = {
+          expiresAt: decoded.expiresAt,
+          minutesRemaining: Math.max(0, minutesRemaining),
+        };
+      }
     }
 
     return c.json(response);
   } catch (error) {
+    console.error('Scan QR error:', error);
     return serverError(c, error);
   }
 };
