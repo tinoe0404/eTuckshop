@@ -14,7 +14,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -237,81 +236,13 @@ export default function AdminCategoriesPage() {
               Organize your products into categories
             </p>
           </div>
-          <Dialog open={isCreateDialogOpen} onOpenChange={closeCreateDialog}>
-            <DialogTrigger asChild>
-              <Button 
-                className="bg-blue-600 hover:bg-blue-700"
-                onClick={openCreateDialog}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Category
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-[#1a2332] border-gray-700 text-white">
-              <DialogHeader>
-                <DialogTitle className="text-xl">Create New Category</DialogTitle>
-                <DialogDescription className="text-gray-400">
-                  Add a new category to organize your products
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-gray-300">
-                    Category Name *
-                  </Label>
-                  <Input
-                    id="name"
-                    placeholder="Enter category name"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ name: e.target.value })
-                    }
-                    className="bg-[#0f1419] border-gray-700 text-white"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description" className="text-gray-300">
-                    Description (Optional)
-                  </Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Enter category description"
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ description: e.target.value })
-                    }
-                    className="bg-[#0f1419] border-gray-700 text-white"
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={closeCreateDialog}
-                  className="border-gray-700 text-gray-300 hover:bg-gray-800"
-                  disabled={createMutation.isPending}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleCreateCategory}
-                  disabled={createMutation.isPending}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  {createMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Category'
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button 
+            className="bg-blue-600 hover:bg-blue-700"
+            onClick={openCreateDialog}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Category
+          </Button>
         </div>
 
         {/* Stats Cards */}
@@ -486,8 +417,80 @@ export default function AdminCategoriesPage() {
           </CardContent>
         </Card>
 
+        {/* Create Dialog */}
+        <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+          if (!open) closeCreateDialog();
+        }}>
+          <DialogContent className="bg-[#1a2332] border-gray-700 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-xl">Create New Category</DialogTitle>
+              <DialogDescription className="text-gray-400">
+                Add a new category to organize your products
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-gray-300">
+                  Category Name *
+                </Label>
+                <Input
+                  id="name"
+                  placeholder="Enter category name"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ name: e.target.value })
+                  }
+                  className="bg-[#0f1419] border-gray-700 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description" className="text-gray-300">
+                  Description (Optional)
+                </Label>
+                <Textarea
+                  id="description"
+                  placeholder="Enter category description"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ description: e.target.value })
+                  }
+                  className="bg-[#0f1419] border-gray-700 text-white"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={closeCreateDialog}
+                className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                disabled={createMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateCategory}
+                disabled={createMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {createMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Category'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={closeEditDialog}>
+        <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+          if (!open) closeEditDialog();
+        }}>
           <DialogContent className="bg-[#1a2332] border-gray-700 text-white">
             <DialogHeader>
               <DialogTitle className="text-xl">Edit Category</DialogTitle>
@@ -557,7 +560,9 @@ export default function AdminCategoriesPage() {
         {/* Delete Confirmation */}
         <AlertDialog
           open={deleteCategoryId !== null}
-          onOpenChange={closeDeleteDialog}
+          onOpenChange={(open) => {
+            if (!open) closeDeleteDialog();
+          }}
         >
           <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white">
             <AlertDialogHeader>

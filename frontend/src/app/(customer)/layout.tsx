@@ -1,4 +1,3 @@
-// app/(customer)/layout.tsx
 'use client';
 
 import { CustomerRoute } from '@/components/auth/ProtectedRoute';
@@ -13,7 +12,7 @@ export default function CustomerLayout({
 }) {
   return (
     <CustomerRoute>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
         <CustomerHeader />
         <div className="flex">
           <CustomerSidebar />

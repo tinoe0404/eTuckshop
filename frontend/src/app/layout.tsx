@@ -22,18 +22,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        {/* NextAuth provider */}
+      <body className={`${inter.className} bg-slate-900 text-white`}>
         <SessionProvider>
-          {/* React Query provider */}
           <ReactQueryProvider>
             {children}
           </ReactQueryProvider>
 
-          {/* Toast notifications (should be outside data layers) */}
           <Toaster position="top-right" richColors />
         </SessionProvider>
       </body>
     </html>
   );
 }
+
