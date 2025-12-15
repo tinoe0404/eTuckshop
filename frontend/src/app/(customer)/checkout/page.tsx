@@ -121,37 +121,37 @@ export default function CheckoutPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-blue-400" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
+    <div className="min-h-screen bg-[#0f1419] p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center space-x-4">
           <Button
             variant="ghost"
             onClick={() => router.push('/cart')}
-            className="gap-2"
+            className="gap-2 text-gray-300 hover:text-white hover:bg-gray-800"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Cart
           </Button>
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-4xl font-bold text-white">
               Checkout
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
+            <p className="text-gray-400 mt-1">
               Review your order and complete payment
             </p>
           </div>
         </div>
 
         {/* Progress Indicator */}
-        <Card className="border-0 shadow-lg">
+        <Card className="bg-[#1a2332] border-gray-800 shadow-lg">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
@@ -159,23 +159,23 @@ export default function CheckoutPage() {
                   <CheckCircle className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900 dark:text-white">Cart</p>
+                  <p className="font-semibold text-white">Cart</p>
                   <p className="text-xs text-gray-500">Completed</p>
                 </div>
               </div>
-              <div className="flex-1 h-1 bg-blue-200 dark:bg-blue-800 mx-4" />
+              <div className="flex-1 h-1 bg-blue-500 mx-4" />
               <div className="flex items-center space-x-2">
                 <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
                   <CreditCard className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900 dark:text-white">Payment</p>
+                  <p className="font-semibold text-white">Payment</p>
                   <p className="text-xs text-gray-500">Current</p>
                 </div>
               </div>
-              <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-700 mx-4" />
+              <div className="flex-1 h-1 bg-gray-700 mx-4" />
               <div className="flex items-center space-x-2">
-                <div className="w-10 h-10 bg-gray-300 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center">
                   <Package className="w-6 h-6 text-gray-500" />
                 </div>
                 <div>
@@ -191,41 +191,41 @@ export default function CheckoutPage() {
           {/* Left Column: Customer Info & Payment Method */}
           <div className="lg:col-span-2 space-y-6">
             {/* Customer Information */}
-            <Card className="border-0 shadow-lg">
-              <CardHeader className="border-b bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
-                <CardTitle className="flex items-center space-x-2">
-                  <User className="w-5 h-5 text-blue-600" />
+            <Card className="bg-[#1a2332] border-gray-800 shadow-lg">
+              <CardHeader className="border-b border-gray-800">
+                <CardTitle className="flex items-center space-x-2 text-white">
+                  <User className="w-5 h-5 text-blue-400" />
                   <span>Customer Information</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center space-x-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="flex items-center space-x-3 p-4 bg-[#0f1419] rounded-lg">
                     <User className="w-5 h-5 text-gray-400" />
                     <div>
                       <p className="text-sm text-gray-500">Name</p>
-                      <p className="font-semibold text-gray-900 dark:text-white">
+                      <p className="font-semibold text-white">
                         {user?.name}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="flex items-center space-x-3 p-4 bg-[#0f1419] rounded-lg">
                     <Mail className="w-5 h-5 text-gray-400" />
                     <div>
                       <p className="text-sm text-gray-500">Email</p>
-                      <p className="font-semibold text-gray-900 dark:text-white">
+                      <p className="font-semibold text-white">
                         {user?.email}
                       </p>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-start space-x-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <MapPin className="w-5 h-5 text-blue-600 mt-0.5" />
+                <div className="flex items-start space-x-3 p-4 bg-blue-900/20 rounded-lg border border-blue-800/30">
+                  <MapPin className="w-5 h-5 text-blue-400 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-blue-900 dark:text-blue-300">
+                    <p className="text-sm font-semibold text-blue-300">
                       Pickup Location
                     </p>
-                    <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
+                    <p className="text-sm text-blue-300 mt-1">
                       Show your QR code at the counter for quick pickup
                     </p>
                   </div>
@@ -234,10 +234,10 @@ export default function CheckoutPage() {
             </Card>
 
             {/* Payment Method Selection */}
-            <Card className="border-0 shadow-lg">
-              <CardHeader className="border-b bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
-                <CardTitle className="flex items-center space-x-2">
-                  <CreditCard className="w-5 h-5 text-blue-600" />
+            <Card className="bg-[#1a2332] border-gray-800 shadow-lg">
+              <CardHeader className="border-b border-gray-800">
+                <CardTitle className="flex items-center space-x-2 text-white">
+                  <CreditCard className="w-5 h-5 text-blue-400" />
                   <span>Payment Method</span>
                 </CardTitle>
               </CardHeader>
@@ -251,8 +251,8 @@ export default function CheckoutPage() {
                     <div
                       className={`relative flex items-start space-x-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
                         selectedPayment === 'CASH'
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                          ? 'border-blue-500 bg-blue-900/20'
+                          : 'border-gray-700 hover:border-blue-500'
                       }`}
                       onClick={() => setSelectedPayment('CASH')}
                     >
@@ -260,11 +260,11 @@ export default function CheckoutPage() {
                       <div className="flex-1">
                         <Label htmlFor="cash" className="cursor-pointer">
                           <div className="flex items-center space-x-3 mb-2">
-                            <div className="w-12 h-12 bg-linear-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
+                            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
                               <Wallet className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                              <p className="font-bold text-lg text-gray-900 dark:text-white">
+                              <p className="font-bold text-lg text-white">
                                 Cash Payment
                               </p>
                               <p className="text-sm text-gray-500">Pay at counter</p>
@@ -273,19 +273,19 @@ export default function CheckoutPage() {
                           <div className="space-y-2 ml-15 pl-0">
                             <div className="flex items-start space-x-2">
                               <Clock className="w-4 h-4 text-gray-400 mt-0.5" />
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
-                                QR code expires in <strong>15 minute</strong>
+                              <p className="text-sm text-gray-400">
+                                QR code expires in <strong>15 minutes</strong>
                               </p>
                             </div>
                             <div className="flex items-start space-x-2">
                               <CheckCircle className="w-4 h-4 text-gray-400 mt-0.5" />
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                              <p className="text-sm text-gray-400">
                                 Show QR at counter and pay cash
                               </p>
                             </div>
                             <div className="flex items-start space-x-2">
                               <Package className="w-4 h-4 text-gray-400 mt-0.5" />
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                              <p className="text-sm text-gray-400">
                                 Collect items immediately after payment
                               </p>
                             </div>
@@ -298,8 +298,8 @@ export default function CheckoutPage() {
                     <div
                       className={`relative flex items-start space-x-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
                         selectedPayment === 'PAYNOW'
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                          ? 'border-blue-500 bg-blue-900/20'
+                          : 'border-gray-700 hover:border-blue-500'
                       }`}
                       onClick={() => setSelectedPayment('PAYNOW')}
                     >
@@ -307,11 +307,11 @@ export default function CheckoutPage() {
                       <div className="flex-1">
                         <Label htmlFor="paynow" className="cursor-pointer">
                           <div className="flex items-center space-x-3 mb-2">
-                            <div className="w-12 h-12 bg-linear-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
                               <CreditCard className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                              <p className="font-bold text-lg text-gray-900 dark:text-white">
+                              <p className="font-bold text-lg text-white">
                                 PayNow
                               </p>
                               <p className="text-sm text-gray-500">Pay online now</p>
@@ -320,19 +320,19 @@ export default function CheckoutPage() {
                           <div className="space-y-2 ml-15 pl-0">
                             <div className="flex items-start space-x-2">
                               <CheckCircle className="w-4 h-4 text-gray-400 mt-0.5" />
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                              <p className="text-sm text-gray-400">
                                 Complete payment online
                               </p>
                             </div>
                             <div className="flex items-start space-x-2">
                               <Package className="w-4 h-4 text-gray-400 mt-0.5" />
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                              <p className="text-sm text-gray-400">
                                 QR code generated after payment
                               </p>
                             </div>
                             <div className="flex items-start space-x-2">
                               <Clock className="w-4 h-4 text-gray-400 mt-0.5" />
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                              <p className="text-sm text-gray-400">
                                 No expiry - collect anytime
                               </p>
                             </div>
@@ -344,9 +344,9 @@ export default function CheckoutPage() {
                 </RadioGroup>
 
                 {!selectedPayment && (
-                  <div className="mt-4 flex items-start space-x-2 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                    <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                  <div className="mt-4 flex items-start space-x-2 p-4 bg-yellow-900/20 rounded-lg border border-yellow-800/30">
+                    <AlertCircle className="w-5 h-5 text-yellow-400 mt-0.5" />
+                    <p className="text-sm text-yellow-300">
                       Please select a payment method to continue
                     </p>
                   </div>
@@ -357,16 +357,16 @@ export default function CheckoutPage() {
 
           {/* Right Column: Order Summary */}
           <div className="lg:col-span-1">
-            <Card className="border-0 shadow-xl sticky top-20">
-              <CardHeader className="border-b bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
-                <CardTitle>Order Summary</CardTitle>
+            <Card className="bg-[#1a2332] border-gray-800 shadow-xl sticky top-20">
+              <CardHeader className="border-b border-gray-800">
+                <CardTitle className="text-white">Order Summary</CardTitle>
               </CardHeader>
               <CardContent className="p-6 space-y-4">
                 {/* Items List */}
                 <div className="space-y-3 max-h-64 overflow-y-auto">
                   {items.map((item: CartItem) => (
                     <div key={item.id} className="flex items-center space-x-3">
-                      <div className="relative w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden shrink-0">
+                      <div className="relative w-16 h-16 bg-gray-800 rounded-lg overflow-hidden shrink-0">
                         {item.image ? (
                           <Image
                             src={item.image}
@@ -376,47 +376,47 @@ export default function CheckoutPage() {
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <Package className="w-8 h-8 text-gray-400" />
+                            <Package className="w-8 h-8 text-gray-600" />
                           </div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-gray-900 dark:text-white truncate">
+                        <p className="font-semibold text-sm text-white truncate">
                           {item.name}
                         </p>
                         <p className="text-xs text-gray-500">
                           {item.quantity} × {formatCurrency(item.price)}
                         </p>
                       </div>
-                      <p className="font-semibold text-gray-900 dark:text-white">
+                      <p className="font-semibold text-white">
                         {formatCurrency(item.subtotal)}
                       </p>
                     </div>
                   ))}
                 </div>
 
-                <Separator />
+                <Separator className="bg-gray-700" />
 
                 {/* Price Breakdown */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between text-gray-700 dark:text-gray-300">
+                  <div className="flex items-center justify-between text-gray-300">
                     <span>Subtotal ({totalItems} items)</span>
                     <span className="font-semibold">{formatCurrency(totalAmount)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-gray-700 dark:text-gray-300">
+                  <div className="flex items-center justify-between text-gray-300">
                     <span>Tax</span>
                     <span className="font-semibold">{formatCurrency(0)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-gray-700 dark:text-gray-300">
+                  <div className="flex items-center justify-between text-gray-300">
                     <span>Service Fee</span>
-                    <span className="font-semibold text-green-600">FREE</span>
+                    <span className="font-semibold text-green-400">FREE</span>
                   </div>
 
-                  <Separator />
+                  <Separator className="bg-gray-700" />
 
                   <div className="flex items-center justify-between text-lg">
-                    <span className="font-bold text-gray-900 dark:text-white">Total</span>
-                    <span className="font-bold text-blue-600 text-2xl">
+                    <span className="font-bold text-white">Total</span>
+                    <span className="font-bold text-blue-400 text-2xl">
                       {formatCurrency(totalAmount)}
                     </span>
                   </div>
@@ -425,7 +425,7 @@ export default function CheckoutPage() {
                 {/* Place Order Button */}
                 <Button
                   size="lg"
-                  className="w-full"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                   onClick={handlePlaceOrder}
                   disabled={!selectedPayment || checkoutMutation.isPending}
                 >
@@ -443,13 +443,13 @@ export default function CheckoutPage() {
                 </Button>
 
                 {/* Security Note */}
-                <div className="pt-4 space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <div className="pt-4 space-y-2 text-sm text-gray-400">
                   <div className="flex items-start space-x-2">
-                    <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+                    <CheckCircle className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
                     <span>Secure checkout process</span>
                   </div>
                   <div className="flex items-start space-x-2">
-                    <Package className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                    <Package className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
                     <span>QR code for quick pickup</span>
                   </div>
                 </div>
@@ -460,22 +460,22 @@ export default function CheckoutPage() {
 
         {/* Confirmation Dialog */}
         <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-          <AlertDialogContent>
+          <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white">
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Your Order</AlertDialogTitle>
 
               {/* FIXED SECTION */}
               <AlertDialogDescription asChild>
-                <div className="space-y-3">
+                <div className="space-y-3 text-gray-400">
                   <p>
                     You're about to place an order for{" "}
-                    <strong>{totalItems} items</strong> with a total of{" "}
-                    <strong>{formatCurrency(totalAmount)}</strong>.
+                    <strong className="text-white">{totalItems} items</strong> with a total of{" "}
+                    <strong className="text-white">{formatCurrency(totalAmount)}</strong>.
                   </p>
 
                   <p>
                     Payment method:{" "}
-                    <strong>
+                    <strong className="text-white">
                       {selectedPayment === "CASH"
                         ? "Cash at Counter"
                         : "PayNow Online"}
@@ -483,8 +483,8 @@ export default function CheckoutPage() {
                   </p>
 
                   {selectedPayment === "CASH" && (
-                    <p className="text-yellow-600 dark:text-yellow-400">
-                      ⚠️ Your QR code will expire in 1 minute. Please proceed to the
+                    <p className="text-yellow-300 bg-yellow-900/20 p-3 rounded-lg border border-yellow-800/30">
+                      ⚠️ Your QR code will expire in 15 minutes. Please proceed to the
                       counter immediately.
                     </p>
                   )}
@@ -495,8 +495,8 @@ export default function CheckoutPage() {
             </AlertDialogHeader>
 
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmOrder}>
+              <AlertDialogCancel className="border-gray-700 text-gray-300 hover:bg-gray-800">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmOrder} className="bg-blue-600 hover:bg-blue-700">
                 Confirm Order
               </AlertDialogAction>
             </AlertDialogFooter>
