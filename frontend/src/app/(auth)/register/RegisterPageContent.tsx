@@ -81,8 +81,8 @@ export default function RegisterPageContent() {
   // Show loading while checking session
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
       </div>
     );
   }
@@ -90,15 +90,15 @@ export default function RegisterPageContent() {
   // If authenticated, show loading while redirecting
   if (status === "authenticated") {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
-      <Card className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center bg-[#0f1419] p-4">
+      <Card className="w-full max-w-md p-8 space-y-6 bg-[#1a2332] border-gray-800 shadow-2xl">
         {/* Logo */}
         <div className="flex justify-center">
           <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -108,8 +108,8 @@ export default function RegisterPageContent() {
 
         {/* Header */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Create your account</h1>
-          <p className="text-gray-600 dark:text-gray-400">Sign up to get started</p>
+          <h1 className="text-3xl font-bold text-white">Create your account</h1>
+          <p className="text-gray-400">Sign up to get started</p>
         </div>
 
         {/* Role Selection */}
@@ -118,15 +118,15 @@ export default function RegisterPageContent() {
             type="button"
             onClick={() => setValue("role", "CUSTOMER")}
             disabled={signupMutation.isPending}
-            className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${selectedRole === "CUSTOMER" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 dark:border-gray-700 hover:border-gray-300"}`}
+            className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${selectedRole === "CUSTOMER" ? "border-blue-500 bg-blue-900/20" : "border-gray-700 hover:border-gray-600"}`}
           >
             <div className="flex flex-col items-center space-y-3">
-              <div className={`p-3 rounded-full ${selectedRole === "CUSTOMER" ? "bg-blue-500 text-white" : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"}`}>
+              <div className={`p-3 rounded-full ${selectedRole === "CUSTOMER" ? "bg-blue-500 text-white" : "bg-gray-800 text-gray-400"}`}>
                 <User className="w-6 h-6" />
               </div>
               <div className="text-center">
-                <p className="font-semibold text-gray-900 dark:text-white">Customer</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Shop for products</p>
+                <p className="font-semibold text-white">Customer</p>
+                <p className="text-sm text-gray-400">Shop for products</p>
               </div>
             </div>
           </button>
@@ -135,15 +135,15 @@ export default function RegisterPageContent() {
             type="button"
             onClick={() => setValue("role", "ADMIN")}
             disabled={signupMutation.isPending}
-            className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${selectedRole === "ADMIN" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 dark:border-gray-700 hover:border-gray-300"}`}
+            className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${selectedRole === "ADMIN" ? "border-blue-500 bg-blue-900/20" : "border-gray-700 hover:border-gray-600"}`}
           >
             <div className="flex flex-col items-center space-y-3">
-              <div className={`p-3 rounded-full ${selectedRole === "ADMIN" ? "bg-blue-500 text-white" : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"}`}>
+              <div className={`p-3 rounded-full ${selectedRole === "ADMIN" ? "bg-blue-500 text-white" : "bg-gray-800 text-gray-400"}`}>
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <div className="text-center">
-                <p className="font-semibold text-gray-900 dark:text-white">Admin</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Manage the shop</p>
+                <p className="font-semibold text-white">Admin</p>
+                <p className="text-sm text-gray-400">Manage the shop</p>
               </div>
             </div>
           </button>
@@ -153,58 +153,100 @@ export default function RegisterPageContent() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Name */}
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" placeholder="Enter your name" disabled={signupMutation.isPending} {...register("name")} />
-            {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
+            <Label htmlFor="name" className="text-gray-300">Name</Label>
+            <Input 
+              id="name" 
+              placeholder="Enter your name" 
+              disabled={signupMutation.isPending} 
+              className="bg-[#0f1419] border-gray-700 text-white placeholder:text-gray-500"
+              {...register("name")} 
+            />
+            {errors.name && <p className="text-sm text-red-400">{errors.name.message}</p>}
           </div>
 
           {/* Email */}
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="text-gray-300">Email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <Input id="email" type="email" placeholder="Enter your email" className="pl-10" disabled={signupMutation.isPending} {...register("email")} />
+              <Input 
+                id="email" 
+                type="email" 
+                placeholder="Enter your email" 
+                className="pl-10 bg-[#0f1419] border-gray-700 text-white placeholder:text-gray-500" 
+                disabled={signupMutation.isPending} 
+                {...register("email")} 
+              />
             </div>
-            {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
+            {errors.email && <p className="text-sm text-red-400">{errors.email.message}</p>}
           </div>
 
           {/* Password */}
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="text-gray-300">Password</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <Input id="password" type={showPassword ? "text" : "password"} placeholder="Enter your password" className="pl-10 pr-10" disabled={signupMutation.isPending} {...register("password")} />
-              <button type="button" onClick={() => setShowPassword(p => !p)} disabled={signupMutation.isPending} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <Input 
+                id="password" 
+                type={showPassword ? "text" : "password"} 
+                placeholder="Enter your password" 
+                className="pl-10 pr-10 bg-[#0f1419] border-gray-700 text-white placeholder:text-gray-500" 
+                disabled={signupMutation.isPending} 
+                {...register("password")} 
+              />
+              <button 
+                type="button" 
+                onClick={() => setShowPassword(p => !p)} 
+                disabled={signupMutation.isPending} 
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+              >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
-            {errors.password && <p className="text-sm text-red-500">{errors.password.message}</p>}
+            {errors.password && <p className="text-sm text-red-400">{errors.password.message}</p>}
           </div>
 
           {/* Confirm Password */}
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <Label htmlFor="confirmPassword" className="text-gray-300">Confirm Password</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <Input id="confirmPassword" type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" className="pl-10 pr-10" disabled={signupMutation.isPending} {...register("confirmPassword")} />
-              <button type="button" onClick={() => setShowConfirmPassword(p => !p)} disabled={signupMutation.isPending} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <Input 
+                id="confirmPassword" 
+                type={showConfirmPassword ? "text" : "password"} 
+                placeholder="Confirm your password" 
+                className="pl-10 pr-10 bg-[#0f1419] border-gray-700 text-white placeholder:text-gray-500" 
+                disabled={signupMutation.isPending} 
+                {...register("confirmPassword")} 
+              />
+              <button 
+                type="button" 
+                onClick={() => setShowConfirmPassword(p => !p)} 
+                disabled={signupMutation.isPending} 
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+              >
                 {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
-            {errors.confirmPassword && <p className="text-sm text-red-500">{errors.confirmPassword.message}</p>}
+            {errors.confirmPassword && <p className="text-sm text-red-400">{errors.confirmPassword.message}</p>}
           </div>
 
           {/* Submit */}
-          <Button type="submit" className="w-full" size="lg" disabled={signupMutation.isPending}>
+          <Button 
+            type="submit" 
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white" 
+            size="lg" 
+            disabled={signupMutation.isPending}
+          >
             {signupMutation.isPending ? "Creating account..." : "Sign up"}
           </Button>
         </form>
 
         {/* Sign In */}
         <div className="text-center">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-400">
             Already have an account?{" "}
-            <Link href="/login" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-semibold">
+            <Link href="/login" className="text-blue-400 hover:text-blue-300 font-semibold">
               Sign in
             </Link>
           </p>
