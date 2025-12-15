@@ -50,16 +50,16 @@ export default function AdminDashboard() {
   ========================= */
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-[#0f1419]">
+        <RefreshCw className="w-8 h-8 animate-spin text-blue-400" />
       </div>
     );
   }
 
   if (status === 'unauthenticated') {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-[#0f1419]">
+        <RefreshCw className="w-8 h-8 animate-spin text-blue-400" />
       </div>
     );
   }
@@ -174,11 +174,11 @@ export default function AdminDashboard() {
   ========================= */
   if (isLoading) {
     return (
-      <div className="min-h-screen p-6 space-y-6">
-        <Skeleton className="h-12 w-64" />
+      <div className="min-h-screen bg-[#0f1419] p-6 space-y-6">
+        <Skeleton className="h-12 w-64 bg-gray-800" />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-32" />
+            <Skeleton key={i} className="h-32 bg-gray-800" />
           ))}
         </div>
       </div>
@@ -187,8 +187,8 @@ export default function AdminDashboard() {
 
   if (statsError) {
     return (
-      <div className="min-h-screen p-6">
-        <Alert variant="destructive">
+      <div className="min-h-screen bg-[#0f1419] p-6">
+        <Alert variant="destructive" className="bg-red-900/20 border-red-800">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>
@@ -207,8 +207,8 @@ export default function AdminDashboard() {
      UI
   ========================= */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-      <div className="max-w-7xl mx-auto space-y-8 p-6">
+    <div className="min-h-screen bg-[#0f1419] p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
 
         {/* HERO */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-blue-500 to-purple-600 p-10 text-white shadow-2xl">
@@ -235,7 +235,7 @@ export default function AdminDashboard() {
               <Button
                 size="lg"
                 variant="outline"
-                className="border-white text-white"
+                className="border-white text-white hover:bg-white/10"
                 onClick={handleRefreshAll}
               >
                 <RefreshCw className="w-5 h-5 mr-2" /> Refresh
@@ -247,48 +247,52 @@ export default function AdminDashboard() {
         {/* STATS */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
-            { label: 'Total Revenue', value: formatCurrency(stats?.totalRevenue || 0), icon: DollarSign },
-            { label: "Today's Revenue", value: formatCurrency(stats?.todayRevenue || 0), icon: TrendingUp },
-            { label: 'Total Orders', value: orderStats?.orders.total || 0, icon: Package },
-            { label: 'Customers', value: stats?.totalCustomers || 0, icon: Users },
+            { label: 'Total Revenue', value: formatCurrency(stats?.totalRevenue || 0), icon: DollarSign, color: 'blue' },
+            { label: "Today's Revenue", value: formatCurrency(stats?.todayRevenue || 0), icon: TrendingUp, color: 'green' },
+            { label: 'Total Orders', value: orderStats?.orders.total || 0, icon: Package, color: 'purple' },
+            { label: 'Customers', value: stats?.totalCustomers || 0, icon: Users, color: 'orange' },
           ].map((s, i) => (
-            <Card key={i} className="shadow-lg">
-              <CardContent className="p-6 flex justify-between items-center">
-                <div>
-                  <p className="text-sm text-muted-foreground">{s.label}</p>
-                  <p className="text-3xl font-bold">{s.value}</p>
+            <Card key={i} className="bg-[#1a2332] border-gray-800 shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <p className="text-gray-400 text-sm font-medium">{s.label}</p>
+                    <p className="text-3xl font-bold text-white">{s.value}</p>
+                  </div>
+                  <div className={`w-12 h-12 bg-${s.color}-500/20 rounded-xl flex items-center justify-center`}>
+                    <s.icon className={`w-6 h-6 text-${s.color}-400`} />
+                  </div>
                 </div>
-                <s.icon className="w-10 h-10 text-primary" />
               </CardContent>
             </Card>
           ))}
         </div>
 
         {/* RECENT ORDERS */}
-        <Card className="shadow-xl">
+        <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
           <CardHeader>
-            <CardTitle>Recent Orders</CardTitle>
+            <CardTitle className="text-white">Recent Orders</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {recentOrders.length === 0 ? (
-              <p className="text-muted-foreground text-center py-6">
+              <p className="text-gray-400 text-center py-6">
                 No recent orders
               </p>
             ) : (
               recentOrders.map((order) => (
                 <div
                   key={order.id}
-                  className="flex justify-between items-center border p-4 rounded-xl"
+                  className="flex justify-between items-center border border-gray-800 p-4 rounded-xl bg-[#0f1419] hover:bg-gray-800/50 transition-colors"
                 >
                   <div>
-                    <p className="font-semibold">{order.orderNumber}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="font-semibold text-white">{order.orderNumber}</p>
+                    <p className="text-sm text-gray-400">
                       {order.user?.name}
                     </p>
                   </div>
 
                   <div className="flex gap-2 items-center">
-                    <span className="font-bold">
+                    <span className="font-bold text-green-400">
                       {formatCurrency(order.totalAmount)}
                     </span>
 
@@ -296,6 +300,7 @@ export default function AdminDashboard() {
                       <>
                         <Button
                           size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
                           onClick={() =>
                             completeOrderMutation.mutate(order.id)
                           }
@@ -305,6 +310,7 @@ export default function AdminDashboard() {
                         <Button
                           size="sm"
                           variant="outline"
+                          className="border-gray-700 text-gray-300 hover:bg-gray-800"
                           onClick={() =>
                             rejectOrderMutation.mutate({ orderId: order.id })
                           }
@@ -321,9 +327,9 @@ export default function AdminDashboard() {
         </Card>
 
         {/* QUICK ACTIONS */}
-        <Card className="shadow-xl">
+        <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
+            <CardTitle className="text-white">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
@@ -334,7 +340,7 @@ export default function AdminDashboard() {
               <Button
                 key={i}
                 variant="outline"
-                className="h-20 justify-between"
+                className="h-20 justify-between border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
                 onClick={() => router.push(a.link)}
               >
                 <div className="flex items-center gap-3">
