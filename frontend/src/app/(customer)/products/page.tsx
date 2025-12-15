@@ -152,15 +152,15 @@ const addToCartMutation = useMutation({
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-[#0f1419]">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-4xl font-bold text-white">
               Products
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
+            <p className="text-gray-400 mt-1">
               Discover our amazing collection
             </p>
           </div>
@@ -169,6 +169,7 @@ const addToCartMutation = useMutation({
               variant={viewMode === 'grid' ? 'default' : 'outline'}
               size="icon"
               onClick={() => setViewMode('grid')}
+              className={viewMode === 'grid' ? 'bg-blue-600 hover:bg-blue-700' : 'border-gray-700 text-gray-300 hover:bg-gray-800'}
             >
               <Grid3x3 className="w-4 h-4" />
             </Button>
@@ -176,6 +177,7 @@ const addToCartMutation = useMutation({
               variant={viewMode === 'list' ? 'default' : 'outline'}
               size="icon"
               onClick={() => setViewMode('list')}
+              className={viewMode === 'list' ? 'bg-blue-600 hover:bg-blue-700' : 'border-gray-700 text-gray-300 hover:bg-gray-800'}
             >
               <List className="w-4 h-4" />
             </Button>
@@ -183,7 +185,7 @@ const addToCartMutation = useMutation({
         </div>
 
         {/* Search and Filters */}
-        <Card className="border-0 shadow-lg">
+        <Card className="bg-[#1a2332] border-gray-800 shadow-lg">
           <CardContent className="p-6">
             <div className="space-y-4">
               {/* Search Bar */}
@@ -192,7 +194,7 @@ const addToCartMutation = useMutation({
                 <Input
                   type="search"
                   placeholder="Search products by name or description..."
-                  className="pl-10 h-12 text-lg"
+                  className="pl-10 h-12 text-lg bg-[#0f1419] border-gray-700 text-white"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -202,14 +204,14 @@ const addToCartMutation = useMutation({
               <div className="flex flex-wrap gap-3">
                 {/* Category Filter */}
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger className="w-[200px] bg-[#0f1419] border-gray-700 text-gray-300">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="Category" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
+                  <SelectContent className="bg-[#1a2332] border-gray-700">
+                    <SelectItem value="all" className="text-gray-300">All Categories</SelectItem>
                     {categories.map((cat: Category) => (
-                      <SelectItem key={cat.id} value={cat.id.toString()}>
+                      <SelectItem key={cat.id} value={cat.id.toString()} className="text-gray-300">
                         {cat.name} ({cat.productCount || 0})
                       </SelectItem>
                     ))}
@@ -218,58 +220,58 @@ const addToCartMutation = useMutation({
 
                 {/* Sort By */}
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[180px] bg-[#0f1419] border-gray-700 text-gray-300">
                     <SlidersHorizontal className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="name">Name (A-Z)</SelectItem>
-                    <SelectItem value="price-low">Price (Low to High)</SelectItem>
-                    <SelectItem value="price-high">Price (High to Low)</SelectItem>
-                    <SelectItem value="stock">Stock (High to Low)</SelectItem>
+                  <SelectContent className="bg-[#1a2332] border-gray-700">
+                    <SelectItem value="name" className="text-gray-300">Name (A-Z)</SelectItem>
+                    <SelectItem value="price-low" className="text-gray-300">Price (Low to High)</SelectItem>
+                    <SelectItem value="price-high" className="text-gray-300">Price (High to Low)</SelectItem>
+                    <SelectItem value="stock" className="text-gray-300">Stock (High to Low)</SelectItem>
                   </SelectContent>
                 </Select>
 
                 {/* Price Range */}
                 <Select value={priceRange} onValueChange={setPriceRange}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[180px] bg-[#0f1419] border-gray-700 text-gray-300">
                     <TrendingUp className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="Price Range" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Prices</SelectItem>
-                    <SelectItem value="0-10">$0 - $10</SelectItem>
-                    <SelectItem value="10-25">$10 - $25</SelectItem>
-                    <SelectItem value="25-50">$25 - $50</SelectItem>
-                    <SelectItem value="50">$50+</SelectItem>
+                  <SelectContent className="bg-[#1a2332] border-gray-700">
+                    <SelectItem value="all" className="text-gray-300">All Prices</SelectItem>
+                    <SelectItem value="0-10" className="text-gray-300">$0 - $10</SelectItem>
+                    <SelectItem value="10-25" className="text-gray-300">$10 - $25</SelectItem>
+                    <SelectItem value="25-50" className="text-gray-300">$25 - $50</SelectItem>
+                    <SelectItem value="50" className="text-gray-300">$50+</SelectItem>
                   </SelectContent>
                 </Select>
 
                 {/* Stock Filter */}
                 <Select value={stockFilter} onValueChange={setStockFilter}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[180px] bg-[#0f1419] border-gray-700 text-gray-300">
                     <Package className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="Stock Level" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Stock</SelectItem>
-                    <SelectItem value="HIGH">High Stock</SelectItem>
-                    <SelectItem value="MEDIUM">Medium Stock</SelectItem>
-                    <SelectItem value="LOW">Low Stock</SelectItem>
+                  <SelectContent className="bg-[#1a2332] border-gray-700">
+                    <SelectItem value="all" className="text-gray-300">All Stock</SelectItem>
+                    <SelectItem value="HIGH" className="text-gray-300">High Stock</SelectItem>
+                    <SelectItem value="MEDIUM" className="text-gray-300">Medium Stock</SelectItem>
+                    <SelectItem value="LOW" className="text-gray-300">Low Stock</SelectItem>
                   </SelectContent>
                 </Select>
 
                 {/* Reset Filters */}
-                <Button variant="outline" onClick={resetFilters}>
+                <Button variant="outline" onClick={resetFilters} className="border-gray-700 text-gray-300 hover:bg-gray-800">
                   Reset Filters
                 </Button>
               </div>
 
               {/* Results Count */}
               <div className="flex items-center justify-between pt-2">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Showing <span className="font-semibold">{filteredProducts.length}</span>{' '}
-                  of <span className="font-semibold">{products.length}</span> products
+                <p className="text-sm text-gray-400">
+                  Showing <span className="font-semibold text-white">{filteredProducts.length}</span>{' '}
+                  of <span className="font-semibold text-white">{products.length}</span> products
                 </p>
               </div>
             </div>
@@ -286,30 +288,30 @@ const addToCartMutation = useMutation({
             }
           >
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i} className="overflow-hidden">
-                <Skeleton className="h-48 w-full" />
+              <Card key={i} className="overflow-hidden bg-[#1a2332] border-gray-800">
+                <Skeleton className="h-48 w-full bg-gray-800" />
                 <CardContent className="p-4 space-y-2">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-3 w-1/2" />
-                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-4 w-3/4 bg-gray-800" />
+                  <Skeleton className="h-3 w-1/2 bg-gray-800" />
+                  <Skeleton className="h-8 w-full bg-gray-800" />
                 </CardContent>
               </Card>
             ))}
           </div>
         ) : filteredProducts.length === 0 ? (
-          <Card className="border-0 shadow-lg">
+          <Card className="bg-[#1a2332] border-gray-800 shadow-lg">
             <CardContent className="p-12">
               <div className="text-center space-y-4">
-                <ShoppingBag className="w-20 h-20 mx-auto text-gray-300" />
+                <ShoppingBag className="w-20 h-20 mx-auto text-gray-600" />
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  <h3 className="text-xl font-semibold text-white">
                     No products found
                   </h3>
-                  <p className="text-gray-500 dark:text-gray-400 mt-2">
+                  <p className="text-gray-400 mt-2">
                     Try adjusting your filters or search query
                   </p>
                 </div>
-                <Button onClick={resetFilters}>Reset Filters</Button>
+                <Button onClick={resetFilters} className="bg-blue-600 hover:bg-blue-700 text-white">Reset Filters</Button>
               </div>
             </CardContent>
           </Card>
@@ -318,9 +320,9 @@ const addToCartMutation = useMutation({
             {filteredProducts.map((product: Product) => (
               <Card
                 key={product.id}
-                className="group overflow-hidden border-0 shadow-md hover:shadow-2xl transition-all duration-300 cursor-pointer"
+                className="group overflow-hidden bg-[#1a2332] border-gray-800 shadow-md hover:shadow-2xl transition-all duration-300 cursor-pointer"
               >
-                <div className="relative h-56 bg-linear-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 overflow-hidden">
+                <div className="relative h-56 bg-gradient-to-br from-gray-800 to-gray-900 overflow-hidden">
                   {product.image ? (
                     <Image
                       src={product.image}
@@ -330,7 +332,7 @@ const addToCartMutation = useMutation({
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <ShoppingBag className="w-24 h-24 text-gray-300 dark:text-gray-600" />
+                      <ShoppingBag className="w-24 h-24 text-gray-600" />
                     </div>
                   )}
                   <div className="absolute top-3 right-3 space-y-2">
@@ -347,23 +349,23 @@ const addToCartMutation = useMutation({
                 <CardContent className="p-5 space-y-4">
                   <div>
                     <h3
-                      className="font-semibold text-lg line-clamp-1 group-hover:text-blue-600 transition-colors cursor-pointer"
+                      className="font-semibold text-lg line-clamp-1 text-white group-hover:text-blue-400 transition-colors cursor-pointer"
                       onClick={() => router.push(`/products/${product.id}`)}
                     >
                       {product.name}
                     </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">
+                    <p className="text-sm text-gray-400 line-clamp-1">
                       {product.category.name}
                     </p>
                   </div>
                   {product.description && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                    <p className="text-sm text-gray-400 line-clamp-2">
                       {product.description}
                     </p>
                   )}
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-2xl font-bold text-blue-600">
+                      <p className="text-2xl font-bold text-blue-400">
                         {formatCurrency(product.price)}
                       </p>
                       <p className="text-xs text-gray-500">
@@ -377,7 +379,7 @@ const addToCartMutation = useMutation({
                   </div>
                   <div className="flex space-x-2">
                     <Button
-                      className="flex-1"
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                       onClick={() => addToCartMutation.mutate(product.id)}
                       disabled={product.stock === 0}
                     >
@@ -388,6 +390,7 @@ const addToCartMutation = useMutation({
                       variant="outline"
                       size="icon"
                       onClick={() => router.push(`/products/${product.id}`)}
+                      className="border-gray-700 text-gray-300 hover:bg-gray-800"
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
@@ -401,12 +404,12 @@ const addToCartMutation = useMutation({
             {filteredProducts.map((product: Product) => (
               <Card
                 key={product.id}
-                className="group overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300"
+                className="group overflow-hidden bg-[#1a2332] border-gray-800 shadow-md hover:shadow-xl transition-all duration-300"
               >
                 <CardContent className="p-0">
                   <div className="flex flex-col md:flex-row">
                     {/* Image */}
-                    <div className="relative w-full md:w-48 h-48 bg-linear-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 shrink-0">
+                    <div className="relative w-full md:w-48 h-48 bg-gradient-to-br from-gray-800 to-gray-900 shrink-0">
                       {product.image ? (
                         <Image
                           src={product.image}
@@ -416,7 +419,7 @@ const addToCartMutation = useMutation({
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <ShoppingBag className="w-16 h-16 text-gray-300" />
+                          <ShoppingBag className="w-16 h-16 text-gray-600" />
                         </div>
                       )}
                     </div>
@@ -427,12 +430,12 @@ const addToCartMutation = useMutation({
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <h3
-                              className="text-xl font-semibold group-hover:text-blue-600 transition-colors cursor-pointer"
+                              className="text-xl font-semibold text-white group-hover:text-blue-400 transition-colors cursor-pointer"
                               onClick={() => router.push(`/products/${product.id}`)}
                             >
                               {product.name}
                             </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            <p className="text-sm text-gray-400 mt-1">
                               {product.category.name}
                             </p>
                           </div>
@@ -443,7 +446,7 @@ const addToCartMutation = useMutation({
                           </Badge>
                         </div>
                         {product.description && (
-                          <p className="text-gray-600 dark:text-gray-400 line-clamp-2">
+                          <p className="text-gray-400 line-clamp-2">
                             {product.description}
                           </p>
                         )}
@@ -451,7 +454,7 @@ const addToCartMutation = useMutation({
 
                       <div className="flex items-center justify-between mt-4">
                         <div>
-                          <p className="text-3xl font-bold text-blue-600">
+                          <p className="text-3xl font-bold text-blue-400">
                             {formatCurrency(product.price)}
                           </p>
                           <p className="text-sm text-gray-500 mt-1">
@@ -462,6 +465,7 @@ const addToCartMutation = useMutation({
                           <Button
                             onClick={() => addToCartMutation.mutate(product.id)}
                             disabled={product.stock === 0}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
                           >
                             <Plus className="w-4 h-4 mr-2" />
                             Add to Cart
@@ -469,6 +473,7 @@ const addToCartMutation = useMutation({
                           <Button
                             variant="outline"
                             onClick={() => router.push(`/products/${product.id}`)}
+                            className="border-gray-700 text-gray-300 hover:bg-gray-800"
                           >
                             <Eye className="w-4 h-4 mr-2" />
                             View Details
