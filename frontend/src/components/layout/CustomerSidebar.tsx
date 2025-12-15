@@ -57,18 +57,18 @@ export default function CustomerSidebar() {
   return (
     <aside
       className={cn(
-        'bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 sticky top-16 h-[calc(100vh-4rem)]',
+        'bg-[#1a2332] border-r border-gray-800 transition-all duration-300 sticky top-16 h-[calc(100vh-4rem)]',
         isCollapsed ? 'w-16' : 'w-64'
       )}
     >
       <div className="flex flex-col h-full">
         {/* Collapse Button */}
-        <div className="p-4 flex justify-end">
+        <div className="p-4 flex justify-end border-b border-gray-800">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="h-8 w-8"
+            className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-700"
           >
             {isCollapsed ? (
               <ChevronRight className="w-4 h-4" />
@@ -79,7 +79,7 @@ export default function CustomerSidebar() {
         </div>
 
         {/* Navigation */}
-        <ScrollArea className="flex-1 px-3">
+        <ScrollArea className="flex-1 px-3 py-4">
           <nav className="space-y-2">
             {navItems.map((item) => {
               const isActive = pathname === item.href;
@@ -89,11 +89,11 @@ export default function CustomerSidebar() {
                     className={cn(
                       'flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors',
                       isActive
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-400 hover:bg-gray-700 hover:text-white'
                     )}
                   >
-                    <span className={cn(isActive && 'text-blue-600 dark:text-blue-400')}>
+                    <span className={cn(isActive && 'text-white')}>
                       {item.icon}
                     </span>
                     {!isCollapsed && (
@@ -108,8 +108,8 @@ export default function CustomerSidebar() {
 
         {/* Footer */}
         {!isCollapsed && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+          <div className="p-4 border-t border-gray-800">
+            <p className="text-xs text-gray-500">
               eTuckshop v1.0.0
             </p>
           </div>

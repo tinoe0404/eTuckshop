@@ -13,7 +13,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useCartStore } from '@/lib/store/cartStore';
-
 import { useRouter } from 'next/navigation';
 import { useLogout } from '@/lib/hooks/useAuth';
 
@@ -22,8 +21,7 @@ export default function CustomerHeader() {
   const { totalItems } = useCartStore();
 
   const { data: session } = useSession();
-const user = session?.user;
-  
+  const user = session?.user;
 
   const logoutMutation = useLogout();
   
@@ -32,16 +30,16 @@ const user = session?.user;
   };
 
   return (
-    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
+    <header className="bg-[#1a2332] border-b border-gray-800 sticky top-0 z-50">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
 
           {/* Logo */}
           <div className="flex items-center space-x-4">
-            <div className="w-10 h-10 bg-linear-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white text-xl font-bold">eT</span>
             </div>
-            <span className="text-xl font-bold text-gray-900 dark:text-white">
+            <span className="text-xl font-bold text-white">
               eTuckshop
             </span>
           </div>
@@ -53,26 +51,26 @@ const user = session?.user;
             <Button
               variant="ghost"
               size="icon"
-              className="relative"
+              className="relative text-gray-400 hover:text-white hover:bg-gray-700"
               onClick={() => router.push('/cart')}
             >
               <ShoppingCart className="w-5 h-5" />
               {totalItems > 0 && (
-                <Badge className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center p-0 text-xs">
+                <Badge className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center p-0 text-xs bg-blue-600">
                   {totalItems}
                 </Badge>
               )}
             </Button>
 
             {/* Notifications */}
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-gray-700">
               <Bell className="w-5 h-5" />
             </Button>
 
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2">
+                <Button variant="ghost" className="flex items-center space-x-2 text-gray-300 hover:text-white hover:bg-gray-700">
                   <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                     <span className="text-white text-sm font-semibold">
                       {user?.name?.charAt(0).toUpperCase() || 'U'}
