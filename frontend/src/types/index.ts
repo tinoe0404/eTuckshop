@@ -67,6 +67,7 @@ export type ProductList = Product[];
 // Cart Types
 // -----------------------------
 export interface CartItem {
+  product: any;
   id: number;
   productId: number;
   name: string;
