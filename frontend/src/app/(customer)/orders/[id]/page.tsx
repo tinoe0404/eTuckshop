@@ -158,15 +158,15 @@ export default function OrderDetailPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'PENDING':
-        return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+        return 'bg-yellow-500/20 text-yellow-400';
       case 'PAID':
-        return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+        return 'bg-blue-500/20 text-blue-400';
       case 'COMPLETED':
-        return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+        return 'bg-green-500/20 text-green-400';
       case 'CANCELLED':
-        return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+        return 'bg-red-500/20 text-red-400';
       default:
-        return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400';
+        return 'bg-gray-500/20 text-gray-400';
     }
   };
 
@@ -211,15 +211,15 @@ export default function OrderDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-        <div className="max-w-5xl mx-auto p-6 space-y-6">
-          <Skeleton className="h-12 w-64" />
+      <div className="min-h-screen bg-[#0f1419] p-6">
+        <div className="max-w-5xl mx-auto space-y-6">
+          <Skeleton className="h-12 w-64 bg-gray-800" />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              <Skeleton className="h-96" />
-              <Skeleton className="h-64" />
+              <Skeleton className="h-96 bg-gray-800" />
+              <Skeleton className="h-64 bg-gray-800" />
             </div>
-            <Skeleton className="h-96" />
+            <Skeleton className="h-96 bg-gray-800" />
           </div>
         </div>
       </div>
@@ -228,11 +228,11 @@ export default function OrderDetailPage() {
 
   if (!order) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="p-8 text-center">
-          <Package className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Order not found</h2>
-          <Button onClick={() => router.push('/orders')}>
+      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
+        <Card className="p-8 text-center bg-[#1a2332] border-gray-800">
+          <Package className="w-16 h-16 mx-auto text-gray-600 mb-4" />
+          <h2 className="text-xl font-semibold mb-2 text-white">Order not found</h2>
+          <Button onClick={() => router.push('/orders')} className="bg-blue-600 hover:bg-blue-700 text-white">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Orders
           </Button>
@@ -251,14 +251,14 @@ export default function OrderDetailPage() {
     (order.paymentType === 'CASH' && qrCodeUrl && !isQRExpired);
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-        <div className="max-w-5xl mx-auto p-6 space-y-6">
+      <div className="min-h-screen bg-[#0f1419] p-6">
+        <div className="max-w-5xl mx-auto space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
             <Button
               variant="ghost"
               onClick={() => router.push('/orders')}
-              className="gap-2"
+              className="gap-2 text-gray-300 hover:text-white hover:bg-gray-800"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Orders
@@ -266,12 +266,12 @@ export default function OrderDetailPage() {
           </div>
     
           {/* Order Header */}
-          <Card className="border-0 shadow-lg">
+          <Card className="bg-[#1a2332] border-gray-800 shadow-lg">
             <CardContent className="p-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center space-x-3 mb-2">
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                    <h1 className="text-3xl font-bold text-white">
                       {order.orderNumber}
                     </h1>
                     <Badge className={`${getStatusColor(order.status)} gap-1`}>
@@ -279,7 +279,7 @@ export default function OrderDetailPage() {
                       {order.status}
                     </Badge>
                   </div>
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
                     <div className="flex items-center space-x-1">
                       <Calendar className="w-4 h-4" />
                       <span>{new Date(order.createdAt).toLocaleString()}</span>
@@ -294,7 +294,7 @@ export default function OrderDetailPage() {
                     </div>
                     <div className="flex items-center space-x-1">
                       <DollarSign className="w-4 h-4" />
-                      <span className="font-semibold text-lg text-blue-600">
+                      <span className="font-semibold text-lg text-blue-400">
                         {formatCurrency(order.totalAmount)}
                       </span>
                     </div>
@@ -303,20 +303,20 @@ export default function OrderDetailPage() {
                 {order.status === 'PENDING' && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="outline" className="text-red-600 hover:text-red-700">
+                      <Button variant="outline" className="text-red-400 hover:text-red-300 border-gray-700 hover:bg-red-900/20">
                         <XCircle className="w-4 h-4 mr-2" />
                         Cancel Order
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent>
+                    <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
-                        <AlertDialogDescription>
+                        <AlertDialogDescription className="text-gray-400">
                           This will cancel your order and restore the stock. This action cannot be undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Keep Order</AlertDialogCancel>
+                        <AlertDialogCancel className="border-gray-700 text-gray-300 hover:bg-gray-800">Keep Order</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() => cancelOrderMutation.mutate()}
                           className="bg-red-600 hover:bg-red-700"
@@ -344,8 +344,8 @@ export default function OrderDetailPage() {
             <div className="lg:col-span-2 space-y-6">
               {/* QR Code Card */}
               {(order.status === 'PENDING' || order.status === 'PAID') && (
-                <Card className="border-0 shadow-xl">
-                  <CardHeader className="border-b bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+                <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
+                  <CardHeader className="border-b border-gray-800 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
                     <CardTitle className="flex items-center space-x-2">
                       <QrCode className="w-6 h-6" />
                       <span>
@@ -361,16 +361,16 @@ export default function OrderDetailPage() {
                     {/* Need Payment (PayNow) */}
                     {needsPayment && (
                       <div className="text-center space-y-6">
-                        <div className="w-24 h-24 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto">
-                          <CreditCard className="w-12 h-12 text-blue-600" />
+                        <div className="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto">
+                          <CreditCard className="w-12 h-12 text-blue-400" />
                         </div>
                         <div>
-                          <h3 className="text-xl font-semibold mb-2">Complete Payment</h3>
-                          <p className="text-gray-600 dark:text-gray-400">
+                          <h3 className="text-xl font-semibold mb-2 text-white">Complete Payment</h3>
+                          <p className="text-gray-400">
                             Click below to complete your PayNow payment. Your QR code will be generated after successful payment.
                           </p>
                         </div>
-                        <Button size="lg" onClick={handlePayNow} className="gap-2">
+                        <Button size="lg" onClick={handlePayNow} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
                           <CreditCard className="w-5 h-5" />
                           Pay Now - {formatCurrency(order.totalAmount)}
                         </Button>
@@ -380,15 +380,15 @@ export default function OrderDetailPage() {
                     {/* Generate QR (Cash - not yet generated) */}
                     {canGenerateQR && !qrCodeUrl && (
                       <div className="text-center space-y-6">
-                        <div className="w-24 h-24 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto">
-                          <Wallet className="w-12 h-12 text-green-600" />
+                        <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto">
+                          <Wallet className="w-12 h-12 text-green-400" />
                         </div>
                         <div>
-                          <h3 className="text-xl font-semibold mb-2">Ready to Generate QR</h3>
-                          <p className="text-gray-600 dark:text-gray-400 mb-4">
+                          <h3 className="text-xl font-semibold mb-2 text-white">Ready to Generate QR</h3>
+                          <p className="text-gray-400 mb-4">
                             Click below to generate your QR code. Show it at the counter and pay with cash.
                           </p>
-                          <div className="flex items-start space-x-2 text-sm text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+                          <div className="flex items-start space-x-2 text-sm text-yellow-300 bg-yellow-900/20 p-4 rounded-lg border border-yellow-800/30">
                             <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
                             <p>
                               <strong>Important:</strong> Your QR code will expire in 15 minutes. Generate it when you're ready to go to the counter.
@@ -399,7 +399,7 @@ export default function OrderDetailPage() {
                           size="lg"
                           onClick={handleGenerateQR}
                           disabled={generateQRMutation.isPending}
-                          className="gap-2"
+                          className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           {generateQRMutation.isPending ? (
                             <>
@@ -420,7 +420,7 @@ export default function OrderDetailPage() {
                     {hasActiveQR && qrCodeUrl && (
                       <div className="space-y-6">
                         {/* QR Code Image */}
-                        <div className="relative bg-white dark:bg-gray-800 p-8 rounded-2xl border-4 border-blue-500 mx-auto max-w-md">
+                        <div className="relative bg-white p-8 rounded-2xl border-4 border-blue-500 mx-auto max-w-md">
                           <img src={qrCodeUrl} alt="Order QR Code" className="w-full h-auto" />
                         </div>
     
@@ -429,7 +429,7 @@ export default function OrderDetailPage() {
                           <div className="text-center">
                             {isQRExpired ? (
                               <div className="space-y-4">
-                                <div className="flex items-center justify-center space-x-2 text-red-600">
+                                <div className="flex items-center justify-center space-x-2 text-red-400">
                                   <AlertCircle className="w-6 h-6" />
                                   <span className="text-xl font-semibold">QR Code Expired</span>
                                 </div>
@@ -437,7 +437,7 @@ export default function OrderDetailPage() {
                                   size="lg"
                                   onClick={handleGenerateQR}
                                   disabled={generateQRMutation.isPending}
-                                  className="gap-2"
+                                  className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
                                 >
                                   <RefreshCw className="w-5 h-5" />
                                   Generate New QR Code
@@ -445,8 +445,8 @@ export default function OrderDetailPage() {
                               </div>
                             ) : (
                               <div className="space-y-2">
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Time remaining</p>
-                                <div className={`text-4xl font-bold ${timeLeft < 120 ? 'text-red-600' : 'text-blue-600'}`}>
+                                <p className="text-sm text-gray-400">Time remaining</p>
+                                <div className={`text-4xl font-bold ${timeLeft < 120 ? 'text-red-400' : 'text-blue-400'}`}>
                                   {formatTime(timeLeft)}
                                 </div>
                                 <p className="text-sm text-gray-500">Show this QR at the counter before it expires</p>
@@ -458,23 +458,23 @@ export default function OrderDetailPage() {
                         {/* No Timer for PayNow */}
                         {order.paymentType === 'PAYNOW' && (
                           <div className="text-center">
-                            <div className="flex items-center justify-center space-x-2 text-green-600 mb-2">
+                            <div className="flex items-center justify-center space-x-2 text-green-400 mb-2">
                               <CheckCircle className="w-6 h-6" />
                               <span className="text-lg font-semibold">Payment Confirmed</span>
                             </div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                            <p className="text-sm text-gray-400">
                               No expiry - Show this QR anytime for pickup
                             </p>
                           </div>
                         )}
     
                         {/* Instructions */}
-                        <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg space-y-3">
-                          <h4 className="font-semibold text-blue-900 dark:text-blue-300 flex items-center space-x-2">
+                        <div className="bg-blue-900/20 p-6 rounded-lg space-y-3 border border-blue-800/30">
+                          <h4 className="font-semibold text-blue-300 flex items-center space-x-2">
                             <Package className="w-5 h-5" />
                             <span>How to collect your order</span>
                           </h4>
-                          <ol className="space-y-2 text-sm text-blue-800 dark:text-blue-400">
+                          <ol className="space-y-2 text-sm text-blue-300">
                             <li className="flex items-start space-x-2">
                               <span className="font-bold">1.</span>
                               <span>Show this QR code at the counter</span>
@@ -499,14 +499,14 @@ export default function OrderDetailPage() {
     
                         {/* Actions */}
                         <div className="flex flex-col sm:flex-row gap-3">
-                          <Button variant="outline" className="flex-1" onClick={handleDownloadQR}>
+                          <Button variant="outline" className="flex-1 border-gray-700 text-gray-300 hover:bg-gray-800" onClick={handleDownloadQR}>
                             <Download className="w-4 h-4 mr-2" />
                             Download QR
                           </Button>
                           {order.paymentType === 'CASH' && !isQRExpired && (
                             <Button
                               variant="outline"
-                              className="flex-1"
+                              className="flex-1 border-gray-700 text-gray-300 hover:bg-gray-800"
                               onClick={handleGenerateQR}
                               disabled={generateQRMutation.isPending}
                             >
@@ -523,26 +523,26 @@ export default function OrderDetailPage() {
     
               {/* Completed/Cancelled Status */}
               {(order.status === 'COMPLETED' || order.status === 'CANCELLED') && (
-                <Card className="border-0 shadow-xl">
+                <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
                   <CardContent className="p-8">
                     {order.status === 'CANCELLED' ? (
                       <div className="text-center space-y-4 py-8">
-                        <div className="w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto">
-                          <XCircle className="w-10 h-10 text-red-600" />
+                        <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto">
+                          <XCircle className="w-10 h-10 text-red-400" />
                         </div>
                         <div>
-                          <h3 className="text-xl font-semibold text-red-600 mb-2">Order Cancelled</h3>
-                          <p className="text-gray-600 dark:text-gray-400">This order has been cancelled.</p>
+                          <h3 className="text-xl font-semibold text-red-400 mb-2">Order Cancelled</h3>
+                          <p className="text-gray-400">This order has been cancelled.</p>
                         </div>
                       </div>
                     ) : (
                       <div className="text-center space-y-4 py-8">
-                        <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto">
-                          <CheckCircle className="w-10 h-10 text-green-600" />
+                        <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto">
+                          <CheckCircle className="w-10 h-10 text-green-400" />
                         </div>
                         <div>
-                          <h3 className="text-xl font-semibold text-green-600 mb-2">Order Completed</h3>
-                          <p className="text-gray-600 dark:text-gray-400">This order has been completed and picked up.</p>
+                          <h3 className="text-xl font-semibold text-green-400 mb-2">Order Completed</h3>
+                          <p className="text-gray-400">This order has been completed and picked up.</p>
                           {order.completedAt && (
                             <p className="text-sm text-gray-500 mt-2">
                               Completed on {new Date(order.completedAt).toLocaleString()}
@@ -556,11 +556,11 @@ export default function OrderDetailPage() {
               )}
     
               {/* Order Items */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
-                  <CardTitle className="flex items-center justify-between">
+              <Card className="bg-[#1a2332] border-gray-800 shadow-lg">
+                <CardHeader className="border-b border-gray-800">
+                  <CardTitle className="flex items-center justify-between text-white">
                     <span>Order Items</span>
-                    <Badge variant="secondary">{order.orderItems?.length || 0} items</Badge>
+                    <Badge variant="secondary" className="bg-gray-700 text-gray-300">{order.orderItems?.length || 0} items</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
@@ -568,25 +568,25 @@ export default function OrderDetailPage() {
                     {order.orderItems?.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center space-x-4 p-4 rounded-lg border border-gray-200 dark:border-gray-700"
+                        className="flex items-center space-x-4 p-4 rounded-lg border border-gray-800 bg-[#0f1419]"
                       >
-                        <div className="relative w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-lg overflow-hidden shrink-0">
+                        <div className="relative w-16 h-16 bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg overflow-hidden shrink-0">
                           {item.product?.image ? (
                             <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
-                              <Package className="w-8 h-8 text-gray-400" />
+                              <Package className="w-8 h-8 text-gray-600" />
                             </div>
                           )}
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900 dark:text-white">{item.product?.name}</h4>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <h4 className="font-semibold text-white">{item.product?.name}</h4>
+                          <p className="text-sm text-gray-400">
                             Qty: {item.quantity} × {formatCurrency(item.product?.price || 0)}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-blue-600">{formatCurrency(item.subtotal)}</p>
+                          <p className="font-bold text-blue-400">{formatCurrency(item.subtotal)}</p>
                         </div>
                       </div>
                     ))}
@@ -597,68 +597,68 @@ export default function OrderDetailPage() {
     
             {/* Right Column: Summary */}
             <div className="space-y-6">
-              <Card className="border-0 shadow-xl sticky top-20">
-                <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
-                  <CardTitle>Order Summary</CardTitle>
+              <Card className="bg-[#1a2332] border-gray-800 shadow-xl sticky top-20">
+                <CardHeader className="border-b border-gray-800">
+                  <CardTitle className="text-white">Order Summary</CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between text-gray-700 dark:text-gray-300">
+                    <div className="flex items-center justify-between text-gray-300">
                       <span>Subtotal</span>
                       <span className="font-semibold">{formatCurrency(order.totalAmount)}</span>
                     </div>
-                    <div className="flex items-center justify-between text-gray-700 dark:text-gray-300">
+                    <div className="flex items-center justify-between text-gray-300">
                       <span>Tax</span>
                       <span className="font-semibold">{formatCurrency(0)}</span>
                     </div>
-                    <div className="flex items-center justify-between text-gray-700 dark:text-gray-300">
+                    <div className="flex items-center justify-between text-gray-300">
                       <span>Service Fee</span>
-                      <span className="font-semibold text-green-600">FREE</span>
+                      <span className="font-semibold text-green-400">FREE</span>
                     </div>
-                    <Separator />
+                    <Separator className="bg-gray-700" />
                     <div className="flex items-center justify-between text-lg">
-                      <span className="font-bold text-gray-900 dark:text-white">Total</span>
-                      <span className="font-bold text-blue-600 text-2xl">{formatCurrency(order.totalAmount)}</span>
+                      <span className="font-bold text-white">Total</span>
+                      <span className="font-bold text-blue-400 text-2xl">{formatCurrency(order.totalAmount)}</span>
                     </div>
                   </div>
-                  <Separator />
+                  <Separator className="bg-gray-700" />
                   <div className="space-y-3">
-                    <h4 className="font-semibold text-gray-900 dark:text-white">Order Timeline</h4>
+                    <h4 className="font-semibold text-white">Order Timeline</h4>
                     <div className="space-y-3">
                       <div className="flex items-start space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center shrink-0">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
+                        <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                          <CheckCircle className="w-4 h-4 text-green-400" />
                         </div>
                         <div className="flex-1">
-                          <p className="text-sm font-semibold text-gray-900 dark:text-white">Order Placed</p>
+                          <p className="text-sm font-semibold text-white">Order Placed</p>
                           <p className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleString()}</p>
                         </div>
                       </div>
                       {order.paidAt && (
                         <div className="flex items-start space-x-3">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
-                            <CheckCircle className="w-4 h-4 text-blue-600" />
+                          <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                            <CheckCircle className="w-4 h-4 text-blue-400" />
                           </div>
                           <div className="flex-1">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">Payment Confirmed</p>
+                            <p className="text-sm font-semibold text-white">Payment Confirmed</p>
                             <p className="text-xs text-gray-500">{new Date(order.paidAt).toLocaleString()}</p>
                           </div>
                         </div>
                       )}
                       {order.completedAt && (
                         <div className="flex items-start space-x-3">
-                          <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center shrink-0">
-                            <CheckCircle className="w-4 h-4 text-green-600" />
+                          <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                            <CheckCircle className="w-4 h-4 text-green-400" />
                           </div>
                           <div className="flex-1">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">Order Completed</p>
+                            <p className="text-sm font-semibold text-white">Order Completed</p>
                             <p className="text-xs text-gray-500">{new Date(order.completedAt).toLocaleString()}</p>
                           </div>
                         </div>
                       )}
                       {order.status === 'PENDING' && (
                         <div className="flex items-start space-x-3">
-                          <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center shrink-0">
                             <Clock className="w-4 h-4 text-gray-400" />
                           </div>
                           <div className="flex-1">
