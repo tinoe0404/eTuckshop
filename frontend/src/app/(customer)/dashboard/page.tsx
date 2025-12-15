@@ -35,8 +35,8 @@ const ProductCard = ({
   onViewDetails: (id: number) => void;
   isAdding: boolean;
 }) => (
-  <Card className="group overflow-hidden border-0 shadow-md hover:shadow-2xl transition-all">
-    <div className="relative h-48 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 overflow-hidden">
+  <Card className="group overflow-hidden bg-[#1a2332] border-gray-800 shadow-md hover:shadow-2xl transition-all">
+    <div className="relative h-48 bg-gradient-to-br from-gray-800 to-gray-900 overflow-hidden">
       {product.image ? (
         <Image 
           src={product.image} 
@@ -47,7 +47,7 @@ const ProductCard = ({
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center">
-          <ShoppingBag className="w-20 h-20 text-gray-300" />
+          <ShoppingBag className="w-20 h-20 text-gray-600" />
         </div>
       )}
       <div className="absolute top-3 right-3">
@@ -58,12 +58,12 @@ const ProductCard = ({
     </div>
     <CardContent className="p-4 space-y-3">
       <div>
-        <h3 className="font-semibold text-lg line-clamp-1">{product.name}</h3>
-        <p className="text-sm text-gray-500 line-clamp-1">{product.category.name}</p>
+        <h3 className="font-semibold text-lg line-clamp-1 text-white">{product.name}</h3>
+        <p className="text-sm text-gray-400 line-clamp-1">{product.category.name}</p>
       </div>
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-2xl font-bold text-blue-600">{formatCurrency(product.price)}</p>
+          <p className="text-2xl font-bold text-blue-400">{formatCurrency(product.price)}</p>
           <p className="text-xs text-gray-500">{product.stock} in stock</p>
         </div>
         <div className="flex items-center space-x-1 text-yellow-500">
@@ -73,13 +73,18 @@ const ProductCard = ({
       </div>
       <div className="flex space-x-2">
         <Button 
-          className="flex-1" 
+          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white" 
           onClick={() => onAddToCart(product.id)}
           disabled={product.stock === 0 || isAdding}
         >
           <Plus className="w-4 h-4 mr-1" />Add
         </Button>
-        <Button variant="outline" size="icon" onClick={() => onViewDetails(product.id)}>
+        <Button 
+          variant="outline" 
+          size="icon" 
+          onClick={() => onViewDetails(product.id)}
+          className="border-gray-700 text-gray-300 hover:bg-gray-800"
+        >
           <Eye className="w-4 h-4" />
         </Button>
       </div>
@@ -95,15 +100,15 @@ const OrderCard = ({
   onClick: (id: number) => void;
 }) => {
   const statusColors = {
-    COMPLETED: 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400',
-    PAID: 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
-    PENDING: 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400',
-    CANCELLED: 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400',
+    COMPLETED: 'bg-green-500/20 text-green-400',
+    PAID: 'bg-blue-500/20 text-blue-400',
+    PENDING: 'bg-yellow-500/20 text-yellow-400',
+    CANCELLED: 'bg-red-500/20 text-red-400',
   };
 
   return (
     <div 
-      className="flex items-center justify-between p-4 rounded-xl border hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+      className="flex items-center justify-between p-4 rounded-xl border border-gray-800 bg-[#0f1419] hover:bg-gray-800/50 cursor-pointer transition-colors"
       onClick={() => onClick(order.id)}
     >
       <div className="flex items-center space-x-4">
@@ -113,13 +118,13 @@ const OrderCard = ({
           <Package className="w-6 h-6" />
         </div>
         <div>
-          <p className="font-semibold">{order.orderNumber}</p>
-          <p className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</p>
+          <p className="font-semibold text-white">{order.orderNumber}</p>
+          <p className="text-sm text-gray-400">{new Date(order.createdAt).toLocaleDateString()}</p>
         </div>
       </div>
       <div className="text-right">
-        <p className="font-bold">{formatCurrency(order.totalAmount)}</p>
-        <Badge variant={order.status === 'COMPLETED' ? 'default' : 'outline'}>
+        <p className="font-bold text-white">{formatCurrency(order.totalAmount)}</p>
+        <Badge className={statusColors[order.status as keyof typeof statusColors] || statusColors.PENDING}>
           {order.status}
         </Badge>
       </div>
@@ -147,28 +152,28 @@ const StatCard = ({
   isError?: boolean;
 }) => (
   <Card 
-    className={`border-0 shadow-lg hover:shadow-xl transition-all duration-300 ${colorClass} text-white cursor-pointer group`}
+    className={`bg-[#1a2332] border-gray-800 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group`}
     onClick={onClick}
   >
     <CardContent className="p-6">
       {isLoading ? (
         <div className="space-y-2">
-          <Skeleton className="h-4 w-20 bg-white/20" />
-          <Skeleton className="h-10 w-16 bg-white/20" />
+          <Skeleton className="h-4 w-20 bg-gray-800" />
+          <Skeleton className="h-10 w-16 bg-gray-800" />
         </div>
       ) : isError ? (
         <div className="text-center py-4">
-          <AlertCircle className="w-8 h-8 mx-auto mb-2 text-white/70" />
-          <p className="text-xs text-white/70">Failed to load</p>
+          <AlertCircle className="w-8 h-8 mx-auto mb-2 text-gray-600" />
+          <p className="text-xs text-gray-500">Failed to load</p>
         </div>
       ) : (
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <p className="text-white/80 text-sm font-medium">{title}</p>
-            <p className="text-4xl font-bold">{value}</p>
-            <p className="text-white/80 text-xs">{subtitle}</p>
+            <p className="text-gray-400 text-sm font-medium">{title}</p>
+            <p className="text-4xl font-bold text-white">{value}</p>
+            <p className="text-gray-400 text-xs">{subtitle}</p>
           </div>
-          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+          <div className={`w-16 h-16 ${colorClass} rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
             <Icon className="w-8 h-8" />
           </div>
         </div>
@@ -186,8 +191,8 @@ export default function CustomerDashboard() {
 
   // Auth protection
   if (status === 'loading') {
-    return <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+    return <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
     </div>;
   }
   
@@ -355,11 +360,11 @@ export default function CustomerDashboard() {
   // Initial loading state
   if (isAnyLoading && !cartData && !ordersData && !productsData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-        <div className="max-w-7xl mx-auto space-y-8 p-6">
-          <Skeleton className="h-64 w-full rounded-3xl" />
+      <div className="min-h-screen bg-[#0f1419] p-6">
+        <div className="max-w-7xl mx-auto space-y-8">
+          <Skeleton className="h-64 w-full rounded-3xl bg-gray-800" />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32" />)}
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 bg-gray-800" />)}
           </div>
         </div>
       </div>
@@ -371,7 +376,7 @@ export default function CustomerDashboard() {
       title: 'Cart Items', 
       value: stats.cartItems, 
       subtitle: formatCurrency(stats.cartAmount), 
-      colorClass: 'bg-gradient-to-br from-blue-500 to-blue-600', 
+      colorClass: 'bg-blue-500/20 text-blue-400', 
       icon: ShoppingCart, 
       link: '/cart',
       isLoading: cartLoading,
@@ -381,7 +386,7 @@ export default function CustomerDashboard() {
       title: 'Pending', 
       value: stats.pendingOrders, 
       subtitle: 'Orders awaiting', 
-      colorClass: 'bg-gradient-to-br from-yellow-500 to-yellow-600', 
+      colorClass: 'bg-yellow-500/20 text-yellow-400', 
       icon: Clock, 
       link: '/orders?status=PENDING',
       isLoading: ordersLoading,
@@ -391,7 +396,7 @@ export default function CustomerDashboard() {
       title: 'Completed', 
       value: stats.completedOrders, 
       subtitle: 'Orders delivered', 
-      colorClass: 'bg-gradient-to-br from-green-500 to-green-600', 
+      colorClass: 'bg-green-500/20 text-green-400', 
       icon: CheckCircle, 
       link: '/orders?status=COMPLETED',
       isLoading: ordersLoading,
@@ -401,7 +406,7 @@ export default function CustomerDashboard() {
       title: 'Total Spent', 
       value: formatCurrency(stats.totalSpent).replace('$', ''), 
       subtitle: `${stats.totalOrders} orders`, 
-      colorClass: 'bg-gradient-to-br from-purple-500 to-purple-600', 
+      colorClass: 'bg-purple-500/20 text-purple-400', 
       icon: DollarSign, 
       link: '/orders',
       isLoading: ordersLoading,
@@ -413,36 +418,36 @@ export default function CustomerDashboard() {
     { 
       title: 'Browse Products', 
       subtitle: 'Explore catalog', 
-      bgColor: 'bg-blue-100 dark:bg-blue-900/20', 
-      textColor: 'text-blue-600 dark:text-blue-400', 
+      bgColor: 'bg-blue-500/20', 
+      textColor: 'text-blue-400', 
       icon: ShoppingBag, 
       link: '/products' 
     },
     { 
       title: 'View Cart', 
       subtitle: `${stats.cartItems} items`, 
-      bgColor: 'bg-purple-100 dark:bg-purple-900/20', 
-      textColor: 'text-purple-600 dark:text-purple-400', 
+      bgColor: 'bg-purple-500/20', 
+      textColor: 'text-purple-400', 
       icon: ShoppingCart, 
       link: '/cart' 
     },
     { 
       title: 'My Orders', 
       subtitle: 'Track orders', 
-      bgColor: 'bg-green-100 dark:bg-green-900/20', 
-      textColor: 'text-green-600 dark:text-green-400', 
+      bgColor: 'bg-green-500/20', 
+      textColor: 'text-green-400', 
       icon: Package, 
       link: '/orders' 
     },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-      <div className="max-w-7xl mx-auto space-y-8 p-6">
+    <div className="min-h-screen bg-[#0f1419] p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
 
         {/* Error Alert */}
         {hasAnyError && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="bg-red-900/20 border-red-800">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Some data couldn't be loaded</AlertTitle>
             <AlertDescription className="flex items-center justify-between">
@@ -452,7 +457,7 @@ export default function CustomerDashboard() {
                 {productsError && 'Products '}
                 failed to load.
               </span>
-              <Button size="sm" variant="outline" onClick={handleRefreshAll}>
+              <Button size="sm" variant="outline" onClick={handleRefreshAll} className="border-gray-700 text-gray-300 hover:bg-gray-800">
                 <RefreshCw className="w-4 h-4 mr-2" />Retry
               </Button>
             </AlertDescription>
@@ -523,19 +528,19 @@ export default function CustomerDashboard() {
         </div>
 
         {/* Featured Products */}
-        <Card className="border-0 shadow-xl">
-          <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+        <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
+          <CardHeader className="border-b border-gray-800">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
                   <Zap className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl">Featured Products</CardTitle>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Handpicked for you</p>
+                  <CardTitle className="text-2xl text-white">Featured Products</CardTitle>
+                  <p className="text-sm text-gray-400 mt-1">Handpicked for you</p>
                 </div>
               </div>
-              <Button variant="ghost" onClick={() => router.push('/products')}>
+              <Button variant="ghost" onClick={() => router.push('/products')} className="text-gray-300 hover:text-white hover:bg-gray-800">
                 View All<ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
@@ -544,20 +549,20 @@ export default function CustomerDashboard() {
             {productsLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
-                  <Card key={i} className="overflow-hidden">
-                    <Skeleton className="h-48 w-full" />
+                  <Card key={i} className="overflow-hidden bg-[#1a2332] border-gray-800">
+                    <Skeleton className="h-48 w-full bg-gray-800" />
                     <CardContent className="p-4 space-y-2">
-                      <Skeleton className="h-4 w-3/4" />
-                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-4 w-3/4 bg-gray-800" />
+                      <Skeleton className="h-8 w-full bg-gray-800" />
                     </CardContent>
                   </Card>
                 ))}
               </div>
             ) : productsError ? (
               <div className="text-center py-12">
-                <AlertCircle className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500">Failed to load products</p>
-                <Button variant="outline" className="mt-4" onClick={() => refetchProducts()}>
+                <AlertCircle className="w-16 h-16 mx-auto text-gray-600 mb-4" />
+                <p className="text-gray-400">Failed to load products</p>
+                <Button variant="outline" className="mt-4 border-gray-700 text-gray-300 hover:bg-gray-800" onClick={() => refetchProducts()}>
                   <RefreshCw className="w-4 h-4 mr-2" />Try Again
                 </Button>
               </div>
@@ -580,19 +585,19 @@ export default function CustomerDashboard() {
         {/* Orders & Quick Actions */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Recent Orders */}
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+          <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
+            <CardHeader className="border-b border-gray-800">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
                     <Package className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <CardTitle>Recent Orders</CardTitle>
-                    <p className="text-sm text-gray-500 mt-1">Latest purchases</p>
+                    <CardTitle className="text-white">Recent Orders</CardTitle>
+                    <p className="text-sm text-gray-400 mt-1">Latest purchases</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => router.push('/orders')}>
+                <Button variant="ghost" size="sm" onClick={() => router.push('/orders')} className="text-gray-300 hover:text-white hover:bg-gray-800">
                   View All
                 </Button>
               </div>
@@ -601,15 +606,15 @@ export default function CustomerDashboard() {
               {ordersLoading ? (
                 <div className="space-y-4">
                   {[1, 2, 3].map(i => (
-                    <Skeleton key={i} className="h-20 w-full" />
+                    <Skeleton key={i} className="h-20 w-full bg-gray-800" />
                   ))}
                 </div>
               ) : recentOrders.length === 0 ? (
                 <div className="text-center py-12">
-                  <Package className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">No orders yet</p>
+                  <Package className="w-16 h-16 mx-auto text-gray-600 mb-4" />
+                  <p className="text-gray-400">No orders yet</p>
                   <Button 
-                    className="mt-4" 
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white" 
                     onClick={() => router.push('/products')}
                   >
                     Start Shopping
@@ -630,15 +635,15 @@ export default function CustomerDashboard() {
           </Card>
 
           {/* Quick Actions */}
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+          <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
+            <CardHeader className="border-b border-gray-800">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
                   <Zap className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <CardTitle>Quick Actions</CardTitle>
-                  <p className="text-sm text-gray-500 mt-1">Navigate faster</p>
+                  <CardTitle className="text-white">Quick Actions</CardTitle>
+                  <p className="text-sm text-gray-400 mt-1">Navigate faster</p>
                 </div>
               </div>
             </CardHeader>
@@ -647,7 +652,7 @@ export default function CustomerDashboard() {
                 <Button 
                   key={idx} 
                   variant="outline" 
-                  className="w-full justify-between h-auto p-4 border-2"
+                  className="w-full justify-between h-auto p-4 border-2 border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
                   onClick={() => router.push(action.link)}
                 >
                   <div className="flex items-center space-x-3">
