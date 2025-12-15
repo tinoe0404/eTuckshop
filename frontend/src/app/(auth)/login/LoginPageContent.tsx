@@ -134,18 +134,18 @@ export default function LoginPageContent() {
 
   if (status === "loading" || status === "authenticated") {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
       </div>
     );
   }
 
   // ---------------------------
-  // UI (unchanged)
+  // UI with Dark Theme
   // ---------------------------
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
-      <Card className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center bg-[#0f1419] p-4">
+      <Card className="w-full max-w-md p-8 space-y-6 bg-[#1a2332] border-gray-800 shadow-2xl">
 
         {/* Logo */}
         <div className="flex justify-center">
@@ -156,10 +156,10 @@ export default function LoginPageContent() {
 
         {/* Header */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-3xl font-bold text-white">
             Welcome to eTuckshop
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">Sign in to continue</p>
+          <p className="text-gray-400">Sign in to continue</p>
         </div>
 
         {/* Role Selection */}
@@ -170,8 +170,8 @@ export default function LoginPageContent() {
             disabled={loading}
             className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
               selectedRole === "CUSTOMER"
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
+                ? "border-blue-500 bg-blue-900/20"
+                : "border-gray-700 hover:border-gray-600"
             }`}
           >
             <div className="flex flex-col items-center space-y-3">
@@ -179,13 +179,13 @@ export default function LoginPageContent() {
                 className={`p-3 rounded-full ${
                   selectedRole === "CUSTOMER"
                     ? "bg-blue-500 text-white"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                    : "bg-gray-800 text-gray-400"
                 }`}
               >
                 <User className="w-6 h-6" />
               </div>
-              <p className="font-semibold text-gray-900 dark:text-white">Customer</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Shop for products</p>
+              <p className="font-semibold text-white">Customer</p>
+              <p className="text-sm text-gray-400">Shop for products</p>
             </div>
           </button>
 
@@ -195,8 +195,8 @@ export default function LoginPageContent() {
             disabled={loading}
             className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
               selectedRole === "ADMIN"
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
+                ? "border-blue-500 bg-blue-900/20"
+                : "border-gray-700 hover:border-gray-600"
             }`}
           >
             <div className="flex flex-col items-center space-y-3">
@@ -204,13 +204,13 @@ export default function LoginPageContent() {
                 className={`p-3 rounded-full ${
                   selectedRole === "ADMIN"
                     ? "bg-blue-500 text-white"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                    : "bg-gray-800 text-gray-400"
                 }`}
               >
                 <ShieldCheck className="w-6 h-6" />
               </div>
-              <p className="font-semibold text-gray-900 dark:text-white">Admin</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Manage the shop</p>
+              <p className="font-semibold text-white">Admin</p>
+              <p className="text-sm text-gray-400">Manage the shop</p>
             </div>
           </button>
         </div>
@@ -219,44 +219,44 @@ export default function LoginPageContent() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Email */}
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="text-gray-300">Email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <Input
                 id="email"
                 type="email"
                 placeholder="Enter your email"
-                className="pl-10"
+                className="pl-10 bg-[#0f1419] border-gray-700 text-white placeholder:text-gray-500"
                 disabled={loading}
                 {...register("email")}
               />
             </div>
-            {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
+            {errors.email && <p className="text-sm text-red-400">{errors.email.message}</p>}
           </div>
 
           {/* Password */}
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="text-gray-300">Password</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
-                className="pl-10 pr-10"
+                className="pl-10 pr-10 bg-[#0f1419] border-gray-700 text-white placeholder:text-gray-500"
                 disabled={loading}
                 {...register("password")}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((p) => !p)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
                 disabled={loading}
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
-            {errors.password && <p className="text-sm text-red-500">{errors.password.message}</p>}
+            {errors.password && <p className="text-sm text-red-400">{errors.password.message}</p>}
           </div>
 
           {/* Remember Me */}
@@ -268,21 +268,26 @@ export default function LoginPageContent() {
                 onCheckedChange={(checked) => setValue("rememberMe", checked as boolean)}
                 disabled={loading}
               />
-              <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
+              <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer text-gray-300">
                 Remember me
               </Label>
             </div>
 
             <Link
               href="/forgot-password"
-              className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+              className="text-sm text-blue-400 hover:text-blue-300"
             >
               Forgot password?
             </Link>
           </div>
 
           {/* Submit */}
-          <Button type="submit" className="w-full" size="lg" disabled={loading || !selectedRole}>
+          <Button 
+            type="submit" 
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white" 
+            size="lg" 
+            disabled={loading || !selectedRole}
+          >
             {loading
               ? "Signing in..."
               : selectedRole
@@ -293,11 +298,11 @@ export default function LoginPageContent() {
 
         {/* Sign Up */}
         <div className="text-center">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-400">
             Don't have an account?{" "}
             <Link
               href="/register"
-              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-semibold"
+              className="text-blue-400 hover:text-blue-300 font-semibold"
             >
               Sign up
             </Link>
