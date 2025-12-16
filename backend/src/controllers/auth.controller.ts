@@ -589,3 +589,132 @@ export const changePassword = async (c: Context) => {
     return serverError(c, error);
   }
 };
+
+
+/**
+ * Forgot Password (Send Reset Email)
+ * Used when user doesn't know their password
+ * Generates a reset token and sends email
+ */
+export const forgotPassword = async (c: Context) => {
+  try {
+    const { email } = await c.req.json();
+
+    if (!email) {
+      return c.json({ 
+        success: false, 
+        message: "Email is required" 
+      }, 400);
+    }
+
+    // Find user
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // Always return success for security (don't reveal if email exists)
+    if (!user) {
+      return c.json({
+        success: true,
+        message: "If an account exists with this email, a password reset link has been sent",
+      });
+    }
+
+    // Generate reset token (valid for 1 hour)
+    const resetToken = crypto.randomUUID();
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Store token in database
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetToken,
+        resetTokenExpiry,
+      },
+    });
+
+    // TODO: Send email with reset link
+    // Example using Resend:
+    // const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    // await resend.emails.send({
+    //   from: 'noreply@yourdomain.com',
+    //   to: user.email,
+    //   subject: 'Password Reset Request',
+    //   html: `Click <a href="${resetUrl}">here</a> to reset your password. Link expires in 1 hour.`,
+    // });
+
+    // For development, log the token
+    console.log(`🔑 Password reset token for ${email}: ${resetToken}`);
+    console.log(`🔗 Reset URL: ${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`);
+
+    return c.json({
+      success: true,
+      message: "If an account exists with this email, a password reset link has been sent",
+    });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};
+
+/**
+ * Reset Password (Using Token from Email)
+ * Used to actually reset the password with the token
+ */
+export const resetPassword = async (c: Context) => {
+  try {
+    const { token, newPassword } = await c.req.json();
+
+    // Validation
+    if (!token || !newPassword) {
+      return c.json({ 
+        success: false, 
+        message: "Token and new password are required" 
+      }, 400);
+    }
+
+    if (newPassword.length < 6) {
+      return c.json({ 
+        success: false, 
+        message: "Password must be at least 6 characters" 
+      }, 400);
+    }
+
+    // Find user with valid token
+    const user = await prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiry: {
+          gt: new Date(), // Token not expired
+        },
+      },
+    });
+
+    if (!user) {
+      return c.json({ 
+        success: false, 
+        message: "Invalid or expired reset token" 
+      }, 400);
+    }
+
+    // Hash new password
+    const hashedPassword = await Bun.password.hash(newPassword, {
+      algorithm: "bcrypt",
+      cost: 10,
+    });
+
+    // Update password and clear reset token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
+    });
+
+    return c.json({
+      success: true,
+      message: "Password reset successfully. You can now login with your new password.",
+    });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};
