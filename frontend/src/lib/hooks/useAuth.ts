@@ -1,10 +1,30 @@
-// File: src/lib/hooks/useAuth.ts (CREATE THIS FILE)
+// ============================================
+// File: src/lib/hooks/useAuth.ts (FINAL CORRECTED VERSION)
+// ============================================
 
 import { useSession, signOut } from 'next-auth/react';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { profileService } from '@/lib/api/services/profile.service';
+
+/**
+ * Helper to safely convert user.id to number
+ * NextAuth can return user.id as string or number
+ */
+function getUserIdAsNumber(userId: any): number {
+  if (!userId) {
+    throw new Error('User ID not found');
+  }
+  
+  const id = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+  
+  if (isNaN(id)) {
+    throw new Error('Invalid user ID');
+  }
+  
+  return id;
+}
 
 /**
  * Custom hook for authentication with NextAuth
@@ -47,6 +67,7 @@ export function useLogout() {
 
 /**
  * Hook for updating user profile
+ * ✅ FIXED: Properly converts user.id to number
  */
 export function useUpdateProfile() {
   const { user, updateSession } = useAuth();
@@ -56,7 +77,11 @@ export function useUpdateProfile() {
       if (!user?.id) {
         throw new Error('User not authenticated');
       }
-      return profileService.updateProfile(user.id, data);
+      
+      // 👇 FIX: Convert user.id to number
+      const userId = getUserIdAsNumber(user.id);
+      
+      return profileService.updateProfile(userId, data);
     },
     onSuccess: async (response) => {
       // Update NextAuth session with new data
