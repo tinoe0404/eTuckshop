@@ -516,3 +516,76 @@ export const updateUser = async (c: Context) => {
     return serverError(c, error);
   }
 };
+
+export const changePassword = async (c: Context) => {
+  try {
+    const { userId, currentPassword, newPassword } = await c.req.json();
+
+    // Validation
+    if (!userId || !currentPassword || !newPassword) {
+      return c.json({ 
+        success: false, 
+        message: "All fields are required" 
+      }, 400);
+    }
+
+    if (newPassword.length < 6) {
+      return c.json({ 
+        success: false, 
+        message: "New password must be at least 6 characters" 
+      }, 400);
+    }
+
+    // Get user with password
+    const user = await prisma.user.findUnique({ 
+      where: { id: parseInt(userId) } 
+    });
+
+    if (!user || !user.password) {
+      return c.json({ 
+        success: false, 
+        message: "User not found" 
+      }, 404);
+    }
+
+    // Verify current password
+    const isValid = await Bun.password.verify(currentPassword, user.password);
+    if (!isValid) {
+      return c.json({ 
+        success: false, 
+        message: "Current password is incorrect" 
+      }, 401);
+    }
+
+    // Check if new password is same as current
+    const isSamePassword = await Bun.password.verify(newPassword, user.password);
+    if (isSamePassword) {
+      return c.json({ 
+        success: false, 
+        message: "New password must be different from current password" 
+      }, 400);
+    }
+
+    // Hash new password
+    const hashedPassword = await Bun.password.hash(newPassword, {
+      algorithm: "bcrypt",
+      cost: 10,
+    });
+
+    // Update password
+    await prisma.user.update({
+      where: { id: parseInt(userId) },
+      data: { password: hashedPassword },
+    });
+
+    // Optional: Invalidate all existing JWT sessions
+    // await redis.del(`refresh_token:${userId}`);
+
+    return c.json({
+      success: true,
+      message: "Password changed successfully",
+    });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};

@@ -41,8 +41,8 @@ router.post("/refresh", refreshToken);
 router.get("/profile", protectRoute, getProfile);
 router.put("/profile", protectRoute, updateUser);
 router.put("/profile/update", updateUserProfile);
-authRouter.put('/password', changePassword);
-authRouter.post('/forgot-password', forgotPassword);
-authRouter.post('/reset-password', resetPassword);
+router.put('/password', changePassword);           
+router.post('/forgot-password', forgotPassword);  
+router.post('/reset-password', resetPassword);     
 
 export default router;
