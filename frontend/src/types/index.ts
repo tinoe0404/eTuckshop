@@ -211,3 +211,50 @@ export interface QRDetails {
   expiresAt: string | null;
   paidAt: string | null;
 }
+
+// ============================================
+// ADD TO: src/types/index.ts (or your types file)
+// ============================================
+
+// Password management types
+export interface ChangePasswordData {
+  userId: number;
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ForgotPasswordData {
+  email: string;
+}
+
+export interface ResetPasswordData {
+  token: string;
+  newPassword: string;
+}
+
+// API Response type (if not already defined)
+export interface ApiResponse<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+}
+
+// User type (if not already defined)
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: 'CUSTOMER' | 'ADMIN';
+  image?: string | null;
+  emailVerified?: Date | null;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+// Update Profile Data
+export interface UpdateProfileData {
+  userId: number;
+  name: string;
+  email: string;
+  image?: string;
+}
