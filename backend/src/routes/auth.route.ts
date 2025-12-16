@@ -14,6 +14,9 @@ import {
   refreshToken,
   getProfile,
   updateUser,
+  changePassword,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/auth.controller";
 import { protectRoute } from "../middlewares/auth.middleware";
 

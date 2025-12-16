@@ -1,3 +1,7 @@
+// ============================================
+// FILE: src/types/index.ts (CORRECTED - No Duplicates)
+// ============================================
+
 // -----------------------------
 // Generic API Response
 // -----------------------------
@@ -9,18 +13,19 @@ export interface ApiResponse<T> {
 }
 
 // -----------------------------
-// Auth Types (UPDATED - No tokens in response)
+// Auth Types
 // -----------------------------
 export interface User {
   id: number;
   name: string;
   email: string;
   role: 'ADMIN' | 'CUSTOMER';
+  image?: string | null;
+  emailVerified?: Date | null;
   createdAt: string;
   updatedAt: string;
 }
 
-// ✅ UPDATED: AuthResponse no longer contains tokens (they're in httpOnly cookies)
 export interface AuthResponse {
   user: User;
 }
@@ -28,10 +33,21 @@ export interface AuthResponse {
 export interface UpdateProfileData {
   name: string;
   email: string;
+  image?: string;
 }
 
+// 👇 PASSWORD MANAGEMENT TYPES (NEW)
 export interface ChangePasswordData {
   currentPassword: string;
+  newPassword: string;
+}
+
+export interface ForgotPasswordData {
+  email: string;
+}
+
+export interface ResetPasswordData {
+  token: string;
   newPassword: string;
 }
 
@@ -183,7 +199,7 @@ export interface AnalyticsData {
 }
 
 // -----------------------------
-// QR Details (from getOrderQR, generateCashQR, PayNow QR responses)
+// QR Details
 // -----------------------------
 export interface QRDetails {
   orderId: number;
@@ -210,51 +226,4 @@ export interface QRDetails {
   qrCode: string;
   expiresAt: string | null;
   paidAt: string | null;
-}
-
-// ============================================
-// ADD TO: src/types/index.ts (or your types file)
-// ============================================
-
-// Password management types
-export interface ChangePasswordData {
-  userId: number;
-  currentPassword: string;
-  newPassword: string;
-}
-
-export interface ForgotPasswordData {
-  email: string;
-}
-
-export interface ResetPasswordData {
-  token: string;
-  newPassword: string;
-}
-
-// API Response type (if not already defined)
-export interface ApiResponse<T> {
-  success: boolean;
-  message?: string;
-  data: T;
-}
-
-// User type (if not already defined)
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: 'CUSTOMER' | 'ADMIN';
-  image?: string | null;
-  emailVerified?: Date | null;
-  createdAt: Date;
-  updatedAt?: Date;
-}
-
-// Update Profile Data
-export interface UpdateProfileData {
-  userId: number;
-  name: string;
-  email: string;
-  image?: string;
 }
