@@ -173,53 +173,64 @@ export default function ProfilePage() {
 
   /* -------------------- Mutations -------------------- */
 
-  const updateProfileMutation = useMutation({
-    mutationFn: async (data: ProfileFormData) => {
-      if (!user.id) throw new Error('User ID not found');
-      return profileService.updateProfile(user.id, data);
-    },
-    onSuccess: async (response) => {
-      await update({
-        name: response.data.name,
-        email: response.data.email,
-        image: response.data.image,
-      });
-      toast.success('Profile updated successfully');
-      setIsEditingProfile(false);
-    },
-    onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.message ??
-          error.message ??
-          'Failed to update profile'
-      );
-    },
-  });
+  // ============================================
+// FILE: src/app/profile/page.tsx (UPDATED)
+// ============================================
+// ONLY THE PASSWORD MUTATION SECTION - Replace the existing one
 
-  const changePasswordMutation = useMutation({
-    mutationFn: async (data: PasswordFormData) => {
-      // You'll need to implement this endpoint in your backend
-      // return profileService.changePassword(user.id, {
-      //   currentPassword: data.currentPassword,
-      //   newPassword: data.newPassword,
-      // });
-      throw new Error('Password change endpoint not implemented yet');
-    },
-    onSuccess: async () => {
-      toast.success('Password changed successfully. Please login again.');
-      resetPassword();
-      setTimeout(async () => {
-        await signOut({ redirect: true, callbackUrl: '/login' });
-      }, 2000);
-    },
-    onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.message ??
-          error.message ??
-          'Failed to change password'
-      );
-    },
-  });
+/* -------------------- Mutations -------------------- */
+
+const updateProfileMutation = useMutation({
+  mutationFn: async (data: ProfileFormData) => {
+    if (!user.id) throw new Error('User ID not found');
+    return profileService.updateProfile(user.id, data);
+  },
+  onSuccess: async (response) => {
+    await update({
+      name: response.data.name,
+      email: response.data.email,
+      image: response.data.image,
+    });
+    toast.success('Profile updated successfully');
+    setIsEditingProfile(false);
+  },
+  onError: (error: any) => {
+    toast.error(
+      error?.response?.data?.message ??
+        error.message ??
+        'Failed to update profile'
+    );
+  },
+});
+
+// 👇 REPLACE THIS ENTIRE MUTATION WITH THE NEW ONE:
+const changePasswordMutation = useMutation({
+  mutationFn: async (data: PasswordFormData) => {
+    if (!user?.id) throw new Error('User ID not found');
+    
+    // Call the actual API endpoint
+    return profileService.changePassword(user.id, {
+      currentPassword: data.currentPassword,
+      newPassword: data.newPassword,
+    });
+  },
+  onSuccess: async () => {
+    toast.success('Password changed successfully. Please login again.');
+    resetPassword(); // Clear the form
+    
+    // Wait 2 seconds then logout
+    setTimeout(async () => {
+      await signOut({ redirect: true, callbackUrl: '/login' });
+    }, 2000);
+  },
+  onError: (error: any) => {
+    toast.error(
+      error?.response?.data?.message ??
+        error.message ??
+        'Failed to change password'
+    );
+  },
+});
 
   const handleUpdateProfile = (data: ProfileFormData) => {
     updateProfileMutation.mutate(data);
