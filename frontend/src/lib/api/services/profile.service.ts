@@ -1,26 +1,40 @@
-// File: src/lib/api/services/profile.service.ts (NEW SERVICE)
+// ============================================
+// FILE: src/lib/api/services/profile.service.ts
+// ============================================
 
-import apiClient from '../client';
-import { User } from '@/types';
+import apiClient from '@/lib/api/client';
+import type { ApiResponse, User, UpdateProfileData, ChangePasswordData } from '@/types';
 
 export const profileService = {
   /**
-   * Get user profile by ID
-   * Pass userId from NextAuth session
+   * Update user profile
+   * @param userId - User ID from NextAuth session
+   * @param data - Profile update data (name, email, image)
    */
-  getProfile: async (userId: string) => {
-    const response = await apiClient.post('/auth/profile/by-id', { userId });
+  updateProfile: async (
+    userId: number, 
+    data: Omit<UpdateProfileData, 'userId'>
+  ): Promise<ApiResponse<User>> => {
+    const response = await apiClient.put<ApiResponse<User>>('/auth/profile', {
+      userId,
+      ...data,
+    });
     return response.data;
   },
 
   /**
-   * Update user profile
-   * Pass userId from NextAuth session
+   * Change user password
+   * @param userId - User ID from NextAuth session
+   * @param data - Current and new password
    */
-  updateProfile: async (userId: string, data: { name: string; email: string; image?: string }) => {
-    const response = await apiClient.put('/auth/profile/update', {
+  changePassword: async (
+    userId: number, 
+    data: Omit<ChangePasswordData, 'userId'>
+  ): Promise<ApiResponse<null>> => {
+    const response = await apiClient.put<ApiResponse<null>>('/auth/password', {
       userId,
-      ...data,
+      currentPassword: data.currentPassword,
+      newPassword: data.newPassword,
     });
     return response.data;
   },
