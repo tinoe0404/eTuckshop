@@ -21,6 +21,8 @@ model User {
   cart          Cart?
   orders        Order[]
   sessions      Session[]
+  resetToken    String?   @unique
+  resetTokenExpiry DateTime?
 }
 
 model Account {
