@@ -50,6 +50,13 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
+function getUserId(user: any): number {
+  if (!user?.id) throw new Error('User ID not found');
+  const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+  if (isNaN(userId)) throw new Error('Invalid user ID');
+  return userId;
+}
+
 /* -------------------- Validation -------------------- */
 
 const profileSchema = z.object({
@@ -179,19 +186,15 @@ export default function ProfilePage() {
 // ONLY THE PASSWORD MUTATION SECTION - Replace the existing one
 
 /* -------------------- Mutations -------------------- */
-function getUserId(user: any): number {
-  if (!user?.id) throw new Error('User ID not found');
-  const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
-  if (isNaN(userId)) throw new Error('Invalid user ID');
-  return userId;
-}
 
+// ✅ AFTER (fixed):
 const updateProfileMutation = useMutation({
   mutationFn: async (data: ProfileFormData) => {
-    const userId = getUserId(user); // 👈 Convert to number
+    const userId = getUserId(user); // 👈 Use helper function
     return profileService.updateProfile(userId, data);
   },
   onSuccess: async (response) => {
+    // Update NextAuth session with new data
     await update({
       name: response.data.name,
       email: response.data.email,
@@ -209,9 +212,10 @@ const updateProfileMutation = useMutation({
   },
 });
 
+// ✅ Fix this too:
 const changePasswordMutation = useMutation({
   mutationFn: async (data: PasswordFormData) => {
-    const userId = getUserId(user); // 👈 Convert to number
+    const userId = getUserId(user); // 👈 Use helper function
     return profileService.changePassword(userId, {
       currentPassword: data.currentPassword,
       newPassword: data.newPassword,

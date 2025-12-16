@@ -44,6 +44,14 @@ import {
   Crown,
 } from 'lucide-react';
 
+  // Add this helper at the top of the file (after imports)
+  function getUserId(user: any): number {
+    if (!user?.id) throw new Error('User ID not found');
+    const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+    if (isNaN(userId)) throw new Error('Invalid user ID');
+    return userId;
+  }
+
 // Validation schemas
 const profileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -140,51 +148,58 @@ if (!user) {
     }
   }, [user, resetProfile]);
 
-  // ✅ Update profile mutation with NextAuth
-  const updateProfileMutation = useMutation({
-    mutationFn: async (data: ProfileFormData) => {
-      if (!user?.id) throw new Error('User ID not found');
-      return profileService.updateProfile(user.id, data);
-    },
-    onSuccess: async (response) => {
-      // Update NextAuth session
-      await update({
-        name: response.data.name,
-        email: response.data.email,
-        image: response.data.image,
-      });
-      
-      toast.success('Profile updated successfully');
-      setIsEditingProfile(false);
-    },
-    onError: (error: any) => {
-      const message = error?.response?.data?.message || error.message || 'Failed to update profile';
-      toast.error(message);
-    },
-  });
 
-  // ✅ Change password mutation
-  const changePasswordMutation = useMutation({
-    mutationFn: async (data: PasswordFormData) => {
-      // You'll need to implement this endpoint in your backend
-      throw new Error('Password change endpoint not implemented yet');
-      // return profileService.changePassword(user.id, {
-      //   currentPassword: data.currentPassword,
-      //   newPassword: data.newPassword,
-      // });
-    },
-    onSuccess: () => {
-      toast.success('Password changed successfully. Please login again.');
-      resetPassword();
-      setTimeout(async () => {
-        await signOut({ redirect: true, callbackUrl: '/login' });
-      }, 2000);
-    },
-    onError: (error: any) => {
-      const message = error?.response?.data?.message || error.message || 'Failed to change password';
-      toast.error(message);
-    },
-  });
+// Then in your component, update the mutations:
+
+/* -------------------- Mutations -------------------- */
+
+const updateProfileMutation = useMutation({
+  mutationFn: async (data: ProfileFormData) => {
+    const userId = getUserId(user); // 👈 Fixed
+    return profileService.updateProfile(userId, data);
+  },
+  onSuccess: async (response) => {
+    await update({
+      name: response.data.name,
+      email: response.data.email,
+      image: response.data.image,
+    });
+    toast.success('Profile updated successfully');
+    setIsEditingProfile(false);
+  },
+  onError: (error: any) => {
+    toast.error(
+      error?.response?.data?.message ??
+        error.message ??
+        'Failed to update profile'
+    );
+  },
+});
+
+// If you have password change in admin profile too:
+const changePasswordMutation = useMutation({
+  mutationFn: async (data: PasswordFormData) => {
+    const userId = getUserId(user); // 👈 Fixed
+    return profileService.changePassword(userId, {
+      currentPassword: data.currentPassword,
+      newPassword: data.newPassword,
+    });
+  },
+  onSuccess: async () => {
+    toast.success('Password changed successfully. Please login again.');
+    resetPassword();
+    setTimeout(async () => {
+      await signOut({ redirect: true, callbackUrl: '/login' });
+    }, 2000);
+  },
+  onError: (error: any) => {
+    toast.error(
+      error?.response?.data?.message ??
+        error.message ??
+        'Failed to change password'
+    );
+  },
+});
 
   const handleUpdateProfile = (data: ProfileFormData) => {
     updateProfileMutation.mutate(data);
