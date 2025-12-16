@@ -1,9 +1,9 @@
 // ============================================
-// FILE: lib/api/services/auth.service.ts
+// FILE: src/lib/api/services/auth.service.ts (UPDATED)
 // ============================================
 
 import apiClient from '@/lib/api/client';
-import type { ApiResponse, User, UpdateProfileData, ChangePasswordData } from '@/types';
+import type { ApiResponse, User, ForgotPasswordData, ResetPasswordData } from '@/types';
 
 // ----------------- TYPES -----------------
 interface SignupData {
@@ -34,22 +34,28 @@ export const authService = {
   // Logout uses NextAuth (signOut()).
   // ---------------------------------------------------------
 
-  // -------------- UPDATE PROFILE --------------
-  updateProfile: async (data: UpdateProfileData): Promise<User> => {
-    const res = await apiClient.put<ApiResponse<User>>('/auth/profile', data);
-    if (!res.data.success) throw new Error(res.data.message);
-    return res.data.data;
-  },
-
-  // -------------- CHANGE PASSWORD --------------
-  changePassword: async (data: ChangePasswordData): Promise<void> => {
-    const res = await apiClient.put<ApiResponse<null>>('/auth/password', data);
-    if (!res.data.success) throw new Error(res.data.message);
-  },
-
   // -------------- FORGOT PASSWORD --------------
-  forgotPassword: async (email: string): Promise<void> => {
-    const res = await apiClient.post<ApiResponse<null>>('/auth/forgot-password', { email });
-    if (!res.data.success) throw new Error(res.data.message);
+  /**
+   * Request password reset email
+   * @param email - User's email address
+   */
+  forgotPassword: async (email: string): Promise<ApiResponse<null>> => {
+    const response = await apiClient.post<ApiResponse<null>>('/auth/forgot-password', { 
+      email 
+    });
+    return response.data;
+  },
+
+  // -------------- RESET PASSWORD --------------
+  /**
+   * Reset password using token from email
+   * @param data - Reset token and new password
+   */
+  resetPassword: async (data: ResetPasswordData): Promise<ApiResponse<null>> => {
+    const response = await apiClient.post<ApiResponse<null>>('/auth/reset-password', {
+      token: data.token,
+      newPassword: data.newPassword,
+    });
+    return response.data;
   },
 };
