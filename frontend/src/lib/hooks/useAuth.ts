@@ -56,7 +56,7 @@ export function useUpdateProfile() {
       if (!user?.id) {
         throw new Error('User not authenticated');
       }
-      return profileService.updateProfile(user.id, data);
+      return profileService.updateProfile(ser.id, data);
     },
     onSuccess: async (response) => {
       // Update NextAuth session with new data
