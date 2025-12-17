@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { orderService } from '@/lib/api/services/order.service';
@@ -33,6 +33,7 @@ import { Order } from '@/types';
 type StatusFilter = 'ALL' | 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED';
 
 export default function UserOrdersPage() {
+  // ===== ALL HOOKS AT THE TOP =====
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
 
@@ -42,6 +43,7 @@ export default function UserOrdersPage() {
     queryFn: orderService.getUserOrders,
   });
 
+  // ===== DERIVED STATE AND CALLBACKS =====
   const orders = ordersData?.data || [];
 
   // Filter orders by status
@@ -49,7 +51,7 @@ export default function UserOrdersPage() {
     ? orders 
     : orders.filter((order: Order) => order.status === statusFilter);
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = useCallback((status: string) => {
     switch (status) {
       case 'PENDING':
         return 'bg-yellow-500/20 text-yellow-400';
@@ -62,9 +64,9 @@ export default function UserOrdersPage() {
       default:
         return 'bg-gray-500/20 text-gray-400';
     }
-  };
+  }, []);
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = useCallback((status: string) => {
     switch (status) {
       case 'PENDING':
         return <Clock className="w-4 h-4" />;
@@ -77,8 +79,13 @@ export default function UserOrdersPage() {
       default:
         return <Package className="w-4 h-4" />;
     }
-  };
+  }, []);
 
+  const handleOrderClick = useCallback((orderId: number) => {
+    router.push(`/orders/${orderId}`);
+  }, [router]);
+
+  // ===== CONDITIONAL RENDERING =====
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0f1419] p-6">
@@ -224,7 +231,7 @@ export default function UserOrdersPage() {
               <Card
                 key={order.id}
                 className="bg-[#1a2332] border-gray-800 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => router.push(`/orders/${order.id}`)}
+                onClick={() => handleOrderClick(order.id)}
               >
                 <CardContent className="p-6">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -301,7 +308,7 @@ export default function UserOrdersPage() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/orders/${order.id}`);
+                          handleOrderClick(order.id);
                         }}
                         className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
                       >
