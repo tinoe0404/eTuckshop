@@ -184,49 +184,16 @@ const StatCard = ({
   </Card>
 );
 
-// Main Dashboard Component (CONTENT ONLY - NO HEADER/SIDEBAR)
+// Main Dashboard Component
 export default function CustomerDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: session, status } = useSession();
   const { setTotalItems } = useCartStore();
 
-  // Auth protection with useEffect
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.replace('/login');
-    } else if (session?.user?.role !== 'CUSTOMER') {
-      toast.error('Access denied. Customer only.');
-      router.replace('/admin/dashboard');
-    }
-  }, [status, session, router]);
-
-  // Loading state
-  if (status === 'loading') {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
-      </div>
-    );
-  }
+  // ===== ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS =====
   
-  // Unauthenticated or wrong role
-  if (status === 'unauthenticated' || session?.user?.role !== 'CUSTOMER') {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
-      </div>
-    );
-  }
-
-  // Type guard - at this point we know user exists and is CUSTOMER
-  if (!session?.user) {
-    return null;
-  }
-
-  const user = session.user;
-
-  // Queries
+  // Queries - Always called regardless of auth status
   const {
     data: cartData, 
     isLoading: cartLoading, 
@@ -269,7 +236,7 @@ export default function CustomerDashboard() {
     enabled: status === 'authenticated' && session?.user?.role === 'CUSTOMER',
   });
 
-  // Memoized data
+  // Memoized data - Always computed
   const featuredProducts = useMemo(
     () => productsData?.data?.slice(0, 6) || [],
     [productsData]
@@ -296,7 +263,7 @@ export default function CustomerDashboard() {
     totalOrders: allOrders.length,
   }), [cartData, allOrders]);
 
-  // Mutations
+  // Mutations - Always defined
   const addToCartMutation = useMutation({
     mutationFn: (productId: number) => 
       cartService.addToCart({ productId, quantity: 1 }),
@@ -329,7 +296,7 @@ export default function CustomerDashboard() {
     },
   });
 
-  // Callbacks
+  // Callbacks - Always defined
   const handleRefreshAll = useCallback(async () => {
     toast.promise(
       Promise.all([refetchCart(), refetchOrders(), refetchProducts()]),
@@ -343,9 +310,10 @@ export default function CustomerDashboard() {
       toast.error('WhatsApp support is not configured');
       return;
     }
-    const msg = encodeURIComponent(`Hi! I'm ${user?.name} from eTuckshop.`);
+    const userName = session?.user?.name || 'Customer';
+    const msg = encodeURIComponent(`Hi! I'm ${userName} from eTuckshop.`);
     window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
-  }, [user?.name]);
+  }, [session?.user?.name]);
 
   const handleAddToCart = useCallback((productId: number) => {
     addToCartMutation.mutate(productId);
@@ -359,12 +327,46 @@ export default function CustomerDashboard() {
     router.push(`/orders/${orderId}`);
   }, [router]);
 
-  if (!user || user.role !== 'CUSTOMER') return null;
+  // ===== NOW SAFE TO DO CONDITIONAL LOGIC AND RETURNS =====
 
+  // Auth protection with useEffect
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.replace('/login');
+    } else if (status === 'authenticated' && session?.user?.role !== 'CUSTOMER') {
+      toast.error('Access denied. Customer only.');
+      router.replace('/admin/dashboard');
+    }
+  }, [status, session, router]);
+
+  // Loading state
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
+      </div>
+    );
+  }
+  
+  // Unauthenticated or wrong role
+  if (status === 'unauthenticated' || session?.user?.role !== 'CUSTOMER') {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
+      </div>
+    );
+  }
+
+  // Type guard - at this point we know user exists and is CUSTOMER
+  if (!session?.user) {
+    return null;
+  }
+
+  const user = session.user;
   const isAnyLoading = cartLoading || ordersLoading || productsLoading;
   const hasAnyError = cartError || ordersError || productsError;
 
-  // Loading state
+  // Loading state for initial data fetch
   if (isAnyLoading && !cartData && !ordersData && !productsData) {
     return (
       <div className="max-w-7xl mx-auto space-y-8">
