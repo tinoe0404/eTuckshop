@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ShoppingCart, Bell, User, Menu, X, ShoppingBag, Package, LogOut } from 'lucide-react';
+import { ShoppingCart, Bell, User, Menu, ShoppingBag, Package, LogOut, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useSession } from 'next-auth/react';
@@ -41,7 +41,7 @@ export default function CustomerHeader() {
   const mobileNavItems = [
     {
       label: 'Dashboard',
-      icon: <ShoppingBag className="w-5 h-5" />,
+      icon: <LayoutDashboard className="w-5 h-5" />,
       onClick: () => {
         router.push('/dashboard');
         setMobileMenuOpen(false);
@@ -159,18 +159,20 @@ export default function CustomerHeader() {
             </Sheet>
           </div>
 
-          {/* Logo */}
-          <div className="flex items-center space-x-4 cursor-pointer" onClick={() => router.push('/dashboard')}>
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white text-xl font-bold">eT</span>
+          {/* Logo - Centered on mobile, left-aligned on desktop */}
+          <div className="flex-1 lg:flex-none flex justify-center lg:justify-start">
+            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => router.push('/dashboard')}>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-white text-xl font-bold">eT</span>
+              </div>
+              <span className="text-xl font-bold text-white hidden lg:block">
+                eTuckshop
+              </span>
             </div>
-            <span className="text-xl font-bold text-white hidden sm:block">
-              eTuckshop
-            </span>
           </div>
 
-          {/* Desktop Actions */}
-          <div className="flex items-center space-x-4">
+          {/* Actions */}
+          <div className="flex items-center space-x-2 lg:space-x-4">
 
             {/* Cart - Always visible */}
             <Button
@@ -187,17 +189,18 @@ export default function CustomerHeader() {
               )}
             </Button>
 
-            {/* Notifications - Hidden on mobile */}
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="hidden md:flex text-gray-400 hover:text-white hover:bg-gray-700"
-            >
-              <Bell className="w-5 h-5" />
-            </Button>
+            {/* Desktop-only actions */}
+            <div className="hidden lg:flex items-center space-x-4">
+              {/* Notifications */}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-gray-400 hover:text-white hover:bg-gray-700"
+              >
+                <Bell className="w-5 h-5" />
+              </Button>
 
-            {/* User Menu - Desktop Dropdown */}
-            <div className="hidden md:block">
+              {/* User Menu - Desktop Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center space-x-2 text-gray-300 hover:text-white hover:bg-gray-700">
