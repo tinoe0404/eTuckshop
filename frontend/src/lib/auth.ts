@@ -34,10 +34,10 @@ export const authOptions: NextAuthOptions = {
         ) {
           throw new Error("Email, password and role are required");
         }
-
+      
         const apiUrl =
           process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-
+      
         const response = await fetch(
           `${apiUrl}/auth/verify-credentials`,
           {
@@ -49,18 +49,18 @@ export const authOptions: NextAuthOptions = {
             }),
           }
         );
-
+      
         const data = await response.json();
-
+      
         if (!response.ok || !data.success) {
           throw new Error(data.message || "Invalid credentials");
         }
-
+      
         // 🔐 CRITICAL ROLE CHECK
         if (data.user.role !== credentials.role) {
           throw new Error("Incorrect role selected");
         }
-
+      
         return {
           id: data.user.id.toString(),
           name: data.user.name,

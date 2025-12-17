@@ -43,44 +43,8 @@ export default function AdminDashboard() {
   const queryClient = useQueryClient();
   const { data: session, status } = useSession();
 
-  // Auth protection with useEffect
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.replace('/login');
-    } else if (session?.user?.role !== 'ADMIN') {
-      toast.error('Access denied. Admins only.');
-      router.replace('/dashboard');
-    }
-  }, [status, session, router]);
-
   /* =========================
-     AUTH GUARDS
-  ========================= */
-  if (status === 'loading') {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <RefreshCw className="w-8 h-8 animate-spin text-blue-400" />
-      </div>
-    );
-  }
-
-  if (status === 'unauthenticated' || session?.user?.role !== 'ADMIN') {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <RefreshCw className="w-8 h-8 animate-spin text-blue-400" />
-      </div>
-    );
-  }
-
-  // Type guard - at this point we know user exists and is ADMIN
-  if (!session?.user) {
-    return null;
-  }
-
-  const user = session.user;
-
-  /* =========================
-     QUERIES
+     QUERIES - MOVE TO TOP ✅
   ========================= */
   const { data: statsResponse, isLoading: statsLoading, isError: statsError, error: statsErrorData, refetch: refetchStats } =
     useQuery({
@@ -188,6 +152,42 @@ export default function AdminDashboard() {
   const isLoading =
     statsLoading || ordersLoading || orderStatsLoading || productsLoading;
 
+  // Auth protection with useEffect
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.replace('/login');
+    } else if (session?.user?.role !== 'ADMIN') {
+      toast.error('Access denied. Admins only.');
+      router.replace('/dashboard');
+    }
+  }, [status, session, router]);
+
+  /* =========================
+     AUTH GUARDS - NOW AFTER ALL HOOKS ✅
+  ========================= */
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <RefreshCw className="w-8 h-8 animate-spin text-blue-400" />
+      </div>
+    );
+  }
+
+  if (status === 'unauthenticated' || session?.user?.role !== 'ADMIN') {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <RefreshCw className="w-8 h-8 animate-spin text-blue-400" />
+      </div>
+    );
+  }
+
+  // Type guard - at this point we know user exists and is ADMIN
+  if (!session?.user) {
+    return null;
+  }
+
+  const user = session.user;
+
   /* =========================
      LOADING / ERROR
   ========================= */
@@ -221,6 +221,8 @@ export default function AdminDashboard() {
       </div>
     );
   }
+
+  // ... rest of your JSX remains the same
 
   /* =========================
      UI - CONTENT ONLY (NO HEADER/SIDEBAR)
