@@ -88,6 +88,9 @@ export default function AdminDashboard() {
       queryFn: analyticsService.getDashboardStats,
       staleTime: 10000,
       refetchInterval: 30000,
+      enabled: status === 'authenticated' && session?.user?.role === 'ADMIN',
+      retry: 1,
+      retryDelay: 1000,
     });
 
   const { data: ordersResponse, isLoading: ordersLoading, refetch: refetchOrders } =
@@ -96,6 +99,9 @@ export default function AdminDashboard() {
       queryFn: () => orderService.getAllOrders({ page: 1, limit: 5 }),
       staleTime: 5000,
       refetchInterval: 20000,
+      enabled: status === 'authenticated' && session?.user?.role === 'ADMIN',
+      retry: 1,
+      retryDelay: 1000,
     });
 
   const { data: orderStatsResponse, isLoading: orderStatsLoading, refetch: refetchOrderStats } =
@@ -104,6 +110,9 @@ export default function AdminDashboard() {
       queryFn: orderService.getOrderStats,
       staleTime: 5000,
       refetchInterval: 15000,
+      enabled: status === 'authenticated' && session?.user?.role === 'ADMIN',
+      retry: 1,
+      retryDelay: 1000,
     });
 
   const { data: productsResponse, isLoading: productsLoading, refetch: refetchProducts } =
@@ -112,6 +121,9 @@ export default function AdminDashboard() {
       queryFn: productService.getAll,
       staleTime: 30000,
       refetchInterval: 60000,
+      enabled: status === 'authenticated' && session?.user?.role === 'ADMIN',
+      retry: 1,
+      retryDelay: 1000,
     });
 
   /* =========================
