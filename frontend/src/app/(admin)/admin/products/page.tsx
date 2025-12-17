@@ -100,6 +100,16 @@ export default function AdminProductsPage() {
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
+  // Auth protection with useEffect
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.replace('/login');
+    } else if (session?.user?.role !== 'ADMIN') {
+      toast.error('Access denied. Admin only.');
+      router.replace('/dashboard');
+    }
+  }, [status, session, router]);
+
   /* =========================
      QUERIES
   ========================= */
@@ -437,7 +447,7 @@ export default function AdminProductsPage() {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="price">Price ($) *</Label>
           <Input
@@ -508,28 +518,89 @@ export default function AdminProductsPage() {
   );
 
   /* =========================
+     MOBILE PRODUCT CARD
+  ========================= */
+  const MobileProductCard = ({ product }: { product: Product }) => (
+    <Card className="bg-[#1a2332] border-gray-800">
+      <CardContent className="p-4">
+        <div className="flex items-start space-x-3">
+          <Checkbox
+            checked={selectedProducts.has(product.id)}
+            onCheckedChange={(checked) =>
+              handleSelectProduct(product.id, Boolean(checked))
+            }
+          />
+
+          <div className="w-16 h-16 bg-gray-700 rounded flex-shrink-0">
+            {product.image ? (
+              <img
+                src={product.image}
+                alt={product.name}
+                className="w-full h-full object-cover rounded"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Package className="w-8 h-8 text-gray-400" />
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-white truncate">{product.name}</h3>
+            <p className="text-xs text-gray-400 line-clamp-2 mt-1">
+              {product.description}
+            </p>
+
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <Badge variant="outline" className="border-gray-700 text-xs">
+                {product.category.name}
+              </Badge>
+              <Badge className={getStockLevelColor(product.stockLevel) + " text-xs"}>
+                {product.stockLevel}
+              </Badge>
+            </div>
+
+            <div className="flex items-center justify-between mt-3">
+              <div>
+                <p className="text-blue-400 font-bold">{formatCurrency(product.price)}</p>
+                <p className="text-xs text-gray-400">Stock: {product.stock}</p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-blue-400 hover:bg-blue-900/20 h-8 w-8"
+                  onClick={() => handleEditProduct(product)}
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-red-400 hover:bg-red-900/20 h-8 w-8"
+                  onClick={() => setDeleteProductId(product.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  /* =========================
      AUTH CHECKS
   ========================= */
-  if (status === 'loading') {
+  if (status === 'loading' || status === 'unauthenticated' || session?.user?.role !== 'ADMIN') {
     return (
       <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
-  }
-
-  if (status === 'unauthenticated') {
-    return (
-      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  if (status === 'authenticated' && session?.user?.role !== 'ADMIN') {
-    toast.error('Access denied. Admin only.');
-    router.replace('/dashboard');
-    return null;
   }
 
   /* =========================
@@ -537,7 +608,7 @@ export default function AdminProductsPage() {
   ========================= */
   if (productsLoading) {
     return (
-      <div className="min-h-screen bg-[#0f1419] p-6">
+      <div className="min-h-screen bg-[#0f1419] p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <Skeleton className="h-12 w-64 bg-gray-800" />
           <Card className="bg-[#1a2332] border-gray-800">
@@ -554,7 +625,7 @@ export default function AdminProductsPage() {
 
   if (productsError) {
     return (
-      <div className="min-h-screen bg-[#0f1419] p-6">
+      <div className="min-h-screen bg-[#0f1419] p-4 sm:p-6">
         <div className="max-w-2xl mx-auto mt-20">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -564,11 +635,11 @@ export default function AdminProductsPage() {
             </AlertDescription>
           </Alert>
 
-          <div className="flex gap-3 mt-4">
-            <Button onClick={() => refetchProducts()} variant="outline">
+          <div className="flex flex-col sm:flex-row gap-3 mt-4">
+            <Button onClick={() => refetchProducts()} variant="outline" className="flex-1 sm:flex-none">
               <RefreshCw className="w-4 h-4 mr-2" /> Retry
             </Button>
-            <Button onClick={() => router.push('/admin')} variant="ghost">
+            <Button onClick={() => router.push('/admin')} variant="ghost" className="flex-1 sm:flex-none">
               Back
             </Button>
           </div>
@@ -581,33 +652,35 @@ export default function AdminProductsPage() {
      MAIN RENDER
   ========================= */
   return (
-    <div className="min-h-screen bg-[#0f1419] p-6">
+    <div className="min-h-screen bg-[#0f1419] p-4 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* HEADER */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white">Products Management</h1>
-            <p className="text-gray-400 mt-1">Manage inventory</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Products Management</h1>
+            <p className="text-gray-400 mt-1 text-sm">Manage inventory</p>
           </div>
 
-          <div className="flex gap-2">
-            <Button onClick={handleRefresh} variant="outline" size="sm">
-              <RefreshCw className="w-4 h-4 mr-2" /> Refresh
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={handleRefresh} variant="outline" size="sm" className="flex-1 sm:flex-none">
+              <RefreshCw className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
 
-            <Button onClick={handleExport} variant="outline" size="sm">
-              <Download className="w-4 h-4 mr-2" /> Export
+            <Button onClick={handleExport} variant="outline" size="sm" className="flex-1 sm:flex-none">
+              <Download className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Export</span>
             </Button>
 
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-blue-600 hover:bg-blue-700">
+                <Button className="bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-none">
                   <Plus className="w-4 h-4 mr-2" /> Add
                 </Button>
               </DialogTrigger>
 
-              <DialogContent className="bg-[#1a2332] border-gray-700 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="bg-[#1a2332] border-gray-700 text-white max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Create Product</DialogTitle>
                   <DialogDescription className="text-gray-400">
@@ -619,10 +692,10 @@ export default function AdminProductsPage() {
                   <ProductFormFields />
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="flex-col sm:flex-row gap-2">
                   <Button
                     variant="outline"
-                    className="border-gray-700"
+                    className="border-gray-700 w-full sm:w-auto"
                     onClick={() => {
                       setIsCreateDialogOpen(false);
                       resetForm();
@@ -632,7 +705,7 @@ export default function AdminProductsPage() {
                   </Button>
 
                   <Button
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
                     onClick={handleCreateProduct}
                     disabled={createProductMutation.isPending}
                   >
@@ -654,7 +727,7 @@ export default function AdminProductsPage() {
         {/* BULK DELETE BANNER */}
         {selectedProducts.size > 0 && (
           <Alert className="bg-blue-900/20 border-blue-700">
-            <AlertDescription className="flex items-center justify-between">
+            <AlertDescription className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <span className="text-blue-300">
                 {selectedProducts.size} selected
               </span>
@@ -663,8 +736,9 @@ export default function AdminProductsPage() {
                 size="sm"
                 variant="destructive"
                 onClick={() => setShowBulkDelete(true)}
+                className="w-full sm:w-auto"
               >
-                <Trash2 className="w-4 h-4 mr-2" /> Delete
+                <Trash2 className="w-4 h-4 mr-2" /> Delete Selected
               </Button>
             </AlertDescription>
           </Alert>
@@ -672,14 +746,14 @@ export default function AdminProductsPage() {
 
         {/* SEARCH + FILTER BAR */}
         <Card className="bg-[#1a2332] border-gray-800">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row gap-4">
 
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
 
                 <Input
-                  placeholder="Search..."
+                  placeholder="Search products..."
                   value={searchQuery}
                   className="pl-10 bg-[#0f1419] border-gray-700 text-white"
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -690,12 +764,12 @@ export default function AdminProductsPage() {
                 value={selectedCategory}
                 onValueChange={setSelectedCategory}
               >
-                <SelectTrigger className="w-[200px] bg-[#0f1419] border-gray-700 text-white">
+                <SelectTrigger className="w-full sm:w-[200px] bg-[#0f1419] border-gray-700 text-white">
                   <SelectValue />
                 </SelectTrigger>
 
                 <SelectContent className="bg-[#1a2332] border-gray-700 text-white">
-                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="all">All Categories</SelectItem>
 
                   {categories.map((c: Category) => (
                     <SelectItem key={c.id} value={c.id.toString()}>
@@ -708,179 +782,199 @@ export default function AdminProductsPage() {
             </div>
 
             <div className="mt-4 text-sm text-gray-400">
-              Showing {filteredAndSortedProducts.length} of {products.length}
+              Showing {filteredAndSortedProducts.length} of {products.length} products
             </div>
           </CardContent>
         </Card>
 
-        {/* TABLE */}
-        <Card className="bg-[#1a2332] border-gray-800">
-          <CardContent className="p-0">
-            <Table>
+        {/* DESKTOP TABLE - Hidden on mobile */}
+        <div className="hidden md:block">
+          <Card className="bg-[#1a2332] border-gray-800">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
 
-              <TableHeader>
-                <TableRow className="border-gray-800 hover:bg-transparent">
-                  
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={
-                        selectedProducts.size === filteredAndSortedProducts.length &&
-                        filteredAndSortedProducts.length > 0
-                      }
-                      onCheckedChange={(checked) =>
-                        handleSelectAll(Boolean(checked))
-                      }
-                    />
-                  </TableHead>
-
-                  <TableHead
-                    className="text-gray-400 cursor-pointer"
-                    onClick={() => handleSort('name')}
-                  >
-                    <div className="flex items-center">
-                      Product <SortIcon field="name" />
-                    </div>
-                  </TableHead>
-
-                  <TableHead
-                    className="text-gray-400 cursor-pointer"
-                    onClick={() => handleSort('category')}
-                  >
-                    <div className="flex items-center">
-                      Category <SortIcon field="category" />
-                    </div>
-                  </TableHead>
-
-                  <TableHead
-                    className="text-gray-400 cursor-pointer"
-                    onClick={() => handleSort('price')}
-                  >
-                    <div className="flex items-center">
-                      Price <SortIcon field="price" />
-                    </div>
-                  </TableHead>
-
-                  <TableHead
-                    className="text-gray-400 cursor-pointer"
-                    onClick={() => handleSort('stock')}
-                  >
-                    <div className="flex items-center">
-                      Stock <SortIcon field="stock" />
-                    </div>
-                  </TableHead>
-
-                  <TableHead className="text-gray-400">Status</TableHead>
-
-                  <TableHead className="text-gray-400 text-right">
-                    Actions
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {filteredAndSortedProducts.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-center py-12 text-gray-400"
-                    >
-                      <Package className="w-12 h-12 mx-auto mb-4 text-gray-600" />
-                      <p>No products found</p>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredAndSortedProducts.map((p: Product) => (
-                    <TableRow
-                      key={p.id}
-                      className="border-gray-800 hover:bg-gray-800/50"
-                    >
-                      <TableCell>
+                  <TableHeader>
+                    <TableRow className="border-gray-800 hover:bg-transparent">
+                      
+                      <TableHead className="w-12">
                         <Checkbox
-                          checked={selectedProducts.has(p.id)}
+                          checked={
+                            selectedProducts.size === filteredAndSortedProducts.length &&
+                            filteredAndSortedProducts.length > 0
+                          }
                           onCheckedChange={(checked) =>
-                            handleSelectProduct(p.id, Boolean(checked))
+                            handleSelectAll(Boolean(checked))
                           }
                         />
-                      </TableCell>
+                      </TableHead>
 
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gray-700 rounded flex items-center justify-center">
-                            {p.image ? (
-                              <img
-                                src={p.image}
-                                alt={p.name}
-                                className="w-full h-full object-cover rounded"
-                              />
-                            ) : (
-                              <Package className="w-5 h-5 text-gray-400" />
-                            )}
-                          </div>
-
-                          <div>
-                            <p className="font-medium text-white">{p.name}</p>
-
-                            {p.description && (
-                              <p className="text-xs text-gray-400 line-clamp-1">
-                                {p.description}
-                              </p>
-                            )}
-                          </div>
+                      <TableHead
+                        className="text-gray-400 cursor-pointer"
+                        onClick={() => handleSort('name')}
+                      >
+                        <div className="flex items-center">
+                          Product <SortIcon field="name" />
                         </div>
-                      </TableCell>
+                      </TableHead>
 
-                      <TableCell className="text-gray-300">
-                        <Badge variant="outline" className="border-gray-700">
-                          {p.category.name}
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell className="text-blue-400 font-semibold">
-                        {formatCurrency(p.price)}
-                      </TableCell>
-
-                      <TableCell className="text-gray-300">{p.stock}</TableCell>
-
-                      <TableCell>
-                        <Badge className={getStockLevelColor(p.stockLevel)}>
-                          {p.stockLevel}
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-2">
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-blue-400 hover:bg-blue-900/20"
-                            onClick={() => handleEditProduct(p)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-red-400 hover:bg-red-900/20"
-                            onClick={() => setDeleteProductId(p.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                      <TableHead
+                        className="text-gray-400 cursor-pointer"
+                        onClick={() => handleSort('category')}
+                      >
+                        <div className="flex items-center">
+                          Category <SortIcon field="category" />
                         </div>
-                      </TableCell>
+                      </TableHead>
+
+                      <TableHead
+                        className="text-gray-400 cursor-pointer"
+                        onClick={() => handleSort('price')}
+                      >
+                        <div className="flex items-center">
+                          Price <SortIcon field="price" />
+                        </div>
+                      </TableHead>
+
+                      <TableHead
+                        className="text-gray-400 cursor-pointer"
+                        onClick={() => handleSort('stock')}
+                      >
+                        <div className="flex items-center">
+                          Stock <SortIcon field="stock" />
+                        </div>
+                      </TableHead>
+
+                      <TableHead className="text-gray-400">Status</TableHead>
+
+                      <TableHead className="text-gray-400 text-right">
+                        Actions
+                      </TableHead>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
+                  </TableHeader>
 
-            </Table>
-          </CardContent>
-        </Card>
+                  <TableBody>
+                    {filteredAndSortedProducts.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={7}
+                          className="text-center py-12 text-gray-400"
+                        >
+                          <Package className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+                          <p>No products found</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredAndSortedProducts.map((p: Product) => (
+                        <TableRow
+                          key={p.id}
+                          className="border-gray-800 hover:bg-gray-800/50"
+                        >
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedProducts.has(p.id)}
+                              onCheckedChange={(checked) =>
+                                handleSelectProduct(p.id, Boolean(checked))
+                              }
+                            />
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-gray-700 rounded flex items-center justify-center flex-shrink-0">
+                                {p.image ? (
+                                  <img
+                                    src={p.image}
+                                    alt={p.name}
+                                    className="w-full h-full object-cover rounded"
+                                  />
+                                ) : (
+                                  <Package className="w-5 h-5 text-gray-400" />
+                                )}
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="font-medium text-white">{p.name}</p>
+
+                                {p.description && (
+                                  <p className="text-xs text-gray-400 line-clamp-1">
+                                    {p.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="text-gray-300">
+                            <Badge variant="outline" className="border-gray-700">
+                              {p.category.name}
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell className="text-blue-400 font-semibold">
+                            {formatCurrency(p.price)}
+                          </TableCell>
+
+                          <TableCell className="text-gray-300">{p.stock}</TableCell>
+
+                          <TableCell>
+                            <Badge className={getStockLevelColor(p.stockLevel)}>
+                              {p.stockLevel}
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell className="text-right">
+                            <div className="flex justify-end space-x-2">
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-blue-400 hover:bg-blue-900/20"
+                                onClick={() => handleEditProduct(p)}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-red-400 hover:bg-red-900/20"
+                                onClick={() => setDeleteProductId(p.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* MOBILE CARDS - Visible only on mobile */}
+        <div className="md:hidden space-y-3">
+          {filteredAndSortedProducts.length === 0 ? (
+            <Card className="bg-[#1a2332] border-gray-800">
+              <CardContent className="p-12 text-center">
+                <Package className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+                <p className="text-gray-400">No products found</p>
+              </CardContent>
+            </Card>
+          ) : (
+            filteredAndSortedProducts.map((product: Product) => (
+              <MobileProductCard key={product.id} product={product} />
+            ))
+          )}
+        </div>
 
         {/* EDIT DIALOG */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="bg-[#1a2332] border-gray-700 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="bg-[#1a2332] border-gray-700 text-white max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Product</DialogTitle>
               <DialogDescription className="text-gray-400">
@@ -892,10 +986,10 @@ export default function AdminProductsPage() {
               <ProductFormFields />
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button
                 variant="outline"
-                className="border-gray-700"
+                className="border-gray-700 w-full sm:w-auto"
                 onClick={() => {
                   setIsEditDialogOpen(false);
                   setEditingProduct(null);
@@ -906,7 +1000,7 @@ export default function AdminProductsPage() {
               </Button>
 
               <Button
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
                 disabled={updateProductMutation.isPending}
                 onClick={handleUpdateProduct}
               >
@@ -925,7 +1019,7 @@ export default function AdminProductsPage() {
 
         {/* DELETE SINGLE */}
         <AlertDialog open={deleteProductId !== null} onOpenChange={() => setDeleteProductId(null)}>
-          <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white">
+          <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white max-w-[95vw] sm:max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle>Delete product?</AlertDialogTitle>
               <AlertDialogDescription className="text-gray-400">
@@ -933,11 +1027,11 @@ export default function AdminProductsPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
 
-            <AlertDialogFooter>
-              <AlertDialogCancel className="border-gray-700">Cancel</AlertDialogCancel>
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+              <AlertDialogCancel className="border-gray-700 w-full sm:w-auto">Cancel</AlertDialogCancel>
 
               <AlertDialogAction
-                className="bg-red-600 hover:bg-red-700"
+                className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
                 disabled={deleteProductMutation.isPending}
                 onClick={() =>
                   deleteProductId && deleteProductMutation.mutate(deleteProductId)
@@ -958,7 +1052,7 @@ export default function AdminProductsPage() {
 
         {/* BULK DELETE */}
         <AlertDialog open={showBulkDelete} onOpenChange={setShowBulkDelete}>
-          <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white">
+          <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white max-w-[95vw] sm:max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle>
                 Delete {selectedProducts.size} products?
@@ -968,11 +1062,11 @@ export default function AdminProductsPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
 
-            <AlertDialogFooter>
-              <AlertDialogCancel className="border-gray-700">Cancel</AlertDialogCancel>
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+              <AlertDialogCancel className="border-gray-700 w-full sm:w-auto">Cancel</AlertDialogCancel>
 
               <AlertDialogAction
-                className="bg-red-600 hover:bg-red-700"
+                className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
                 disabled={bulkDeleteMutation.isPending}
                 onClick={() =>
                   bulkDeleteMutation.mutate(Array.from(selectedProducts))
