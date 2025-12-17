@@ -9,7 +9,6 @@ import { useSession } from 'next-auth/react';
 import { useCartStore } from '@/lib/store/cartStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
@@ -25,7 +24,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import {
-  ShoppingCart,
   ArrowLeft,
   CreditCard,
   Wallet,
@@ -47,8 +45,9 @@ type PaymentMethod = 'CASH' | 'PAYNOW' | null;
 export default function CheckoutPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  const user = session?.user;
   const { setTotalItems } = useCartStore();
+  
+  // ===== ALL HOOKS MUST BE CALLED FIRST =====
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
@@ -67,7 +66,7 @@ export default function CheckoutPage() {
         toast.success('Order placed successfully!');
         setTotalItems(0);
 
-        const { orderId, paymentType, nextStep } = response.data;
+        const { orderId, paymentType } = response.data;
 
         if (paymentType === 'CASH') {
           // Redirect to generate QR code
@@ -83,19 +82,23 @@ export default function CheckoutPage() {
     },
   });
 
+  // ===== DERIVED STATE =====
+  const user = session?.user;
   const cart = cartData?.data;
   const items = cart?.items || [];
   const totalItems = cart?.totalItems || 0;
   const totalAmount = cart?.totalAmount || 0;
 
+  // ===== EFFECTS AFTER ALL HOOKS =====
   // Redirect if cart is empty
   useEffect(() => {
     if (!isLoading && items.length === 0) {
       toast.error('Your cart is empty');
       router.push('/cart');
     }
-  }, [items, isLoading, router]);
+  }, [items.length, isLoading, router]);
 
+  // ===== EVENT HANDLERS =====
   const handlePlaceOrder = () => {
     if (!selectedPayment) {
       toast.error('Please select a payment method');
@@ -119,6 +122,7 @@ export default function CheckoutPage() {
     }
   };
 
+  // ===== CONDITIONAL RENDERING =====
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
@@ -463,8 +467,6 @@ export default function CheckoutPage() {
           <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white">
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Your Order</AlertDialogTitle>
-
-              {/* FIXED SECTION */}
               <AlertDialogDescription asChild>
                 <div className="space-y-3 text-gray-400">
                   <p>
@@ -490,8 +492,6 @@ export default function CheckoutPage() {
                   )}
                 </div>
               </AlertDialogDescription>
-              {/* END FIXED SECTION */}
-
             </AlertDialogHeader>
 
             <AlertDialogFooter>
