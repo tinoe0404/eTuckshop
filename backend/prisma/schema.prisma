@@ -8,21 +8,23 @@ datasource db {
 }
 
 model User {
-  id            Int       @id @default(autoincrement())
-  name          String
-  email         String    @unique
-  password      String?
-  createdAt     DateTime  @default(now())
-  role          Role      @default(CUSTOMER)
-  updatedAt     DateTime  @updatedAt
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  cart          Cart?
-  orders        Order[]
-  sessions      Session[]
-  resetToken       String?   @unique
+  id               Int       @id @default(autoincrement())
+  name             String
+  email            String    @unique
+  password         String?
+  role             String    @default("CUSTOMER")
+  image            String?
+  emailVerified    DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  resetToken       String?
   resetTokenExpiry DateTime?
+
+  // Add these relation fields
+  accounts Account[]
+  sessions Session[]
+  carts    Cart[]
+  orders   Order[]
 }
 
 model Account {

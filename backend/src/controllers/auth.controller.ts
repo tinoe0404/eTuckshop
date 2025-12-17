@@ -19,40 +19,47 @@ import { serverError } from "../utils/serverError";
  */
 export const register = async (c: Context) => {
   try {
-    const { name, email, password, role } = await c.req.json();
-
+    console.log("📝 Registration attempt started");
+    const body = await c.req.json();
+    console.log("📦 Request body:", { ...body, password: "[HIDDEN]" });
+    const { name, email, password, role } = body;
+    
     // Validation
     if (!name || !email || !password) {
+      console.log("❌ Validation failed: Missing fields");
       return c.json({ 
         success: false, 
         message: "All fields are required" 
       }, 400);
     }
-
-    if (password.length < 6) {
-      return c.json({ 
-        success: false, 
-        message: "Password must be at least 6 characters" 
-      }, 400);
-    }
-
+    
+    console.log("✅ Validation passed");
+    
     // Check if user exists
+    console.log("🔍 Checking if user exists...");
     const exists = await prisma.user.findUnique({ where: { email } });
+    
     if (exists) {
+      console.log("❌ User already exists");
       return c.json({ 
         success: false, 
         message: "User already exists" 
       }, 400);
     }
-
+    
+    console.log("✅ User doesn't exist, proceeding with creation");
+    
     // Hash password
+    console.log("🔐 Hashing password...");
     const hashed = await Bun.password.hash(password, {
       algorithm: "bcrypt",
       cost: 10,
     });
-
-    // Create user with provided or default role
+    console.log("✅ Password hashed");
+    
+    // Create user
     const userRole = role === "ADMIN" ? "ADMIN" : "CUSTOMER";
+    console.log("👤 Creating user with role:", userRole);
     
     const user = await prisma.user.create({
       data: { 
@@ -71,13 +78,26 @@ export const register = async (c: Context) => {
         createdAt: true,
       }
     });
-
+    
+    console.log("✅ User created successfully:", user.id);
+    
     return c.json({
       success: true,
       message: "User registered successfully",
       data: { user },
     }, 201);
   } catch (error) {
+    // Type assertion for better error handling
+    console.error("💥 REGISTRATION ERROR:");
+    
+    if (error instanceof Error) {
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    } else {
+      console.error("Unknown error:", error);
+    }
+    
     return serverError(c, error);
   }
 };
