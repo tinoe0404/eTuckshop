@@ -12,7 +12,6 @@ import {
   Box,
   QrCode,
   Users,
-  Settings,
   ChevronLeft,
   ChevronRight,
   BarChart3,
@@ -94,6 +93,7 @@ export default function AdminSidebar() {
             size="icon"
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-700"
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {isCollapsed ? (
               <ChevronRight className="w-4 h-4" />
@@ -112,11 +112,13 @@ export default function AdminSidebar() {
                 <Link key={item.href} href={item.href}>
                   <div
                     className={cn(
-                      'flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors',
+                      'flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors cursor-pointer',
                       isActive
                         ? 'bg-blue-600 text-white'
-                        : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                        : 'text-gray-400 hover:bg-gray-700 hover:text-white',
+                      isCollapsed && 'justify-center'
                     )}
+                    title={isCollapsed ? item.title : undefined}
                   >
                     <span className={cn(isActive && 'text-white')}>
                       {item.icon}
@@ -134,7 +136,7 @@ export default function AdminSidebar() {
         {/* Footer */}
         {!isCollapsed && (
           <div className="p-4 border-t border-gray-800">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 text-center">
               eTuckshop Admin v1.0.0
             </p>
           </div>

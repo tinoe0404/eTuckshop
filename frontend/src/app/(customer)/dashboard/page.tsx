@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -189,10 +189,19 @@ export default function CustomerDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: session, status } = useSession();
-  const user = session?.user;
   const { setTotalItems } = useCartStore();
 
-  // Auth protection
+  // Auth protection with useEffect
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.replace('/login');
+    } else if (session?.user?.role !== 'CUSTOMER') {
+      toast.error('Access denied. Customer only.');
+      router.replace('/admin/dashboard');
+    }
+  }, [status, session, router]);
+
+  // Loading state
   if (status === 'loading') {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -201,16 +210,21 @@ export default function CustomerDashboard() {
     );
   }
   
-  if (status === 'unauthenticated') {
-    router.replace('/login');
+  // Unauthenticated or wrong role
+  if (status === 'unauthenticated' || session?.user?.role !== 'CUSTOMER') {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
+      </div>
+    );
+  }
+
+  // Type guard - at this point we know user exists and is CUSTOMER
+  if (!session?.user) {
     return null;
   }
-  
-  if (session?.user?.role !== 'CUSTOMER') {
-    toast.error('Access denied. Customer only.');
-    router.replace('/admin/dashboard');
-    return null;
-  }
+
+  const user = session.user;
 
   // Queries
   const {
