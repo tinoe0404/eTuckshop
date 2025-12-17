@@ -17,7 +17,10 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import Link from "next/link";
 
-// Validation Schema
+/* -------------------------------------------------------------------------- */
+/*                               Schema & Types                               */
+/* -------------------------------------------------------------------------- */
+
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -27,9 +30,14 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 type UserRole = "CUSTOMER" | "ADMIN" | null;
 
+/* -------------------------------------------------------------------------- */
+/*                                Component                                   */
+/* -------------------------------------------------------------------------- */
+
 export default function LoginPageContent() {
+  /* --------------------------------- Hooks --------------------------------- */
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { status } = useSession();
 
   const [selectedRole, setSelectedRole] = useState<UserRole>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -53,16 +61,7 @@ export default function LoginPageContent() {
     setMounted(true);
   }, []);
 
-  // ❌ REMOVE AUTO-REDIRECT - we'll redirect manually after backend login
-  // useEffect(() => {
-  //   if (status === "authenticated" && session?.user) {
-  //     if (session.user.role === "ADMIN") {
-  //       router.replace("/admin/dashboard");
-  //     } else {
-  //       router.replace("/dashboard");
-  //     }
-  //   }
-  // }, [status, session, router]);
+  /* ------------------------------- Handlers -------------------------------- */
 
   const onSubmit = async (data: LoginFormData) => {
     if (!selectedRole) {
@@ -73,7 +72,7 @@ export default function LoginPageContent() {
     setLoading(true);
 
     try {
-      // ✅ STEP 1: Sign in with NextAuth
+      // Step 1: NextAuth login
       const result = await signIn("credentials", {
         email: data.email,
         password: data.password,
@@ -87,48 +86,46 @@ export default function LoginPageContent() {
         return;
       }
 
-      // ✅ STEP 2: For ADMIN users, call backend to get JWT tokens BEFORE redirecting
+      // Step 2: Admin backend JWT
       if (selectedRole === "ADMIN") {
-        // Must use same domain as backend for cookies to work
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-        
-        const backendResponse = await fetch(`${apiUrl}/auth/login`, {
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+        const response = await fetch(`${apiUrl}/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          credentials: "include", // Important: This sends cookies
+          credentials: "include",
           body: JSON.stringify({
             email: data.email,
             password: data.password,
           }),
         });
 
-        const backendData = await backendResponse.json();
+        const backendData = await response.json();
 
-        if (!backendResponse.ok || !backendData.success) {
+        if (!response.ok || !backendData.success) {
           toast.error("Failed to authenticate with backend");
           setLoading(false);
           return;
         }
 
-        console.log("✅ Backend JWT tokens set");
-        
-        // ✅ Now redirect to admin dashboard
         toast.success("Login successful! Redirecting...");
-        setLoading(false);
         router.replace("/admin/dashboard");
-      } else {
-        // ✅ Customer redirect
-        toast.success("Login successful! Redirecting...");
-        setLoading(false);
-        router.replace("/dashboard");
+        return;
       }
 
-    } catch (error) {
-      console.error("Login error:", error);
+      // Customer redirect
+      toast.success("Login successful! Redirecting...");
+      router.replace("/dashboard");
+    } catch (err) {
+      console.error("Login error:", err);
       toast.error("An error occurred during login");
+    } finally {
       setLoading(false);
     }
   };
+
+  /* -------------------------- SAFE Early Returns --------------------------- */
 
   if (!mounted) return null;
 
@@ -140,13 +137,11 @@ export default function LoginPageContent() {
     );
   }
 
-  // ---------------------------
-  // UI with Dark Theme
-  // ---------------------------
+  /* ---------------------------------- UI ---------------------------------- */
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f1419] p-4">
       <Card className="w-full max-w-md p-8 space-y-6 bg-[#1a2332] border-gray-800 shadow-2xl">
-
         {/* Logo */}
         <div className="flex justify-center">
           <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -156,158 +151,120 @@ export default function LoginPageContent() {
 
         {/* Header */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-white">
-            Welcome to eTuckshop
-          </h1>
+          <h1 className="text-3xl font-bold text-white">Welcome to eTuckshop</h1>
           <p className="text-gray-400">Sign in to continue</p>
         </div>
 
         {/* Role Selection */}
         <div className="grid grid-cols-2 gap-4">
-          <button
-            type="button"
-            onClick={() => setSelectedRole("CUSTOMER")}
-            disabled={loading}
-            className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
-              selectedRole === "CUSTOMER"
-                ? "border-blue-500 bg-blue-900/20"
-                : "border-gray-700 hover:border-gray-600"
-            }`}
-          >
-            <div className="flex flex-col items-center space-y-3">
-              <div
-                className={`p-3 rounded-full ${
-                  selectedRole === "CUSTOMER"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-800 text-gray-400"
-                }`}
-              >
-                <User className="w-6 h-6" />
+          {[
+            { role: "CUSTOMER", label: "Customer", icon: User, desc: "Shop for products" },
+            { role: "ADMIN", label: "Admin", icon: ShieldCheck, desc: "Manage the shop" },
+          ].map(({ role, label, icon: Icon, desc }) => (
+            <button
+              key={role}
+              type="button"
+              disabled={loading}
+              onClick={() => setSelectedRole(role as UserRole)}
+              className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
+                selectedRole === role
+                  ? "border-blue-500 bg-blue-900/20"
+                  : "border-gray-700 hover:border-gray-600"
+              }`}
+            >
+              <div className="flex flex-col items-center space-y-3">
+                <div
+                  className={`p-3 rounded-full ${
+                    selectedRole === role
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-800 text-gray-400"
+                  }`}
+                >
+                  <Icon className="w-6 h-6" />
+                </div>
+                <p className="font-semibold text-white">{label}</p>
+                <p className="text-sm text-gray-400">{desc}</p>
               </div>
-              <p className="font-semibold text-white">Customer</p>
-              <p className="text-sm text-gray-400">Shop for products</p>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSelectedRole("ADMIN")}
-            disabled={loading}
-            className={`p-6 rounded-lg border-2 transition-all hover:scale-105 ${
-              selectedRole === "ADMIN"
-                ? "border-blue-500 bg-blue-900/20"
-                : "border-gray-700 hover:border-gray-600"
-            }`}
-          >
-            <div className="flex flex-col items-center space-y-3">
-              <div
-                className={`p-3 rounded-full ${
-                  selectedRole === "ADMIN"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-800 text-gray-400"
-                }`}
-              >
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <p className="font-semibold text-white">Admin</p>
-              <p className="text-sm text-gray-400">Manage the shop</p>
-            </div>
-          </button>
+            </button>
+          ))}
         </div>
 
-        {/* Login Form */}
+        {/* Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Email */}
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-gray-300">Email</Label>
+            <Label className="text-gray-300">Email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                className="pl-10 bg-[#0f1419] border-gray-700 text-white placeholder:text-gray-500"
-                disabled={loading}
                 {...register("email")}
+                disabled={loading}
+                className="pl-10 bg-[#0f1419] border-gray-700 text-white"
+                placeholder="Enter your email"
               />
             </div>
-            {errors.email && <p className="text-sm text-red-400">{errors.email.message}</p>}
+            {errors.email && (
+              <p className="text-sm text-red-400">{errors.email.message}</p>
+            )}
           </div>
 
           {/* Password */}
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-gray-300">Password</Label>
+            <Label className="text-gray-300">Password</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="Enter your password"
-                className="pl-10 pr-10 bg-[#0f1419] border-gray-700 text-white placeholder:text-gray-500"
-                disabled={loading}
                 {...register("password")}
+                disabled={loading}
+                type={showPassword ? "text" : "password"}
+                className="pl-10 pr-10 bg-[#0f1419] border-gray-700 text-white"
+                placeholder="Enter your password"
               />
               <button
                 type="button"
-                onClick={() => setShowPassword((p) => !p)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
                 disabled={loading}
+                onClick={() => setShowPassword((p) => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
               >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                {showPassword ? <EyeOff /> : <Eye />}
               </button>
             </div>
-            {errors.password && <p className="text-sm text-red-400">{errors.password.message}</p>}
+            {errors.password && (
+              <p className="text-sm text-red-400">{errors.password.message}</p>
+            )}
           </div>
 
           {/* Remember Me */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Checkbox
-                id="rememberMe"
                 checked={rememberMe}
-                onCheckedChange={(checked) => setValue("rememberMe", checked as boolean)}
-                disabled={loading}
+                onCheckedChange={(v) => setValue("rememberMe", v as boolean)}
               />
-              <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer text-gray-300">
-                Remember me
-              </Label>
+              <Label className="text-gray-300 text-sm">Remember me</Label>
             </div>
-
-            <Link
-              href="/forgot-password"
-              className="text-sm text-blue-400 hover:text-blue-300"
-            >
+            <Link href="/forgot-password" className="text-blue-400 text-sm">
               Forgot password?
             </Link>
           </div>
 
           {/* Submit */}
-          <Button 
-            type="submit" 
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white" 
-            size="lg" 
+          <Button
+            type="submit"
             disabled={loading || !selectedRole}
+            className="w-full bg-blue-600 hover:bg-blue-700"
           >
-            {loading
-              ? "Signing in..."
-              : selectedRole
-              ? "Sign in"
-              : "Select a role to continue"}
+            {loading ? "Signing in..." : "Sign in"}
           </Button>
         </form>
 
-        {/* Sign Up */}
-        <div className="text-center">
-          <p className="text-sm text-gray-400">
-            Don't have an account?{" "}
-            <Link
-              href="/register"
-              className="text-blue-400 hover:text-blue-300 font-semibold"
-            >
-              Sign up
-            </Link>
-          </p>
-        </div>
+        {/* Register */}
+        <p className="text-center text-sm text-gray-400">
+          Don&apos;t have an account?{" "}
+          <Link href="/register" className="text-blue-400 font-semibold">
+            Sign up
+          </Link>
+        </p>
       </Card>
     </div>
   );
