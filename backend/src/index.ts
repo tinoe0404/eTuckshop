@@ -132,19 +132,24 @@ app.get("/api", (c) => {
   });
 });
 
-// Check DB connection
-async function checkDbConnection() {
-  try {
-    await prisma.$connect();
-    console.log("✅ Database connected successfully!");
-    await prisma.$queryRaw`SELECT 1`;
-    console.log("✅ Database query test passed!");
-  } catch (error) {
-    console.error("❌ Failed to connect to database:", error);
-    console.error("💡 Check your DATABASE_URL environment variable");
-    process.exit(1);
+async function checkDbConnection(retries = 5, delayMs = 3000) {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      await prisma.$connect();
+      await prisma.$queryRaw`SELECT 1`;
+      console.log("✅ Database connected successfully!");
+      return;
+    } catch (error) {
+      console.error(`❌ DB connection attempt ${i} failed`);
+      if (i === retries) {
+        console.error("🚨 All DB connection attempts failed");
+        throw error;
+      }
+      await new Promise(res => setTimeout(res, delayMs));
+    }
   }
 }
+
 
 // Attach routes (mount under /api base path)
 const api = new Hono();

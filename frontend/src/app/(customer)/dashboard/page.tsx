@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -22,10 +22,8 @@ import {
 import { formatCurrency, getStockLevelColor } from '@/lib/utils';
 import { Product, Order } from '@/types';
 import { useSession } from 'next-auth/react';
-import CustomerHeader from '@/components/layout/CustomerHeader';
-import CustomerSidebar from '@/components/layout/CustomerSidebar';
 
-// Separate components for better performance
+// Product Card Component
 const ProductCard = ({ 
   product, 
   onAddToCart, 
@@ -94,6 +92,7 @@ const ProductCard = ({
   </Card>
 );
 
+// Order Card Component
 const OrderCard = ({ 
   order, 
   onClick 
@@ -134,6 +133,7 @@ const OrderCard = ({
   );
 };
 
+// Stat Card Component
 const StatCard = ({ 
   title, 
   value, 
@@ -184,6 +184,7 @@ const StatCard = ({
   </Card>
 );
 
+// Main Dashboard Component (CONTENT ONLY - NO HEADER/SIDEBAR)
 export default function CustomerDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -193,9 +194,11 @@ export default function CustomerDashboard() {
 
   // Auth protection
   if (status === 'loading') {
-    return <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
-    </div>;
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
+      </div>
+    );
   }
   
   if (status === 'unauthenticated') {
@@ -209,7 +212,7 @@ export default function CustomerDashboard() {
     return null;
   }
 
-  // Queries with optimized config
+  // Queries
   const {
     data: cartData, 
     isLoading: cartLoading, 
@@ -219,7 +222,7 @@ export default function CustomerDashboard() {
     queryKey: ['cart-summary'],
     queryFn: cartService.getCartSummary,
     refetchOnWindowFocus: true,
-    staleTime: 60000, // 1 minute
+    staleTime: 60000,
     retry: 2,
     enabled: status === 'authenticated' && session?.user?.role === 'CUSTOMER',
   });
@@ -247,12 +250,12 @@ export default function CustomerDashboard() {
     queryKey: ['products-featured'],
     queryFn: productService.getAll,
     refetchOnWindowFocus: true,
-    staleTime: 300000, // 5 minutes for products
+    staleTime: 300000,
     retry: 2,
     enabled: status === 'authenticated' && session?.user?.role === 'CUSTOMER',
   });
 
-  // Memoized derived data
+  // Memoized data
   const featuredProducts = useMemo(
     () => productsData?.data?.slice(0, 6) || [],
     [productsData]
@@ -279,27 +282,20 @@ export default function CustomerDashboard() {
     totalOrders: allOrders.length,
   }), [cartData, allOrders]);
 
-  // Mutations with proper optimistic updates
+  // Mutations
   const addToCartMutation = useMutation({
     mutationFn: (productId: number) => 
       cartService.addToCart({ productId, quantity: 1 }),
     onMutate: async (productId) => {
       await queryClient.cancelQueries({ queryKey: ['cart-summary'] });
-      
       const previousCart = queryClient.getQueryData(['cart-summary']);
-      
-      // Optimistically update cache
       queryClient.setQueryData(['cart-summary'], (old: any) => {
         if (!old?.data) return old;
         return {
           ...old,
-          data: {
-            ...old.data,
-            totalItems: old.data.totalItems + 1,
-          },
+          data: { ...old.data, totalItems: old.data.totalItems + 1 },
         };
       });
-      
       return { previousCart };
     },
     onSuccess: (res) => {
@@ -319,15 +315,11 @@ export default function CustomerDashboard() {
     },
   });
 
-  // Memoized callbacks
+  // Callbacks
   const handleRefreshAll = useCallback(async () => {
     toast.promise(
       Promise.all([refetchCart(), refetchOrders(), refetchProducts()]),
-      { 
-        loading: 'Refreshing...', 
-        success: 'All data refreshed!', 
-        error: 'Failed to refresh' 
-      }
+      { loading: 'Refreshing...', success: 'All data refreshed!', error: 'Failed to refresh' }
     );
   }, [refetchCart, refetchOrders, refetchProducts]);
 
@@ -353,29 +345,18 @@ export default function CustomerDashboard() {
     router.push(`/orders/${orderId}`);
   }, [router]);
 
-  // Guard clauses
   if (!user || user.role !== 'CUSTOMER') return null;
 
   const isAnyLoading = cartLoading || ordersLoading || productsLoading;
   const hasAnyError = cartError || ordersError || productsError;
 
-  // Initial loading state
+  // Loading state
   if (isAnyLoading && !cartData && !ordersData && !productsData) {
     return (
-      <div className="min-h-screen bg-[#0f1419]">
-        <CustomerHeader />
-        <div className="flex">
-          <div className="hidden lg:block">
-            <CustomerSidebar />
-          </div>
-          <div className="flex-1 p-6">
-            <div className="max-w-7xl mx-auto space-y-8">
-              <Skeleton className="h-64 w-full rounded-3xl bg-gray-800" />
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 bg-gray-800" />)}
-              </div>
-            </div>
-          </div>
+      <div className="max-w-7xl mx-auto space-y-8">
+        <Skeleton className="h-64 w-full rounded-3xl bg-gray-800" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 bg-gray-800" />)}
         </div>
       </div>
     );
@@ -425,290 +406,244 @@ export default function CustomerDashboard() {
   ];
 
   const quickActions = [
-    { 
-      title: 'Browse Products', 
-      subtitle: 'Explore catalog', 
-      bgColor: 'bg-blue-500/20', 
-      textColor: 'text-blue-400', 
-      icon: ShoppingBag, 
-      link: '/products' 
-    },
-    { 
-      title: 'View Cart', 
-      subtitle: `${stats.cartItems} items`, 
-      bgColor: 'bg-purple-500/20', 
-      textColor: 'text-purple-400', 
-      icon: ShoppingCart, 
-      link: '/cart' 
-    },
-    { 
-      title: 'My Orders', 
-      subtitle: 'Track orders', 
-      bgColor: 'bg-green-500/20', 
-      textColor: 'text-green-400', 
-      icon: Package, 
-      link: '/orders' 
-    },
+    { title: 'Browse Products', subtitle: 'Explore catalog', bgColor: 'bg-blue-500/20', textColor: 'text-blue-400', icon: ShoppingBag, link: '/products' },
+    { title: 'View Cart', subtitle: `${stats.cartItems} items`, bgColor: 'bg-purple-500/20', textColor: 'text-purple-400', icon: ShoppingCart, link: '/cart' },
+    { title: 'My Orders', subtitle: 'Track orders', bgColor: 'bg-green-500/20', textColor: 'text-green-400', icon: Package, link: '/orders' },
   ];
 
   return (
-    <div className="min-h-screen bg-[#0f1419]">
-      {/* Header */}
-      <CustomerHeader />
-      
-      {/* Main Layout */}
-      <div className="flex">
-        {/* Sidebar - Hidden on mobile, visible on large screens */}
-        <div className="hidden lg:block">
-          <CustomerSidebar />
+    <div className="max-w-7xl mx-auto space-y-8">
+
+      {/* Error Alert */}
+      {hasAnyError && (
+        <Alert variant="destructive" className="bg-red-900/20 border-red-800">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Some data couldn't be loaded</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>
+              {cartError && 'Cart '}
+              {ordersError && 'Orders '}
+              {productsError && 'Products '}
+              failed to load.
+            </span>
+            <Button size="sm" variant="outline" onClick={handleRefreshAll} className="border-gray-700 text-gray-300 hover:bg-gray-800">
+              <RefreshCw className="w-4 h-4 mr-2" />Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Hero Section */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-blue-500 to-purple-600 p-6 md:p-12 text-white shadow-2xl">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-48 -mt-48" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl -ml-48 -mb-48" />
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex-1 space-y-4">
+            <div className="flex items-center space-x-2">
+              <Sparkles className="w-6 h-6 text-yellow-300" />
+              <span className="text-sm font-semibold uppercase tracking-wider">Welcome Back</span>
+            </div>
+            <h1 className="text-3xl md:text-5xl font-bold">Hey, {user?.name}! 👋</h1>
+            <p className="text-blue-100 text-base md:text-lg">Ready to discover amazing products today?</p>
+            <div className="flex flex-wrap gap-3 pt-4">
+              <Button 
+                size="lg" 
+                onClick={() => router.push('/products')}
+                className="bg-white text-blue-600 hover:bg-blue-50 font-semibold shadow-lg"
+              >
+                <ShoppingBag className="w-5 h-5 mr-2" />Browse Products
+              </Button>
+              <Button 
+                size="lg" 
+                variant="outline" 
+                onClick={handleWhatsAppShop}
+                className="border-2 border-white text-white hover:bg-white/10 font-semibold"
+              >
+                <MessageCircle className="w-5 h-5 mr-2" />Shop via WhatsApp
+              </Button>
+              <Button 
+                size="lg" 
+                variant="outline" 
+                onClick={handleRefreshAll}
+                className="border-2 border-white text-white hover:bg-white/10 font-semibold"
+              >
+                <RefreshCw className="w-5 h-5 mr-2" />Refresh
+              </Button>
+            </div>
+          </div>
+          <div className="hidden md:block">
+            <div className="w-48 h-48 bg-white/20 backdrop-blur-sm rounded-3xl flex items-center justify-center shadow-2xl">
+              <ShoppingBag className="w-24 h-24 text-white" />
+            </div>
+          </div>
         </div>
+      </div>
 
-        {/* Main Content */}
-        <main className="flex-1 p-4 md:p-6">
-          <div className="max-w-7xl mx-auto space-y-8">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {statCardsConfig.map((stat, idx) => (
+          <StatCard
+            key={idx}
+            title={stat.title}
+            value={stat.value}
+            subtitle={stat.subtitle}
+            icon={stat.icon}
+            colorClass={stat.colorClass}
+            onClick={() => router.push(stat.link)}
+            isLoading={stat.isLoading}
+            isError={stat.isError}
+          />
+        ))}
+      </div>
 
-            {/* Error Alert */}
-            {hasAnyError && (
-              <Alert variant="destructive" className="bg-red-900/20 border-red-800">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Some data couldn't be loaded</AlertTitle>
-                <AlertDescription className="flex items-center justify-between">
-                  <span>
-                    {cartError && 'Cart '}
-                    {ordersError && 'Orders '}
-                    {productsError && 'Products '}
-                    failed to load.
-                  </span>
-                  <Button size="sm" variant="outline" onClick={handleRefreshAll} className="border-gray-700 text-gray-300 hover:bg-gray-800">
-                    <RefreshCw className="w-4 h-4 mr-2" />Retry
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Hero Section */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-blue-500 to-purple-600 p-6 md:p-12 text-white shadow-2xl">
-              <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-48 -mt-48" />
-              <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl -ml-48 -mb-48" />
-              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex-1 space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Sparkles className="w-6 h-6 text-yellow-300" />
-                    <span className="text-sm font-semibold uppercase tracking-wider">Welcome Back</span>
-                  </div>
-                  <h1 className="text-3xl md:text-5xl font-bold">Hey, {user?.name}! 👋</h1>
-                  <p className="text-blue-100 text-base md:text-lg">Ready to discover amazing products today?</p>
-                  <div className="flex flex-wrap gap-3 pt-4">
-                    <Button 
-                      size="lg" 
-                      onClick={() => router.push('/products')}
-                      className="bg-white text-blue-600 hover:bg-blue-50 font-semibold shadow-lg"
-                    >
-                      <ShoppingBag className="w-5 h-5 mr-2" />Browse Products
-                    </Button>
-                    <Button 
-                      size="lg" 
-                      variant="outline" 
-                      onClick={handleWhatsAppShop}
-                      className="border-2 border-white text-white hover:bg-white/10 font-semibold"
-                    >
-                      <MessageCircle className="w-5 h-5 mr-2" />Shop via WhatsApp
-                    </Button>
-                    <Button 
-                      size="lg" 
-                      variant="outline" 
-                      onClick={handleRefreshAll}
-                      className="border-2 border-white text-white hover:bg-white/10 font-semibold"
-                    >
-                      <RefreshCw className="w-5 h-5 mr-2" />Refresh
-                    </Button>
-                  </div>
-                </div>
-                <div className="hidden md:block">
-                  <div className="w-48 h-48 bg-white/20 backdrop-blur-sm rounded-3xl flex items-center justify-center shadow-2xl">
-                    <ShoppingBag className="w-24 h-24 text-white" />
-                  </div>
-                </div>
+      {/* Featured Products */}
+      <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
+        <CardHeader className="border-b border-gray-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-xl md:text-2xl text-white">Featured Products</CardTitle>
+                <p className="text-sm text-gray-400 mt-1">Handpicked for you</p>
               </div>
             </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {statCardsConfig.map((stat, idx) => (
-                <StatCard
-                  key={idx}
-                  title={stat.title}
-                  value={stat.value}
-                  subtitle={stat.subtitle}
-                  icon={stat.icon}
-                  colorClass={stat.colorClass}
-                  onClick={() => router.push(stat.link)}
-                  isLoading={stat.isLoading}
-                  isError={stat.isError}
+            <Button variant="ghost" onClick={() => router.push('/products')} className="text-gray-300 hover:text-white hover:bg-gray-800">
+              View All<ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          {productsLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <Card key={i} className="overflow-hidden bg-[#1a2332] border-gray-800">
+                  <Skeleton className="h-48 w-full bg-gray-800" />
+                  <CardContent className="p-4 space-y-2">
+                    <Skeleton className="h-4 w-3/4 bg-gray-800" />
+                    <Skeleton className="h-8 w-full bg-gray-800" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : productsError ? (
+            <div className="text-center py-12">
+              <AlertCircle className="w-16 h-16 mx-auto text-gray-600 mb-4" />
+              <p className="text-gray-400">Failed to load products</p>
+              <Button variant="outline" className="mt-4 border-gray-700 text-gray-300 hover:bg-gray-800" onClick={() => refetchProducts()}>
+                <RefreshCw className="w-4 h-4 mr-2" />Try Again
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredProducts.map((product: Product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onAddToCart={handleAddToCart}
+                  onViewDetails={handleViewProduct}
+                  isAdding={addToCartMutation.isPending}
                 />
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
 
-            {/* Featured Products */}
-            <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
-              <CardHeader className="border-b border-gray-800">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                      <Zap className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl md:text-2xl text-white">Featured Products</CardTitle>
-                      <p className="text-sm text-gray-400 mt-1">Handpicked for you</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" onClick={() => router.push('/products')} className="text-gray-300 hover:text-white hover:bg-gray-800">
-                    View All<ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
+      {/* Orders & Quick Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Orders */}
+        <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
+          <CardHeader className="border-b border-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
+                  <Package className="w-5 h-5 text-white" />
                 </div>
-              </CardHeader>
-              <CardContent className="p-6">
-                {productsLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[...Array(6)].map((_, i) => (
-                      <Card key={i} className="overflow-hidden bg-[#1a2332] border-gray-800">
-                        <Skeleton className="h-48 w-full bg-gray-800" />
-                        <CardContent className="p-4 space-y-2">
-                          <Skeleton className="h-4 w-3/4 bg-gray-800" />
-                          <Skeleton className="h-8 w-full bg-gray-800" />
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : productsError ? (
-                  <div className="text-center py-12">
-                    <AlertCircle className="w-16 h-16 mx-auto text-gray-600 mb-4" />
-                    <p className="text-gray-400">Failed to load products</p>
-                    <Button variant="outline" className="mt-4 border-gray-700 text-gray-300 hover:bg-gray-800" onClick={() => refetchProducts()}>
-                      <RefreshCw className="w-4 h-4 mr-2" />Try Again
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {featuredProducts.map((product: Product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onAddToCart={handleAddToCart}
-                        onViewDetails={handleViewProduct}
-                        isAdding={addToCartMutation.isPending}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Orders & Quick Actions */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Recent Orders */}
-              <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
-                <CardHeader className="border-b border-gray-800">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
-                        <Package className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-white">Recent Orders</CardTitle>
-                        <p className="text-sm text-gray-400 mt-1">Latest purchases</p>
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={() => router.push('/orders')} className="text-gray-300 hover:text-white hover:bg-gray-800">
-                      View All
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                  {ordersLoading ? (
-                    <div className="space-y-4">
-                      {[1, 2, 3].map(i => (
-                        <Skeleton key={i} className="h-20 w-full bg-gray-800" />
-                      ))}
-                    </div>
-                  ) : recentOrders.length === 0 ? (
-                    <div className="text-center py-12">
-                      <Package className="w-16 h-16 mx-auto text-gray-600 mb-4" />
-                      <p className="text-gray-400">No orders yet</p>
-                      <Button 
-                        className="mt-4 bg-blue-600 hover:bg-blue-700 text-white" 
-                        onClick={() => router.push('/products')}
-                      >
-                        Start Shopping
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {recentOrders.map((order: Order) => (
-                        <OrderCard
-                          key={order.id}
-                          order={order}
-                          onClick={handleViewOrder}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Quick Actions */}
-              <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
-                <CardHeader className="border-b border-gray-800">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
-                      <Zap className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-white">Quick Actions</CardTitle>
-                      <p className="text-sm text-gray-400 mt-1">Navigate faster</p>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6 space-y-3">
-                  {quickActions.map((action, idx) => (
-                    <Button 
-                      key={idx} 
-                      variant="outline" 
-                      className="w-full justify-between h-auto p-4 border-2 border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
-                      onClick={() => router.push(action.link)}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-10 h-10 ${action.bgColor} rounded-lg flex items-center justify-center`}>
-                          <action.icon className={`w-5 h-5 ${action.textColor}`} />
-                        </div>
-                        <div className="text-left">
-                          <p className="font-semibold">{action.title}</p>
-                          <p className="text-xs text-gray-500">{action.subtitle}</p>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-5 h-5" />
-                    </Button>
-                  ))}
-                  <Button 
-                    className="w-full h-auto p-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700"
-                    onClick={handleWhatsAppShop}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center space-x-3">
-                        <MessageCircle className="w-5 h-5" />
-                        <div className="text-left">
-                          <p className="font-semibold">Shop via WhatsApp</p>
-                          <p className="text-xs text-green-100">Chat directly</p>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-5 h-5" />
-                    </div>
-                  </Button>
-                </CardContent>
-              </Card>
+                <div>
+                  <CardTitle className="text-white">Recent Orders</CardTitle>
+                  <p className="text-sm text-gray-400 mt-1">Latest purchases</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => router.push('/orders')} className="text-gray-300 hover:text-white hover:bg-gray-800">
+                View All
+              </Button>
             </div>
-          </div>
-        </main>
+          </CardHeader>
+          <CardContent className="p-6">
+            {ordersLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full bg-gray-800" />)}
+              </div>
+            ) : recentOrders.length === 0 ? (
+              <div className="text-center py-12">
+                <Package className="w-16 h-16 mx-auto text-gray-600 mb-4" />
+                <p className="text-gray-400">No orders yet</p>
+                <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => router.push('/products')}>
+                  Start Shopping
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {recentOrders.map((order: Order) => (
+                  <OrderCard key={order.id} order={order} onClick={handleViewOrder} />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Quick Actions */}
+        <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
+          <CardHeader className="border-b border-gray-800">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-white">Quick Actions</CardTitle>
+                <p className="text-sm text-gray-400 mt-1">Navigate faster</p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 space-y-3">
+            {quickActions.map((action, idx) => (
+              <Button 
+                key={idx} 
+                variant="outline" 
+                className="w-full justify-between h-auto p-4 border-2 border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
+                onClick={() => router.push(action.link)}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className={`w-10 h-10 ${action.bgColor} rounded-lg flex items-center justify-center`}>
+                    <action.icon className={`w-5 h-5 ${action.textColor}`} />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-semibold">{action.title}</p>
+                    <p className="text-xs text-gray-500">{action.subtitle}</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5" />
+              </Button>
+            ))}
+            <Button 
+              className="w-full h-auto p-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700"
+              onClick={handleWhatsAppShop}
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center space-x-3">
+                  <MessageCircle className="w-5 h-5" />
+                  <div className="text-left">
+                    <p className="font-semibold">Shop via WhatsApp</p>
+                    <p className="text-xs text-green-100">Chat directly</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5" />
+              </div>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
