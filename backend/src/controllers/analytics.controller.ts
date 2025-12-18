@@ -1,3 +1,4 @@
+// src/controllers/analytics.controller.ts
 import { Context } from "hono";
 import { prisma } from "../utils/prisma";
 import { serverError } from "../utils/serverError";
@@ -7,6 +8,10 @@ import { serverError } from "../utils/serverError";
 // ==========================================
 export const getDashboardStats = async (c: Context) => {
   try {
+    // ✅ Get authenticated user from context
+    const user = c.get('user');
+    console.log(`📊 Admin ${user.email} (ID: ${user.id}) fetching dashboard stats`);
+
     // Get today's date at midnight for today's revenue calculation
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -64,6 +69,8 @@ export const getDashboardStats = async (c: Context) => {
       }),
     ]);
 
+    console.log(`✅ Dashboard stats retrieved successfully for ${user.email}`);
+
     return c.json({
       success: true,
       message: "Dashboard stats retrieved successfully",
@@ -79,6 +86,7 @@ export const getDashboardStats = async (c: Context) => {
       },
     });
   } catch (error) {
+    console.error('❌ Error fetching dashboard stats:', error);
     return serverError(c, error);
   }
 };
@@ -88,6 +96,10 @@ export const getDashboardStats = async (c: Context) => {
 // ==========================================
 export const getAnalytics = async (c: Context) => {
   try {
+    // ✅ Get authenticated user from context
+    const user = c.get('user');
+    console.log(`📈 Admin ${user.email} (ID: ${user.id}) fetching analytics data`);
+
     const { startDate, endDate } = c.req.query();
 
     // Set date range (default: last 30 days)
@@ -98,6 +110,8 @@ export const getAnalytics = async (c: Context) => {
 
     // Set end date to end of day
     end.setHours(23, 59, 59, 999);
+
+    console.log(`📅 Date range: ${start.toISOString().split('T')[0]} to ${end.toISOString().split('T')[0]}`);
 
     // Parallel queries for better performance
     const [
@@ -135,7 +149,6 @@ export const getAnalytics = async (c: Context) => {
       }),
 
       // Daily sales and revenue stats (last 30 days)
-      // FIXED: Use camelCase column names that match Prisma schema
       prisma.$queryRaw`
         SELECT 
           DATE("createdAt") as date,
@@ -220,6 +233,10 @@ export const getAnalytics = async (c: Context) => {
       ? ((currentRevenue - prevRevenue) / prevRevenue) * 100 
       : 0;
 
+    console.log(`✅ Analytics data retrieved successfully for ${user.email}`);
+    console.log(`   Total Revenue: $${currentRevenue.toFixed(2)}`);
+    console.log(`   Growth: ${revenueGrowth.toFixed(2)}%`);
+
     return c.json({
       success: true,
       message: "Analytics data retrieved successfully",
@@ -243,6 +260,7 @@ export const getAnalytics = async (c: Context) => {
       },
     });
   } catch (error) {
+    console.error('❌ Error fetching analytics data:', error);
     return serverError(c, error);
   }
 };

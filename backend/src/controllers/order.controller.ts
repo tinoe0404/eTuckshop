@@ -42,13 +42,14 @@ const buildQRPayload = (order: any, expiresAt?: Date): QRPayload => {
 // ==========================================
 export const checkout = async (c: Context) => {
   try {
-    const { userId, paymentType = "CASH" } = await c.req.json();
+    const user = c.get('user');
+    const { paymentType = "CASH" } = await c.req.json();
 
-    if (!userId) {
+    if (!user) {
       return c.json({
         success: false,
-        message: "User ID is required"
-      }, 400);
+        message: "Authentication required"
+      }, 401);
     }
 
     if (!["CASH", "PAYNOW"].includes(paymentType)) {
@@ -57,7 +58,7 @@ export const checkout = async (c: Context) => {
 
     // 1. Get cart OUTSIDE transaction
     const cart = await prisma.cart.findUnique({
-      where: { userId: parseInt(userId) },
+      where: { userId: user.id },
       include: { items: { include: { product: true } } },
     });
 
@@ -102,7 +103,7 @@ export const checkout = async (c: Context) => {
       const newOrder = await tx.order.create({
         data: {
           orderNumber,
-          userId: parseInt(userId),
+          userId: user.id,
           totalAmount: parseFloat(totalAmount.toFixed(2)),
           paymentType,
           status: "PENDING",
@@ -175,18 +176,11 @@ export const checkout = async (c: Context) => {
 // ==========================================
 export const generateCashQR = async (c: Context) => {
   try {
+    const user = c.get('user');
     const orderId = Number(c.req.param("orderId"));
-    const { userId } = await c.req.json();
-
-    if (!userId) {
-      return c.json({
-        success: false,
-        message: "User ID is required"
-      }, 400);
-    }
 
     const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: parseInt(userId) },
+      where: { id: orderId, userId: parseInt(user) },
       include: {
         user: { select: { name: true, email: true } },
         orderItems: { include: { product: true } },
@@ -244,18 +238,11 @@ export const generateCashQR = async (c: Context) => {
 // ==========================================
 export const initiatePayNow = async (c: Context) => {
   try {
+    const user = c.get('user');
     const orderId = Number(c.req.param("orderId"));
-    const userId = c.req.query("userId");
-
-    if (!userId) {
-      return c.json({
-        success: false,
-        message: "User ID is required"
-      }, 400);
-    }
 
     const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: parseInt(userId) },
+      where: { id: orderId, userId: user.id },
     });
 
     if (!order) {
@@ -500,18 +487,11 @@ export const getOrderById = async (c: Context) => {
 // ==========================================
 export const cancelOrder = async (c: Context) => {
   try {
+    const user = c.get('user');
     const orderId = Number(c.req.param("orderId"));
-    const { userId } = await c.req.json();
-
-    if (!userId) {
-      return c.json({
-        success: false,
-        message: "User ID is required"
-      }, 400);
-    }
 
     const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: parseInt(userId) },
+      where: { id: orderId, userId: user.id },
       include: { orderItems: true },
     });
 

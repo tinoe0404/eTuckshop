@@ -1,4 +1,5 @@
-// File: src/controllers/auth.controller.ts (UPDATED - BEST PRACTICES)
+// File: src/controllers/auth.controller.ts
+// FIXED: Protected routes now use c.get('user') from middleware
 
 import { Context } from "hono";
 import { setCookie, deleteCookie, getCookie } from "hono/cookie";
@@ -24,7 +25,6 @@ export const register = async (c: Context) => {
     console.log("📦 Request body:", { ...body, password: "[HIDDEN]" });
     const { name, email, password, role } = body;
     
-    // Validation
     if (!name || !email || !password) {
       console.log("❌ Validation failed: Missing fields");
       return c.json({ 
@@ -34,9 +34,8 @@ export const register = async (c: Context) => {
     }
     
     console.log("✅ Validation passed");
-    
-    // Check if user exists
     console.log("🔍 Checking if user exists...");
+    
     const exists = await prisma.user.findUnique({ where: { email } });
     
     if (exists) {
@@ -48,16 +47,15 @@ export const register = async (c: Context) => {
     }
     
     console.log("✅ User doesn't exist, proceeding with creation");
-    
-    // Hash password
     console.log("🔐 Hashing password...");
+    
     const hashed = await Bun.password.hash(password, {
       algorithm: "bcrypt",
       cost: 10,
     });
+    
     console.log("✅ Password hashed");
     
-    // Create user
     const userRole = role === "ADMIN" ? "ADMIN" : "CUSTOMER";
     console.log("👤 Creating user with role:", userRole);
     
@@ -87,7 +85,6 @@ export const register = async (c: Context) => {
       data: { user },
     }, 201);
   } catch (error) {
-    // Type assertion for better error handling
     console.error("💥 REGISTRATION ERROR:");
     
     if (error instanceof Error) {
@@ -118,7 +115,6 @@ export const verifyCredentials = async (c: Context) => {
       }, 400);
     }
 
-    // Find user
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user || !user.password) {
@@ -128,7 +124,6 @@ export const verifyCredentials = async (c: Context) => {
       }, 401);
     }
 
-    // Verify password
     const isValid = await Bun.password.verify(password, user.password);
     if (!isValid) {
       return c.json({ 
@@ -137,7 +132,6 @@ export const verifyCredentials = async (c: Context) => {
       }, 401);
     }
 
-    // Return user without password
     const { password: _, ...safeUser } = user;
 
     return c.json({
@@ -239,21 +233,32 @@ export const getUserById = async (c: Context) => {
   }
 };
 
+// ============================================
+// NEXTAUTH PROTECTED ENDPOINTS
+// These use requireAuth middleware and get user from context
+// ============================================
+
 /**
- * Get user profile by ID (POST version)
- * Used by frontend to fetch user details using session userId
- * No backend auth required - frontend validates session via NextAuth
+ * ✅ FIXED: Get user profile
+ * Uses requireAuth middleware - user comes from c.get('user')
  */
 export const getProfileById = async (c: Context) => {
   try {
-    const { userId } = await c.req.json();
+    // ✅ Get user from context (set by requireAuth middleware)
+    const user = c.get('user');
     
-    if (!userId) {
-      return c.json({ success: false, message: "User ID required" }, 400);
+    if (!user) {
+      return c.json({ 
+        success: false, 
+        message: "Authentication required" 
+      }, 401);
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: parseInt(userId) },
+    console.log(`👤 User ${user.email} (ID: ${user.id}) fetching their profile`);
+
+    // Fetch fresh user data from database
+    const userData = await prisma.user.findUnique({
+      where: { id: user.id },
       select: {
         id: true,
         name: true,
@@ -266,44 +271,84 @@ export const getProfileById = async (c: Context) => {
       }
     });
 
-    if (!user) {
-      return c.json({ success: false, message: "User not found" }, 404);
+    if (!userData) {
+      return c.json({ 
+        success: false, 
+        message: "User not found" 
+      }, 404);
     }
 
-    return c.json({ success: true, data: user });
+    console.log(`✅ Profile retrieved for ${user.email}`);
+
+    return c.json({ 
+      success: true, 
+      data: userData 
+    });
   } catch (error) {
+    console.error('❌ Error fetching profile:', error);
     return serverError(c, error);
   }
 };
 
 /**
- * Update user profile
- * Frontend sends userId from NextAuth session
- * No backend auth required - frontend validates session
+ * ✅ FIXED: Update user profile
+ * Uses requireAuth middleware - user comes from c.get('user')
  */
-// File: src/controllers/auth.controller.ts
-
 export const updateUserProfile = async (c: Context) => {
   try {
-    const { userId, name, email, image } = await c.req.json();
-
-    if (!userId || !name || !email) {
-      return c.json({ success: false, message: "Required fields missing" }, 400);
+    // ✅ Get user from context (set by requireAuth middleware)
+    const user = c.get('user');
+    
+    if (!user) {
+      return c.json({ 
+        success: false, 
+        message: "Authentication required" 
+      }, 401);
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser && existingUser.id !== parseInt(userId)) {
-      return c.json({ success: false, message: "Email already in use" }, 400);
+    console.log(`✏️ User ${user.email} (ID: ${user.id}) updating profile`);
+
+    const { name, email, image } = await c.req.json();
+
+    if (!name || !email) {
+      return c.json({ 
+        success: false, 
+        message: "Name and email are required" 
+      }, 400);
     }
 
+    // Check if email is being changed and if it's already taken
+    if (email !== user.email) {
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser && existingUser.id !== user.id) {
+        return c.json({ 
+          success: false, 
+          message: "Email already in use" 
+        }, 400);
+      }
+    }
+
+    // Update user profile
     const updatedUser = await prisma.user.update({
-      where: { id: parseInt(userId) },
-      data: { name, email, ...(image !== undefined && { image }) },
+      where: { id: user.id },
+      data: { 
+        name, 
+        email, 
+        ...(image !== undefined && { image }) 
+      },
       select: {
-        id: true, name: true, email: true, role: true,
-        image: true, emailVerified: true, createdAt: true, updatedAt: true,
+        id: true, 
+        name: true, 
+        email: true, 
+        role: true,
+        image: true, 
+        emailVerified: true, 
+        createdAt: true, 
+        updatedAt: true,
       },
     });
+
+    console.log(`✅ Profile updated for ${user.email}`);
 
     return c.json({
       success: true,
@@ -311,15 +356,221 @@ export const updateUserProfile = async (c: Context) => {
       data: updatedUser,
     });
   } catch (error) {
+    console.error('❌ Error updating profile:', error);
     return serverError(c, error);
   }
 };
 
+/**
+ * ✅ FIXED: Change password
+ * Uses requireAuth middleware - user comes from c.get('user')
+ */
+export const changePassword = async (c: Context) => {
+  try {
+    // ✅ Get user from context (set by requireAuth middleware)
+    const user = c.get('user');
+    
+    if (!user) {
+      return c.json({ 
+        success: false, 
+        message: "Authentication required" 
+      }, 401);
+    }
+
+    console.log(`🔐 User ${user.email} (ID: ${user.id}) changing password`);
+
+    const { currentPassword, newPassword } = await c.req.json();
+
+    // Validation
+    if (!currentPassword || !newPassword) {
+      return c.json({ 
+        success: false, 
+        message: "Current password and new password are required" 
+      }, 400);
+    }
+
+    if (newPassword.length < 6) {
+      return c.json({ 
+        success: false, 
+        message: "New password must be at least 6 characters" 
+      }, 400);
+    }
+
+    // Get user with password from database
+    const dbUser = await prisma.user.findUnique({ 
+      where: { id: user.id } 
+    });
+
+    if (!dbUser || !dbUser.password) {
+      return c.json({ 
+        success: false, 
+        message: "User not found" 
+      }, 404);
+    }
+
+    // Verify current password
+    const isValid = await Bun.password.verify(currentPassword, dbUser.password);
+    if (!isValid) {
+      console.log(`❌ Invalid current password for ${user.email}`);
+      return c.json({ 
+        success: false, 
+        message: "Current password is incorrect" 
+      }, 401);
+    }
+
+    // Check if new password is same as current
+    const isSamePassword = await Bun.password.verify(newPassword, dbUser.password);
+    if (isSamePassword) {
+      return c.json({ 
+        success: false, 
+        message: "New password must be different from current password" 
+      }, 400);
+    }
+
+    // Hash new password
+    const hashedPassword = await Bun.password.hash(newPassword, {
+      algorithm: "bcrypt",
+      cost: 10,
+    });
+
+    // Update password
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
+
+    console.log(`✅ Password changed successfully for ${user.email}`);
+
+    // Optional: Invalidate all existing JWT sessions
+    // await redis.del(`refresh_token:${user.id}`);
+
+    return c.json({
+      success: true,
+      message: "Password changed successfully",
+    });
+  } catch (error) {
+    console.error('❌ Error changing password:', error);
+    return serverError(c, error);
+  }
+};
 
 // ============================================
-// LEGACY JWT ENDPOINTS (Protected with JWT Middleware)
-// Keep these for backward compatibility with mobile apps
-// Remove if you're ONLY using NextAuth
+// PASSWORD RESET ENDPOINTS (Public - No Auth)
+// ============================================
+
+/**
+ * Forgot Password (Send Reset Email)
+ * Public endpoint - no auth required
+ */
+export const forgotPassword = async (c: Context) => {
+  try {
+    const { email } = await c.req.json();
+
+    if (!email) {
+      return c.json({ 
+        success: false, 
+        message: "Email is required" 
+      }, 400);
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // Always return success for security (don't reveal if email exists)
+    if (!user) {
+      return c.json({
+        success: true,
+        message: "If an account exists with this email, a password reset link has been sent",
+      });
+    }
+
+    // Generate reset token (valid for 1 hour)
+    const resetToken = crypto.randomUUID();
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetToken,
+        resetTokenExpiry,
+      },
+    });
+
+    // For development, log the token
+    console.log(`🔑 Password reset token for ${email}: ${resetToken}`);
+    console.log(`🔗 Reset URL: ${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`);
+
+    return c.json({
+      success: true,
+      message: "If an account exists with this email, a password reset link has been sent",
+    });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};
+
+/**
+ * Reset Password (Using Token from Email)
+ * Public endpoint - no auth required
+ */
+export const resetPassword = async (c: Context) => {
+  try {
+    const { token, newPassword } = await c.req.json();
+
+    if (!token || !newPassword) {
+      return c.json({ 
+        success: false, 
+        message: "Token and new password are required" 
+      }, 400);
+    }
+
+    if (newPassword.length < 6) {
+      return c.json({ 
+        success: false, 
+        message: "Password must be at least 6 characters" 
+      }, 400);
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiry: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!user) {
+      return c.json({ 
+        success: false, 
+        message: "Invalid or expired reset token" 
+      }, 400);
+    }
+
+    const hashedPassword = await Bun.password.hash(newPassword, {
+      algorithm: "bcrypt",
+      cost: 10,
+    });
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
+    });
+
+    return c.json({
+      success: true,
+      message: "Password reset successfully. You can now login with your new password.",
+    });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};
+
+// ============================================
+// LEGACY JWT ENDPOINTS (Keep for compatibility)
 // ============================================
 
 const setAuthCookies = (c: Context, accessToken: string, refreshToken: string) => {
@@ -348,10 +599,6 @@ const clearAuthCookies = (c: Context) => {
   deleteCookie(c, "refreshToken", { path: "/", secure: isProd, sameSite: isProd ? "None" : "Lax" });
 };
 
-/**
- * LEGACY: JWT-based login
- * Use this for mobile apps or direct API access
- */
 export const login = async (c: Context) => {
   try {
     const { email, password } = await c.req.json();
@@ -389,9 +636,6 @@ export const login = async (c: Context) => {
   }
 };
 
-/**
- * LEGACY: JWT-based logout
- */
 export const logout = async (c: Context) => {
   try {
     const refreshToken = getCookie(c, "refreshToken") || (await c.req.json().catch(() => ({}))).refreshToken;
@@ -411,9 +655,6 @@ export const logout = async (c: Context) => {
   }
 };
 
-/**
- * LEGACY: JWT token refresh
- */
 export const refreshToken = async (c: Context) => {
   try {
     const refreshToken = getCookie(c, "refreshToken") || (await c.req.json().catch(() => ({}))).refreshToken;
@@ -456,10 +697,6 @@ export const refreshToken = async (c: Context) => {
   }
 };
 
-/**
- * LEGACY: Get profile (JWT protected)
- * This is the OLD way - requires JWT middleware
- */
 export const getProfile = async (c: Context) => {
   try {
     const user = c.get("user");
@@ -479,10 +716,6 @@ export const getProfile = async (c: Context) => {
   }
 };
 
-/**
- * LEGACY: Update user (JWT protected)
- * This is the OLD way - requires JWT middleware
- */
 export const updateUser = async (c: Context) => {
   try {
     const user = c.get("user");
@@ -531,208 +764,6 @@ export const updateUser = async (c: Context) => {
       success: true,
       message: "Profile updated successfully",
       data: updated,
-    });
-  } catch (error) {
-    return serverError(c, error);
-  }
-};
-
-export const changePassword = async (c: Context) => {
-  try {
-    const { userId, currentPassword, newPassword } = await c.req.json();
-
-    // Validation
-    if (!userId || !currentPassword || !newPassword) {
-      return c.json({ 
-        success: false, 
-        message: "All fields are required" 
-      }, 400);
-    }
-
-    if (newPassword.length < 6) {
-      return c.json({ 
-        success: false, 
-        message: "New password must be at least 6 characters" 
-      }, 400);
-    }
-
-    // Get user with password
-    const user = await prisma.user.findUnique({ 
-      where: { id: parseInt(userId) } 
-    });
-
-    if (!user || !user.password) {
-      return c.json({ 
-        success: false, 
-        message: "User not found" 
-      }, 404);
-    }
-
-    // Verify current password
-    const isValid = await Bun.password.verify(currentPassword, user.password);
-    if (!isValid) {
-      return c.json({ 
-        success: false, 
-        message: "Current password is incorrect" 
-      }, 401);
-    }
-
-    // Check if new password is same as current
-    const isSamePassword = await Bun.password.verify(newPassword, user.password);
-    if (isSamePassword) {
-      return c.json({ 
-        success: false, 
-        message: "New password must be different from current password" 
-      }, 400);
-    }
-
-    // Hash new password
-    const hashedPassword = await Bun.password.hash(newPassword, {
-      algorithm: "bcrypt",
-      cost: 10,
-    });
-
-    // Update password
-    await prisma.user.update({
-      where: { id: parseInt(userId) },
-      data: { password: hashedPassword },
-    });
-
-    // Optional: Invalidate all existing JWT sessions
-    // await redis.del(`refresh_token:${userId}`);
-
-    return c.json({
-      success: true,
-      message: "Password changed successfully",
-    });
-  } catch (error) {
-    return serverError(c, error);
-  }
-};
-
-
-/**
- * Forgot Password (Send Reset Email)
- * Used when user doesn't know their password
- * Generates a reset token and sends email
- */
-export const forgotPassword = async (c: Context) => {
-  try {
-    const { email } = await c.req.json();
-
-    if (!email) {
-      return c.json({ 
-        success: false, 
-        message: "Email is required" 
-      }, 400);
-    }
-
-    // Find user
-    const user = await prisma.user.findUnique({ where: { email } });
-
-    // Always return success for security (don't reveal if email exists)
-    if (!user) {
-      return c.json({
-        success: true,
-        message: "If an account exists with this email, a password reset link has been sent",
-      });
-    }
-
-    // Generate reset token (valid for 1 hour)
-    const resetToken = crypto.randomUUID();
-    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-    // Store token in database
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        resetToken,
-        resetTokenExpiry,
-      },
-    });
-
-    // TODO: Send email with reset link
-    // Example using Resend:
-    // const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    // await resend.emails.send({
-    //   from: 'noreply@yourdomain.com',
-    //   to: user.email,
-    //   subject: 'Password Reset Request',
-    //   html: `Click <a href="${resetUrl}">here</a> to reset your password. Link expires in 1 hour.`,
-    // });
-
-    // For development, log the token
-    console.log(`🔑 Password reset token for ${email}: ${resetToken}`);
-    console.log(`🔗 Reset URL: ${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`);
-
-    return c.json({
-      success: true,
-      message: "If an account exists with this email, a password reset link has been sent",
-    });
-  } catch (error) {
-    return serverError(c, error);
-  }
-};
-
-/**
- * Reset Password (Using Token from Email)
- * Used to actually reset the password with the token
- */
-export const resetPassword = async (c: Context) => {
-  try {
-    const { token, newPassword } = await c.req.json();
-
-    // Validation
-    if (!token || !newPassword) {
-      return c.json({ 
-        success: false, 
-        message: "Token and new password are required" 
-      }, 400);
-    }
-
-    if (newPassword.length < 6) {
-      return c.json({ 
-        success: false, 
-        message: "Password must be at least 6 characters" 
-      }, 400);
-    }
-
-    // Find user with valid token
-    const user = await prisma.user.findFirst({
-      where: {
-        resetToken: token,
-        resetTokenExpiry: {
-          gt: new Date(), // Token not expired
-        },
-      },
-    });
-
-    if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "Invalid or expired reset token" 
-      }, 400);
-    }
-
-    // Hash new password
-    const hashedPassword = await Bun.password.hash(newPassword, {
-      algorithm: "bcrypt",
-      cost: 10,
-    });
-
-    // Update password and clear reset token
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        resetToken: null,
-        resetTokenExpiry: null,
-      },
-    });
-
-    return c.json({
-      success: true,
-      message: "Password reset successfully. You can now login with your new password.",
     });
   } catch (error) {
     return serverError(c, error);

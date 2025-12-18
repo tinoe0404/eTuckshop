@@ -63,6 +63,7 @@ const apiClient = axios.create({
   withCredentials: true, // CRITICAL: Send cookies with every request
 });
 
+
 // ✅ Request interceptor - add auth info
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
@@ -74,16 +75,18 @@ apiClient.interceptors.request.use(
       if (session?.user) {
         const userId = session.user.id || (session.user as any).userId;
         if (userId) {
-          config.headers['X-User-ID'] = userId;
+          config.headers['X-User-Id'] = userId;  // ✅ FIXED: 'Id' not 'ID'
+          
+          // Log in development
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`📤 ${config.method?.toUpperCase()} ${config.url}`);
+            console.log(`   👤 User: ${session.user.email} (ID: ${userId}, Role: ${session.user.role})`);
+          }
+        } else {
+          console.warn('⚠️ Session exists but no user ID found:', session.user);
         }
-      }
-      
-      // Log request in development
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`📤 ${config.method?.toUpperCase()} ${config.url}`);
-        if (session?.user) {
-          console.log(`   👤 User: ${session.user.email} (${session.user.role})`);
-        }
+      } else if (process.env.NODE_ENV === 'development') {
+        console.log(`📤 ${config.method?.toUpperCase()} ${config.url} (No session)`);
       }
       
       return config;
