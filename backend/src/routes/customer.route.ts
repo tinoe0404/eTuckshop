@@ -1,3 +1,6 @@
+// src/routes/customer.route.ts
+// NEXTAUTH IMPLEMENTATION (ADMIN ONLY)
+
 import { Hono } from "hono";
 import {
   getAllCustomers,
@@ -5,14 +8,48 @@ import {
   getCustomerStats,
   deleteCustomer,
 } from "../controllers/customer.controller";
-import { protectRoute, adminRoute } from "../middlewares/auth.middleware";
+
+import {
+  requireAuth,
+  requireAdmin,
+} from "../middlewares/auth.middleware";
 
 const router = new Hono();
 
+/**
+ * ======================================================
+ * ADMIN CUSTOMER ROUTES (NextAuth)
+ * X-User-Id header REQUIRED
+ * ======================================================
+ */
+
 // All routes require admin access
-router.get("/", protectRoute, adminRoute, getAllCustomers);
-router.get("/stats", protectRoute, adminRoute, getCustomerStats);
-router.get("/:id", protectRoute, adminRoute, getCustomerById);
-router.delete("/:id", protectRoute, adminRoute, deleteCustomer);
+router.get(
+  "/",
+  requireAuth,
+  requireAdmin,
+  getAllCustomers
+);
+
+router.get(
+  "/stats",
+  requireAuth,
+  requireAdmin,
+  getCustomerStats
+);
+
+router.get(
+  "/:id",
+  requireAuth,
+  requireAdmin,
+  getCustomerById
+);
+
+router.delete(
+  "/:id",
+  requireAuth,
+  requireAdmin,
+  deleteCustomer
+);
 
 export default router;

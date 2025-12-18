@@ -1,4 +1,5 @@
-// src/routes/cart.route.ts - FIXED
+// src/routes/cart.route.ts
+// NEXTAUTH IMPLEMENTATION (AUTHENTICATED USERS)
 
 import { Hono } from "hono";
 import {
@@ -11,20 +12,59 @@ import {
   getCartSummaryGet,
 } from "../controllers/cart.controller";
 
+import { requireAuth } from "../middlewares/auth.middleware";
+
 const router = new Hono();
 
-// ✅ ALL auth middleware REMOVED - cart operations are public
-// Frontend NextAuth validates the user, then sends userId in requests
+/**
+ * ======================================================
+ * CART ROUTES (NextAuth)
+ * X-User-Id header REQUIRED
+ * ======================================================
+ */
 
-// GET endpoint for cart summary (with userId in query param)
-router.get("/summary", getCartSummaryGet);
+// GET endpoint for cart summary
+router.get(
+  "/summary",
+  requireAuth,
+  getCartSummaryGet
+);
 
 // POST endpoints for cart operations
-router.post("/", getCart);
-router.post("/summary", getCartSummary);
-router.post("/add", addToCart);
-router.patch("/update", updateCartItem);
-router.delete("/remove/:productId", removeFromCart);
-router.post("/clear", clearCart);
+router.post(
+  "/",
+  requireAuth,
+  getCart
+);
+
+router.post(
+  "/summary",
+  requireAuth,
+  getCartSummary
+);
+
+router.post(
+  "/add",
+  requireAuth,
+  addToCart
+);
+
+router.patch(
+  "/update",
+  requireAuth,
+  updateCartItem
+);
+
+router.delete(
+  "/remove/:productId",
+  requireAuth,
+  removeFromCart
+);
+
+router.post(
+  "/clear",
+  requireAuth,
+  clearCart
+);
 
 export default router;

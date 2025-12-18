@@ -1,3 +1,6 @@
+// src/routes/category.route.ts
+// NEXTAUTH IMPLEMENTATION (PUBLIC + ADMIN)
+
 import { Hono } from "hono";
 import {
   getAllCategories,
@@ -7,23 +10,72 @@ import {
   deleteCategory,
   getCategoryStats,
 } from "../controllers/category.controller";
-import { protectRoute, adminRoute } from "../middlewares/auth.middleware";
+
+import {
+  requireAuth,
+  requireAdmin,
+} from "../middlewares/auth.middleware";
 
 const router = new Hono();
 
-// Public routes - anyone can view categories
+/**
+ * ======================================================
+ * PUBLIC ROUTES
+ * ======================================================
+ */
+
+// Anyone can view categories
 router.get("/", getAllCategories);
 
-// ✅ IMPORTANT: Put specific routes BEFORE dynamic routes
-// Admin-only stats route - must come BEFORE /:id
-router.get("/admin/stats", protectRoute, adminRoute, getCategoryStats);
+/**
+ * ======================================================
+ * ADMIN ROUTES (NextAuth)
+ * IMPORTANT: specific routes BEFORE dynamic routes
+ * ======================================================
+ */
 
-// Dynamic ID route - must come AFTER specific routes
+// Admin-only stats route (must come BEFORE /:id)
+router.get(
+  "/admin/stats",
+  requireAuth,
+  requireAdmin,
+  getCategoryStats
+);
+
+/**
+ * ======================================================
+ * PUBLIC DYNAMIC ROUTE
+ * ======================================================
+ */
+
+// Get category by ID
 router.get("/:id", getCategoryById);
 
-// Admin-only routes - must be authenticated AND be an admin
-router.post("/", protectRoute, adminRoute, createCategory);
-router.put("/:id", protectRoute, adminRoute, updateCategory);
-router.delete("/:id", protectRoute, adminRoute, deleteCategory);
+/**
+ * ======================================================
+ * ADMIN CRUD ROUTES (NextAuth)
+ * ======================================================
+ */
+
+router.post(
+  "/",
+  requireAuth,
+  requireAdmin,
+  createCategory
+);
+
+router.put(
+  "/:id",
+  requireAuth,
+  requireAdmin,
+  updateCategory
+);
+
+router.delete(
+  "/:id",
+  requireAuth,
+  requireAdmin,
+  deleteCategory
+);
 
 export default router;

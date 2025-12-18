@@ -1,117 +1,236 @@
-// src/lib/auth.ts
-
-import type { NextAuthOptions } from "next-auth";
+import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-export type AppRole = "ADMIN" | "CUSTOMER";
+// ✅ Get API URL based on environment
+const getApiUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://etuckshop-backend.onrender.com/api';
+  }
+  
+  return 'http://localhost:5000/api';
+};
+
+const API_URL = getApiUrl();
+
+console.log('🔐 NextAuth Configuration:');
+console.log('   API URL:', API_URL);
+console.log('   Environment:', process.env.NODE_ENV);
+console.log('   NEXTAUTH_URL:', process.env.NEXTAUTH_URL);
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET,
-
+  // ✅ Use JWT strategy (no database sessions)
   session: {
     strategy: "jwt",
-    maxAge: 7 * 24 * 60 * 60, // 7 days
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // Update session every 24 hours
   },
 
-  jwt: {
-    maxAge: 7 * 24 * 60 * 60,
-  },
+  // ✅ Secret is CRITICAL - must be set
+  secret: process.env.NEXTAUTH_SECRET,
 
-  providers: [
-    CredentialsProvider({
-      name: "Credentials",
-
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-        role: { label: "Role", type: "text" },
-      },
-
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password || !credentials?.role) {
-          throw new Error("Missing credentials");
-        }
-
-        const apiUrl =
-          process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
-
-        const res = await fetch(`${apiUrl}/auth/verify-credentials`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: credentials.email,
-            password: credentials.password,
-          }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok || !data?.success) {
-          throw new Error(data?.message ?? "Invalid credentials");
-        }
-
-        if (data.user.role !== credentials.role) {
-          throw new Error("Incorrect role selected");
-        }
-
-        return {
-          id: String(data.user.id),
-          name: data.user.name,
-          email: data.user.email,
-          role: data.user.role as AppRole,
-          image: data.user.image ?? null,
-        };
-      },
-    }),
-  ],
-
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.userId = user.id;
-        token.role = (user as any).role;
-        token.name = user.name;
-        token.email = user.email;
-        token.picture = user.image;
-      }
-      return token;
-    },
-
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.userId as string;
-        session.user.role = token.role as AppRole;
-        session.user.name = token.name;
-        session.user.email = token.email;
-        session.user.image = token.picture as string | null;
-      }
-      return session;
-    },
-  },
-
-  cookies: {
-    sessionToken: {
-      name:
-        process.env.NODE_ENV === "production"
-          ? "__Secure-next-auth.session-token"
-          : "next-auth.session-token",
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-        domain:
-          process.env.NODE_ENV === "production"
-            ? process.env.NEXTAUTH_COOKIE_DOMAIN
-            : undefined,
-      },
-    },
-  },
-
+  // ✅ Custom pages
   pages: {
     signIn: "/login",
     error: "/login",
   },
 
+  // ✅ Providers
+  providers: [
+    CredentialsProvider({
+      id: "credentials",
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        console.log('🔑 Authorization attempt:', credentials?.email);
+
+        if (!credentials?.email || !credentials?.password) {
+          console.error('❌ Missing credentials');
+          throw new Error("Email and password are required");
+        }
+
+        try {
+          const response = await fetch(`${API_URL}/auth/verify-credentials`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          });
+
+          console.log('📡 Backend response status:', response.status);
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            console.error('❌ Auth failed:', response.status, errorData);
+            return null;
+          }
+
+          const user = await response.json();
+          console.log('✅ User authenticated:', user.email, user.role);
+
+          if (user && user.id) {
+            return {
+              id: user.id.toString(),
+              email: user.email,
+              name: user.name,
+              role: user.role,
+              image: user.image || null,
+            };
+          }
+
+          console.error('❌ Invalid user data from backend');
+          return null;
+        } catch (error) {
+          console.error('❌ Authorization error:', error);
+          return null;
+        }
+      },
+    }),
+  ],
+
+  // ✅ Callbacks - CRITICAL for proper session handling
+  callbacks: {
+    async signIn({ user }) {
+      console.log('🚪 Sign in callback:', user.email);
+      return true;
+    },
+
+    async jwt({ token, user, trigger, session }) {
+      // ✅ Initial sign in - add user data to token
+      if (user) {
+        console.log('🎫 Creating JWT token for:', user.email);
+        token.id = user.id;
+        token.email = user.email;
+        token.name = user.name;
+        token.role = user.role;
+        token.image = user.image;
+      }
+
+      // ✅ Handle session updates
+      if (trigger === "update" && session) {
+        console.log('🔄 Updating JWT token');
+        token = { ...token, ...session };
+      }
+
+      return token;
+    },
+
+    async session({ session, token }) {
+      // ✅ Add token data to session for client use
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        session.user.userId = token.id as string;
+        session.user.email = token.email as string;
+        session.user.name = token.name as string;
+        session.user.role = token.role as string;
+        session.user.image = token.image as string | null;
+      }
+
+      return session;
+    },
+
+    async redirect({ url, baseUrl }) {
+      console.log('🔀 Redirect callback:', { url, baseUrl });
+      
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      else if (new URL(url).origin === baseUrl) return url;
+      
+      return baseUrl;
+    },
+  },
+
+  // ✅ Events for debugging
+  events: {
+    async signIn(message) {
+      console.log('✅ Sign in event:', message.user.email);
+    },
+    async signOut() {
+      console.log('👋 Sign out event');
+    },
+  },
+
+  // ✅ Enable debug in development
   debug: process.env.NODE_ENV === "development",
+
+  // ✅ Cookie configuration - CRITICAL for cross-domain
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === "production"
+        ? "__Secure-next-auth.session-token"
+        : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+        domain: process.env.NODE_ENV === "production" 
+          ? ".vercel.app"
+          : undefined,
+      },
+    },
+    callbackUrl: {
+      name: process.env.NODE_ENV === "production"
+        ? "__Secure-next-auth.callback-url"
+        : "next-auth.callback-url",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+    csrfToken: {
+      name: process.env.NODE_ENV === "production"
+        ? "__Host-next-auth.csrf-token"
+        : "next-auth.csrf-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
 };
+
+// ✅ Type augmentation for session
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      userId: string;
+      email: string;
+      name: string;
+      role: string;
+      image?: string | null;
+    };
+  }
+
+  interface User {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    image?: string | null;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    image?: string | null;
+  }
+}

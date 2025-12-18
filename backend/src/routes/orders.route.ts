@@ -1,4 +1,5 @@
-// src/routes/orders.route.ts - FIXED
+// src/routes/orders.route.ts
+// FULL NEXTAUTH IMPLEMENTATION (CUSTOMER + ADMIN)
 
 import { Hono } from "hono";
 import {
@@ -17,30 +18,127 @@ import {
   rejectOrder,
   getOrderStats,
 } from "../controllers/order.controller";
-import { protectRoute, adminRoute } from "../middlewares/auth.middleware";
+
+import {
+  requireAuth,
+  requireCustomer,
+  requireAdmin,
+} from "../middlewares/auth.middleware";
 
 const router = new Hono();
 
-// ========== PAYNOW CALLBACK (Public) ==========
+/**
+ * ======================================================
+ * PAYNOW CALLBACK (PUBLIC)
+ * ======================================================
+ * Called by PayNow servers
+ */
 router.get("/pay/paynow/process/:orderId", processPayNowPayment);
 
-// ========== CUSTOMER ROUTES (No auth - frontend handles with NextAuth) ==========
-router.post("/checkout", checkout);
-router.post("/generate-qr/:orderId", generateCashQR);
-router.get("/pay/paynow/:orderId", initiatePayNow);
-router.get("/qr/:orderId", getOrderQR);
-router.post("/cancel/:orderId", cancelOrder);
+/**
+ * ======================================================
+ * CUSTOMER ROUTES (NextAuth)
+ * X-User-Id header REQUIRED
+ * ======================================================
+ */
 
-// Support both GET and POST for user orders
-router.get("/", getUserOrdersGet); // GET with userId query param
-router.post("/user-orders", getUserOrders); // POST with userId in body
-router.get("/:id", getOrderById);
+router.post(
+  "/checkout",
+  requireAuth,
+  requireCustomer,
+  checkout
+);
 
-// ========== ADMIN ROUTES (Keep auth protection) ==========
-router.get("/admin/all", protectRoute, adminRoute, getAllOrders);
-router.get("/admin/stats", protectRoute, adminRoute, getOrderStats);
-router.post("/admin/scan-qr", protectRoute, adminRoute, scanQRCode);
-router.patch("/admin/complete/:orderId", protectRoute, adminRoute, completeOrder);
-router.patch("/admin/reject/:orderId", protectRoute, adminRoute, rejectOrder);
+router.post(
+  "/generate-qr/:orderId",
+  requireAuth,
+  requireCustomer,
+  generateCashQR
+);
+
+router.get(
+  "/pay/paynow/:orderId",
+  requireAuth,
+  requireCustomer,
+  initiatePayNow
+);
+
+router.get(
+  "/qr/:orderId",
+  requireAuth,
+  requireCustomer,
+  getOrderQR
+);
+
+router.post(
+  "/cancel/:orderId",
+  requireAuth,
+  requireCustomer,
+  cancelOrder
+);
+
+// User orders (GET & POST supported)
+router.get(
+  "/",
+  requireAuth,
+  requireCustomer,
+  getUserOrdersGet
+);
+
+router.post(
+  "/user-orders",
+  requireAuth,
+  requireCustomer,
+  getUserOrders
+);
+
+router.get(
+  "/:id",
+  requireAuth,
+  requireCustomer,
+  getOrderById
+);
+
+/**
+ * ======================================================
+ * ADMIN ROUTES (NextAuth)
+ * requireAuth → requireAdmin
+ * ======================================================
+ */
+
+router.get(
+  "/admin/all",
+  requireAuth,
+  requireAdmin,
+  getAllOrders
+);
+
+router.get(
+  "/admin/stats",
+  requireAuth,
+  requireAdmin,
+  getOrderStats
+);
+
+router.post(
+  "/admin/scan-qr",
+  requireAuth,
+  requireAdmin,
+  scanQRCode
+);
+
+router.patch(
+  "/admin/complete/:orderId",
+  requireAuth,
+  requireAdmin,
+  completeOrder
+);
+
+router.patch(
+  "/admin/reject/:orderId",
+  requireAuth,
+  requireAdmin,
+  rejectOrder
+);
 
 export default router;

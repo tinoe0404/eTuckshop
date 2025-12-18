@@ -1,4 +1,6 @@
 // src/routes/products.route.ts
+// NEXTAUTH IMPLEMENTATION (PUBLIC + ADMIN)
+
 import { Hono } from "hono";
 import {
   getAllProducts,
@@ -8,18 +10,51 @@ import {
   updateProduct,
   deleteProduct,
 } from "../controllers/product.controller";
-import { protectRoute, adminRoute } from "../middlewares/auth.middleware";
+
+import {
+  requireAuth,
+  requireAdmin,
+} from "../middlewares/auth.middleware";
 
 const router = new Hono();
 
-// Public routes - anyone can view products
+/**
+ * ======================================================
+ * PUBLIC ROUTES
+ * ======================================================
+ */
+
+// Anyone can view products
 router.get("/", getAllProducts);
 router.get("/category/:categoryId", getProductsByCategory);
 router.get("/:id", getProductById);
 
-// Admin-only routes - must be authenticated AND be an admin
-router.post("/", protectRoute, adminRoute, createProduct);
-router.put("/:id", protectRoute, adminRoute, updateProduct);
-router.delete("/:id", protectRoute, adminRoute, deleteProduct);
+/**
+ * ======================================================
+ * ADMIN ROUTES (NextAuth)
+ * X-User-Id header REQUIRED
+ * ======================================================
+ */
+
+router.post(
+  "/",
+  requireAuth,
+  requireAdmin,
+  createProduct
+);
+
+router.put(
+  "/:id",
+  requireAuth,
+  requireAdmin,
+  updateProduct
+);
+
+router.delete(
+  "/:id",
+  requireAuth,
+  requireAdmin,
+  deleteProduct
+);
 
 export default router;
