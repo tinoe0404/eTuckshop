@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productService } from '@/lib/api/services/product.service';
 import { categoryService } from '@/lib/api/services/category.service';
 import { cartService } from '@/lib/api/services/cart.service';
@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Select,
   SelectContent,
@@ -40,7 +39,9 @@ import { Product, Category } from '@/types';
 import Image from 'next/image';
 
 export default function ProductsPage() {
+  // ===== ALL HOOKS AT THE TOP =====
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { setTotalItems } = useCartStore();
   
   // View mode
@@ -65,6 +66,30 @@ export default function ProductsPage() {
     queryFn: categoryService.getAll,
   });
 
+  // Add to cart mutation
+  const addToCartMutation = useMutation({
+    mutationFn: (productId: number) =>
+      cartService.addToCart({ productId, quantity: 1 }),
+
+    onSuccess: (response) => {
+      if (response.success) {
+        // Update Zustand immediately
+        setTotalItems(response.data.totalItems);
+
+        // Refetch cart everywhere else in the app
+        queryClient.invalidateQueries({ queryKey: ['cart'] });
+        queryClient.invalidateQueries({ queryKey: ['cart-summary'] });
+
+        toast.success('Added to cart!');
+      }
+    },
+
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to add to cart');
+    },
+  });
+
+  // ===== DERIVED STATE =====
   const products = productsData?.data || [];
   const categories = categoriesData?.data || [];
 
@@ -119,38 +144,24 @@ export default function ProductsPage() {
     return result;
   }, [products, searchQuery, selectedCategory, sortBy, priceRange, stockFilter]);
 
-  const queryClient = useQueryClient();
-
-const addToCartMutation = useMutation({
-  mutationFn: (productId: number) =>
-    cartService.addToCart({ productId, quantity: 1 }),
-
-  onSuccess: (response) => {
-    if (response.success) {
-      // 🔥 Update Zustand immediately
-      setTotalItems(response.data.totalItems);
-
-      // 🔥 Refetch cart everywhere else in the app
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-
-      toast.success('Added to cart!');
-    }
-  },
-
-  onError: (error: any) => {
-    toast.error(error.response?.data?.message || 'Failed to add to cart');
-  },
-});
-
-
-  const resetFilters = () => {
+  // ===== EVENT HANDLERS =====
+  const resetFilters = useCallback(() => {
     setSearchQuery('');
     setSelectedCategory('all');
     setSortBy('name');
     setPriceRange('all');
     setStockFilter('all');
-  };
+  }, []);
 
+  const handleAddToCart = useCallback((productId: number) => {
+    addToCartMutation.mutate(productId);
+  }, [addToCartMutation]);
+
+  const handleViewProduct = useCallback((productId: number) => {
+    router.push(`/products/${productId}`);
+  }, [router]);
+
+  // ===== RENDER =====
   return (
     <div className="min-h-screen bg-[#0f1419]">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -350,7 +361,7 @@ const addToCartMutation = useMutation({
                   <div>
                     <h3
                       className="font-semibold text-lg line-clamp-1 text-white group-hover:text-blue-400 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/products/${product.id}`)}
+                      onClick={() => handleViewProduct(product.id)}
                     >
                       {product.name}
                     </h3>
@@ -380,8 +391,8 @@ const addToCartMutation = useMutation({
                   <div className="flex space-x-2">
                     <Button
                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => addToCartMutation.mutate(product.id)}
-                      disabled={product.stock === 0}
+                      onClick={() => handleAddToCart(product.id)}
+                      disabled={product.stock === 0 || addToCartMutation.isPending}
                     >
                       <Plus className="w-4 h-4 mr-1" />
                       Add to Cart
@@ -389,7 +400,7 @@ const addToCartMutation = useMutation({
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => router.push(`/products/${product.id}`)}
+                      onClick={() => handleViewProduct(product.id)}
                       className="border-gray-700 text-gray-300 hover:bg-gray-800"
                     >
                       <Eye className="w-4 h-4" />
@@ -431,7 +442,7 @@ const addToCartMutation = useMutation({
                           <div className="flex-1">
                             <h3
                               className="text-xl font-semibold text-white group-hover:text-blue-400 transition-colors cursor-pointer"
-                              onClick={() => router.push(`/products/${product.id}`)}
+                              onClick={() => handleViewProduct(product.id)}
                             >
                               {product.name}
                             </h3>
@@ -463,8 +474,8 @@ const addToCartMutation = useMutation({
                         </div>
                         <div className="flex items-center space-x-3">
                           <Button
-                            onClick={() => addToCartMutation.mutate(product.id)}
-                            disabled={product.stock === 0}
+                            onClick={() => handleAddToCart(product.id)}
+                            disabled={product.stock === 0 || addToCartMutation.isPending}
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                           >
                             <Plus className="w-4 h-4 mr-2" />
@@ -472,7 +483,7 @@ const addToCartMutation = useMutation({
                           </Button>
                           <Button
                             variant="outline"
-                            onClick={() => router.push(`/products/${product.id}`)}
+                            onClick={() => handleViewProduct(product.id)}
                             className="border-gray-700 text-gray-300 hover:bg-gray-800"
                           >
                             <Eye className="w-4 h-4 mr-2" />
