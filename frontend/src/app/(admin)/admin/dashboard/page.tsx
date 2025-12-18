@@ -222,8 +222,6 @@ export default function AdminDashboard() {
     );
   }
 
-  // ... rest of your JSX remains the same
-
   /* =========================
      UI - CONTENT ONLY (NO HEADER/SIDEBAR)
   ========================= */
