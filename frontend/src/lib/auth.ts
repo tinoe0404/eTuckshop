@@ -1,4 +1,4 @@
-// File: lib/auth.ts
+// File: lib/auth.ts - Production Debug Version
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
@@ -17,23 +17,34 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 
+// ✅ Critical: Log configuration on startup
 console.log('🔐 NextAuth Configuration:');
 console.log('   API URL:', API_URL);
 console.log('   Environment:', process.env.NODE_ENV);
 console.log('   NEXTAUTH_URL:', process.env.NEXTAUTH_URL);
+console.log('   NEXTAUTH_SECRET exists:', !!process.env.NEXTAUTH_SECRET);
+console.log('   NEXTAUTH_SECRET length:', process.env.NEXTAUTH_SECRET?.length || 0);
+
+// ✅ Validate critical variables
+if (!process.env.NEXTAUTH_SECRET) {
+  throw new Error('❌ NEXTAUTH_SECRET is not set!');
+}
+
+if (process.env.NEXTAUTH_SECRET.length < 32) {
+  throw new Error('❌ NEXTAUTH_SECRET must be at least 32 characters!');
+}
 
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
-    updateAge: 24 * 60 * 60, // Update session every 24 hours
   },
 
   secret: process.env.NEXTAUTH_SECRET,
 
   pages: {
     signIn: "/login",
-    error: "/login",
+    error: "/login", // Redirect to login on error
   },
 
   providers: [
@@ -53,6 +64,8 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
+          console.log('📡 Calling API:', `${API_URL}/auth/verify-credentials`);
+
           const response = await fetch(`${API_URL}/auth/verify-credentials`, {
             method: "POST",
             headers: {
@@ -69,14 +82,16 @@ export const authOptions: NextAuthOptions = {
           if (!response.ok) {
             const errorData = await response.json().catch(() => null);
             console.error('❌ Auth failed:', response.status, errorData);
+            
+            // ✅ Return null instead of throwing to show proper error
             return null;
           }
 
-          // ✅ FIX: Backend returns { success: true, user: {...} }
+          // ✅ Parse response
           const data = await response.json();
           console.log('📦 Backend response:', JSON.stringify(data, null, 2));
 
-          // ✅ FIX: Access user from data.user, not data directly
+          // ✅ Check response structure
           if (!data.success || !data.user || !data.user.id) {
             console.error('❌ Invalid user data from backend');
             return null;
@@ -92,11 +107,16 @@ export const authOptions: NextAuthOptions = {
             name: user.name,
             role: user.role,
             image: user.image || null,
-            emailVerified: user.emailVerified || null,
           };
 
         } catch (error) {
           console.error('❌ Authorization error:', error);
+          // ✅ Log full error details in production
+          if (error instanceof Error) {
+            console.error('Error name:', error.name);
+            console.error('Error message:', error.message);
+            console.error('Error stack:', error.stack);
+          }
           return null;
         }
       },
@@ -104,21 +124,24 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    async signIn({ user }) {
-      console.log('🚪 Sign in callback:', user.email);
+    async signIn({ user, account, profile }) {
+      console.log('🚪 Sign in callback:', {
+        user: user?.email,
+        account: account?.provider,
+      });
       return true;
     },
 
     async jwt({ token, user, trigger, session }) {
-      // ✅ Initial sign in - add user data to token
+      // ✅ Initial sign in
       if (user) {
         console.log('🎫 Creating JWT token for:', user.email);
         token.id = user.id;
-        token.userId = user.id; // Add userId for compatibility
+        token.userId = user.id;
         token.email = user.email;
         token.name = user.name;
         token.role = user.role as "ADMIN" | "CUSTOMER";
-        token.picture = user.image; // NextAuth uses 'picture' for images in JWT
+        token.picture = user.image;
       }
 
       // ✅ Handle session updates
@@ -131,7 +154,7 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      // ✅ Add token data to session for client use
+      // ✅ Add token data to session
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.userId = token.id as string;
@@ -141,16 +164,20 @@ export const authOptions: NextAuthOptions = {
         session.user.image = token.picture as string | null;
       }
 
-      console.log('✅ Session created:', session.user.email, session.user.role);
+      console.log('✅ Session created:', session.user?.email, session.user?.role);
       return session;
     },
 
     async redirect({ url, baseUrl }) {
       console.log('🔀 Redirect callback:', { url, baseUrl });
       
+      // ✅ Allow relative URLs
       if (url.startsWith("/")) return `${baseUrl}${url}`;
-      else if (new URL(url).origin === baseUrl) return url;
       
+      // ✅ Allow same-origin URLs
+      if (new URL(url).origin === baseUrl) return url;
+      
+      // ✅ Default to base URL
       return baseUrl;
     },
   },
@@ -162,40 +189,18 @@ export const authOptions: NextAuthOptions = {
     async signOut() {
       console.log('👋 Sign out event');
     },
+    async session(message) {
+      console.log('📋 Session event:', message.session.user?.email);
+    },
   },
 
-  debug: process.env.NODE_ENV === "development",
+  // ✅ CRITICAL: Always enable debug in production to see what's failing
+  debug: true, // Enable temporarily to debug production issues
 
+  // ✅ Cookie configuration for Vercel
   cookies: {
     sessionToken: {
-      name: process.env.NODE_ENV === "production"
-        ? "__Secure-next-auth.session-token"
-        : "next-auth.session-token",
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-        domain: process.env.NODE_ENV === "production" 
-          ? ".vercel.app"
-          : undefined,
-      },
-    },
-    callbackUrl: {
-      name: process.env.NODE_ENV === "production"
-        ? "__Secure-next-auth.callback-url"
-        : "next-auth.callback-url",
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-    csrfToken: {
-      name: process.env.NODE_ENV === "production"
-        ? "__Host-next-auth.csrf-token"
-        : "next-auth.csrf-token",
+      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.session-token`,
       options: {
         httpOnly: true,
         sameSite: "lax",
