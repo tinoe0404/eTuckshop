@@ -1,3 +1,4 @@
+// File: lib/auth.ts
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
@@ -22,23 +23,19 @@ console.log('   Environment:', process.env.NODE_ENV);
 console.log('   NEXTAUTH_URL:', process.env.NEXTAUTH_URL);
 
 export const authOptions: NextAuthOptions = {
-  // ✅ Use JWT strategy (no database sessions)
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 24 * 60 * 60, // Update session every 24 hours
   },
 
-  // ✅ Secret is CRITICAL - must be set
   secret: process.env.NEXTAUTH_SECRET,
 
-  // ✅ Custom pages
   pages: {
     signIn: "/login",
     error: "/login",
   },
 
-  // ✅ Providers
   providers: [
     CredentialsProvider({
       id: "credentials",
@@ -75,21 +72,29 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
-          const user = await response.json();
-          console.log('✅ User authenticated:', user.email, user.role);
+          // ✅ FIX: Backend returns { success: true, user: {...} }
+          const data = await response.json();
+          console.log('📦 Backend response:', JSON.stringify(data, null, 2));
 
-          if (user && user.id) {
-            return {
-              id: user.id.toString(),
-              email: user.email,
-              name: user.name,
-              role: user.role,
-              image: user.image || null,
-            };
+          // ✅ FIX: Access user from data.user, not data directly
+          if (!data.success || !data.user || !data.user.id) {
+            console.error('❌ Invalid user data from backend');
+            return null;
           }
 
-          console.error('❌ Invalid user data from backend');
-          return null;
+          const user = data.user;
+          console.log('✅ User authenticated:', user.email, user.role);
+
+          // ✅ Return user in NextAuth format
+          return {
+            id: user.id.toString(),
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            image: user.image || null,
+            emailVerified: user.emailVerified || null,
+          };
+
         } catch (error) {
           console.error('❌ Authorization error:', error);
           return null;
@@ -98,7 +103,6 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
 
-  // ✅ Callbacks - CRITICAL for proper session handling
   callbacks: {
     async signIn({ user }) {
       console.log('🚪 Sign in callback:', user.email);
@@ -110,10 +114,11 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         console.log('🎫 Creating JWT token for:', user.email);
         token.id = user.id;
+        token.userId = user.id; // Add userId for compatibility
         token.email = user.email;
         token.name = user.name;
-        token.role = user.role;
-        token.image = user.image;
+        token.role = user.role as "ADMIN" | "CUSTOMER";
+        token.picture = user.image; // NextAuth uses 'picture' for images in JWT
       }
 
       // ✅ Handle session updates
@@ -132,10 +137,11 @@ export const authOptions: NextAuthOptions = {
         session.user.userId = token.id as string;
         session.user.email = token.email as string;
         session.user.name = token.name as string;
-        session.user.role = token.role as string;
-        session.user.image = token.image as string | null;
+        session.user.role = token.role as "ADMIN" | "CUSTOMER";
+        session.user.image = token.picture as string | null;
       }
 
+      console.log('✅ Session created:', session.user.email, session.user.role);
       return session;
     },
 
@@ -149,7 +155,6 @@ export const authOptions: NextAuthOptions = {
     },
   },
 
-  // ✅ Events for debugging
   events: {
     async signIn(message) {
       console.log('✅ Sign in event:', message.user.email);
@@ -159,10 +164,8 @@ export const authOptions: NextAuthOptions = {
     },
   },
 
-  // ✅ Enable debug in development
   debug: process.env.NODE_ENV === "development",
 
-  // ✅ Cookie configuration - CRITICAL for cross-domain
   cookies: {
     sessionToken: {
       name: process.env.NODE_ENV === "production"
@@ -202,35 +205,3 @@ export const authOptions: NextAuthOptions = {
     },
   },
 };
-
-// ✅ Type augmentation for session
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-      userId: string;
-      email: string;
-      name: string;
-      role: string;
-      image?: string | null;
-    };
-  }
-
-  interface User {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-    image?: string | null;
-  }
-}
-
-declare module "next-auth/jwt" {
-  interface JWT {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-    image?: string | null;
-  }
-}

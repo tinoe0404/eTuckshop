@@ -120,7 +120,6 @@ export const getAnalytics = async (c: Context) => {
       totalOrders,
       completedOrders,
       revenueData,
-      dailyStats,
       topProducts,
       recentOrders,
     ] = await Promise.all([
@@ -148,18 +147,6 @@ export const getAnalytics = async (c: Context) => {
         _count: true,
       }),
 
-      // Daily sales and revenue stats (last 30 days)
-      prisma.$queryRaw`
-        SELECT 
-          DATE("createdAt") as date,
-          COUNT(*) as order_count,
-          SUM(CASE WHEN status IN ('PAID', 'COMPLETED') THEN "totalAmount" ELSE 0 END) as revenue
-        FROM "Order"
-        WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
-        GROUP BY DATE("createdAt")
-        ORDER BY date ASC
-      `,
-
       // Top selling products
       prisma.orderItem.groupBy({
         by: ['productId'],
@@ -185,6 +172,46 @@ export const getAnalytics = async (c: Context) => {
       }),
     ]);
 
+    // ✅ FIX: Get daily stats using Prisma (not raw SQL)
+    // Group orders by date for the chart
+    const ordersInRange = await prisma.order.findMany({
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+      select: {
+        createdAt: true,
+        status: true,
+        totalAmount: true,
+      },
+    });
+
+    // Process daily stats manually (safer than raw SQL)
+    const dailyStatsMap = new Map<string, { sales: number; revenue: number }>();
+    
+    ordersInRange.forEach(order => {
+      const dateKey = order.createdAt.toISOString().split('T')[0];
+      const current = dailyStatsMap.get(dateKey) || { sales: 0, revenue: 0 };
+      
+      current.sales += 1;
+      if (order.status === 'PAID' || order.status === 'COMPLETED') {
+        current.revenue += order.totalAmount;
+      }
+      
+      dailyStatsMap.set(dateKey, current);
+    });
+
+    // Convert map to sorted array
+    const dailyStats = Array.from(dailyStatsMap.entries())
+      .map(([date, stats]) => ({
+        date,
+        sales: stats.sales,
+        revenue: parseFloat(stats.revenue.toFixed(2)),
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
     // Get product details for top products
     const topProductIds = topProducts.map(p => p.productId);
     const productDetails = await prisma.product.findMany({
@@ -203,18 +230,10 @@ export const getAnalytics = async (c: Context) => {
       };
     });
 
-    // Format daily stats
-    const formattedDailyStats = (dailyStats as any[]).map((stat: any) => ({
-      date: stat.date.toISOString().split('T')[0],
-      sales: Number(stat.order_count),
-      revenue: parseFloat(Number(stat.revenue || 0).toFixed(2)),
-    }));
-
     // Calculate growth (comparing to previous period)
+    const periodLength = end.getTime() - start.getTime();
     const previousPeriodEnd = new Date(start);
-    const previousPeriodStart = new Date(
-      start.getTime() - (end.getTime() - start.getTime())
-    );
+    const previousPeriodStart = new Date(start.getTime() - periodLength);
 
     const previousRevenue = await prisma.order.aggregate({
       where: {
@@ -236,6 +255,7 @@ export const getAnalytics = async (c: Context) => {
     console.log(`✅ Analytics data retrieved successfully for ${user.email}`);
     console.log(`   Total Revenue: $${currentRevenue.toFixed(2)}`);
     console.log(`   Growth: ${revenueGrowth.toFixed(2)}%`);
+    console.log(`   Daily Stats Points: ${dailyStats.length}`);
 
     return c.json({
       success: true,
@@ -250,7 +270,7 @@ export const getAnalytics = async (c: Context) => {
           totalOrders,
           revenueGrowth: parseFloat(revenueGrowth.toFixed(2)),
         },
-        dailyStats: formattedDailyStats,
+        dailyStats,
         topProducts: topProductsWithDetails,
         recentOrders,
         dateRange: {

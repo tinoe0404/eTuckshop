@@ -94,6 +94,7 @@ const useAnalytics = (dateRange: { startDate: string; endDate: string }) => {
 // ==========================================
 
 export default function AdminAnalyticsPage() {
+  // ✅ FIX: ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const { dateRange, activePeriod, setLast7Days, setLast30Days, setLast90Days } = useDateRange();
   
   const {
@@ -110,7 +111,7 @@ export default function AdminAnalyticsPage() {
   const topProducts = analytics?.topProducts || [];
   const recentOrders = analytics?.recentOrders || [];
 
-  // Memoized calculations for chart scaling
+  // ✅ Memoized calculations for chart scaling - MUST BE BEFORE RETURNS
   const chartMetrics = useMemo(() => {
     if (dailyStats.length === 0) {
       return { maxSales: 1, maxRevenue: 1 };
@@ -124,6 +125,8 @@ export default function AdminAnalyticsPage() {
 
   const isPositiveGrowth = (summary?.revenueGrowth || 0) >= 0;
 
+  // ✅ NOW IT'S SAFE TO RETURN CONDITIONALLY - ALL HOOKS HAVE BEEN CALLED
+  
   // ==========================================
   // LOADING STATE
   // ==========================================
@@ -491,15 +494,7 @@ export default function AdminAnalyticsPage() {
                         {index + 1}
                       </div>
                       <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
-                        {product.image ? (
-                          <img
-                            src={product.image}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <Package className="w-5 h-5 text-gray-400" />
-                        )}
+                        <Package className="w-5 h-5 text-gray-400" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-white truncate">

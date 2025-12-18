@@ -1,4 +1,5 @@
-// File: src/controllers/cart.controller.ts (UPDATED FOR NEXTAUTH)
+// src/controllers/cart.controller.ts
+// ✅ FIXED: Uses requireAuth middleware and c.get('user')
 
 import { Context } from "hono";
 import { prisma } from "../utils/prisma";
@@ -75,21 +76,26 @@ const calculateCartTotals = (cart: any) => {
 };
 
 // ==============================
-// GET CART (Public - uses userId from request)
+// GET CART (Protected - requireAuth)
 // ==============================
 export const getCart = async (c: Context) => {
   try {
-    const { userId } = await c.req.json();
-
-    if (!userId) {
+    // ✅ Get authenticated user from context
+    const user = c.get('user');
+    
+    if (!user) {
       return c.json({
         success: false,
-        message: "User ID is required"
-      }, 400);
+        message: "Authentication required"
+      }, 401);
     }
 
-    const cart = await getOrCreateCart(parseInt(userId));
+    console.log(`🛒 User ${user.email} (ID: ${user.id}) fetching cart`);
+
+    const cart = await getOrCreateCart(user.id);
     const cartWithTotals = calculateCartTotals(cart);
+
+    console.log(`✅ Cart retrieved: ${cartWithTotals.totalItems} items, $${cartWithTotals.totalAmount}`);
 
     return c.json({
       success: true,
@@ -97,26 +103,33 @@ export const getCart = async (c: Context) => {
       data: cartWithTotals,
     });
   } catch (error) {
+    console.error('❌ Error fetching cart:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// ADD TO CART (Public - uses userId from request)
+// ADD TO CART (Protected - requireAuth)
 // ==============================
 export const addToCart = async (c: Context) => {
   try {
-    const { userId, productId, quantity = 1 } = await c.req.json();
-
-    if (!userId) {
+    // ✅ Get authenticated user from context
+    const user = c.get('user');
+    
+    if (!user) {
       return c.json({
         success: false,
-        message: "User ID is required"
-      }, 400);
+        message: "Authentication required"
+      }, 401);
     }
+
+    const { productId, quantity = 1 } = await c.req.json();
+
+    console.log(`➕ User ${user.email} (ID: ${user.id}) adding product ${productId} (qty: ${quantity}) to cart`);
 
     // Validate input
     if (!productId || quantity < 1) {
+      console.log('❌ Invalid product ID or quantity');
       return c.json(
         { success: false, message: "Invalid product ID or quantity" },
         400
@@ -129,6 +142,7 @@ export const addToCart = async (c: Context) => {
     });
 
     if (!product) {
+      console.log(`❌ Product ${productId} not found`);
       return c.json(
         { success: false, message: "Product not found" },
         404
@@ -136,6 +150,7 @@ export const addToCart = async (c: Context) => {
     }
 
     if (product.stock < quantity) {
+      console.log(`❌ Insufficient stock for product ${productId}: requested ${quantity}, available ${product.stock}`);
       return c.json(
         {
           success: false,
@@ -146,7 +161,7 @@ export const addToCart = async (c: Context) => {
     }
 
     // Get or create cart
-    const cart = await getOrCreateCart(parseInt(userId));
+    const cart = await getOrCreateCart(user.id);
 
     // Check if item already in cart
     const existingItem = await prisma.cartItem.findFirst({
@@ -161,6 +176,7 @@ export const addToCart = async (c: Context) => {
       const newQuantity = existingItem.quantity + parseInt(quantity);
 
       if (product.stock < newQuantity) {
+        console.log(`❌ Cannot add ${quantity} more - only ${product.stock - existingItem.quantity} available`);
         return c.json(
           {
             success: false,
@@ -174,6 +190,8 @@ export const addToCart = async (c: Context) => {
         where: { id: existingItem.id },
         data: { quantity: newQuantity },
       });
+
+      console.log(`✅ Updated cart item quantity: ${existingItem.quantity} → ${newQuantity}`);
     } else {
       // Add new item
       await prisma.cartItem.create({
@@ -183,6 +201,8 @@ export const addToCart = async (c: Context) => {
           quantity: parseInt(quantity),
         },
       });
+
+      console.log(`✅ Added new item to cart: ${product.name} (qty: ${quantity})`);
     }
 
     // Fetch updated cart
@@ -207,32 +227,39 @@ export const addToCart = async (c: Context) => {
       data: cartWithTotals,
     });
   } catch (error) {
+    console.error('❌ Error adding to cart:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// UPDATE CART ITEM (Public - uses userId from request)
+// UPDATE CART ITEM (Protected - requireAuth)
 // ==============================
 export const updateCartItem = async (c: Context) => {
   try {
-    const { userId, productId, quantity } = await c.req.json();
-
-    if (!userId) {
+    // ✅ Get authenticated user from context
+    const user = c.get('user');
+    
+    if (!user) {
       return c.json({
         success: false,
-        message: "User ID is required"
-      }, 400);
+        message: "Authentication required"
+      }, 401);
     }
 
+    const { productId, quantity } = await c.req.json();
+
+    console.log(`✏️ User ${user.email} (ID: ${user.id}) updating cart item ${productId} to qty ${quantity}`);
+
     if (!productId || quantity < 1) {
+      console.log('❌ Invalid product ID or quantity');
       return c.json(
         { success: false, message: "Invalid product ID or quantity" },
         400
       );
     }
 
-    const cart = await getOrCreateCart(parseInt(userId));
+    const cart = await getOrCreateCart(user.id);
 
     // Find cart item
     const cartItem = await prisma.cartItem.findFirst({
@@ -244,6 +271,7 @@ export const updateCartItem = async (c: Context) => {
     });
 
     if (!cartItem) {
+      console.log(`❌ Item ${productId} not found in cart`);
       return c.json(
         { success: false, message: "Item not found in cart" },
         404
@@ -252,6 +280,7 @@ export const updateCartItem = async (c: Context) => {
 
     // Check stock
     if (cartItem.product.stock < quantity) {
+      console.log(`❌ Insufficient stock: requested ${quantity}, available ${cartItem.product.stock}`);
       return c.json(
         {
           success: false,
@@ -266,6 +295,8 @@ export const updateCartItem = async (c: Context) => {
       where: { id: cartItem.id },
       data: { quantity: parseInt(quantity) },
     });
+
+    console.log(`✅ Cart item updated: ${cartItem.product.name} quantity ${cartItem.quantity} → ${quantity}`);
 
     // Fetch updated cart
     const updatedCart = await prisma.cart.findUnique({
@@ -289,26 +320,31 @@ export const updateCartItem = async (c: Context) => {
       data: cartWithTotals,
     });
   } catch (error) {
+    console.error('❌ Error updating cart item:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// REMOVE FROM CART (Public - uses userId from request)
+// REMOVE FROM CART (Protected - requireAuth)
 // ==============================
 export const removeFromCart = async (c: Context) => {
   try {
-    const { userId } = await c.req.json();
-    const productId = Number(c.req.param("productId"));
-
-    if (!userId) {
+    // ✅ Get authenticated user from context
+    const user = c.get('user');
+    
+    if (!user) {
       return c.json({
         success: false,
-        message: "User ID is required"
-      }, 400);
+        message: "Authentication required"
+      }, 401);
     }
 
-    const cart = await getOrCreateCart(parseInt(userId));
+    const productId = Number(c.req.param("productId"));
+
+    console.log(`🗑️ User ${user.email} (ID: ${user.id}) removing product ${productId} from cart`);
+
+    const cart = await getOrCreateCart(user.id);
 
     // Find and delete cart item
     const cartItem = await prisma.cartItem.findFirst({
@@ -316,9 +352,11 @@ export const removeFromCart = async (c: Context) => {
         cartId: cart.id,
         productId,
       },
+      include: { product: true },
     });
 
     if (!cartItem) {
+      console.log(`❌ Item ${productId} not found in cart`);
       return c.json(
         { success: false, message: "Item not found in cart" },
         404
@@ -328,6 +366,8 @@ export const removeFromCart = async (c: Context) => {
     await prisma.cartItem.delete({
       where: { id: cartItem.id },
     });
+
+    console.log(`✅ Removed from cart: ${cartItem.product.name}`);
 
     // Fetch updated cart
     const updatedCart = await prisma.cart.findUnique({
@@ -351,30 +391,36 @@ export const removeFromCart = async (c: Context) => {
       data: cartWithTotals,
     });
   } catch (error) {
+    console.error('❌ Error removing from cart:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// CLEAR CART (Public - uses userId from request)
+// CLEAR CART (Protected - requireAuth)
 // ==============================
 export const clearCart = async (c: Context) => {
   try {
-    const { userId } = await c.req.json();
-
-    if (!userId) {
+    // ✅ Get authenticated user from context
+    const user = c.get('user');
+    
+    if (!user) {
       return c.json({
         success: false,
-        message: "User ID is required"
-      }, 400);
+        message: "Authentication required"
+      }, 401);
     }
 
-    const cart = await getOrCreateCart(parseInt(userId));
+    console.log(`🧹 User ${user.email} (ID: ${user.id}) clearing cart`);
+
+    const cart = await getOrCreateCart(user.id);
 
     // Delete all cart items
-    await prisma.cartItem.deleteMany({
+    const deletedCount = await prisma.cartItem.deleteMany({
       where: { cartId: cart.id },
     });
+
+    console.log(`✅ Cart cleared: ${deletedCount.count} items removed`);
 
     return c.json({
       success: true,
@@ -388,25 +434,29 @@ export const clearCart = async (c: Context) => {
       },
     });
   } catch (error) {
+    console.error('❌ Error clearing cart:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// GET CART SUMMARY (Public - uses userId from request)
+// GET CART SUMMARY (POST - Protected)
 // ==============================
 export const getCartSummary = async (c: Context) => {
   try {
-    const { userId } = await c.req.json();
-
-    if (!userId) {
+    // ✅ Get authenticated user from context
+    const user = c.get('user');
+    
+    if (!user) {
       return c.json({
         success: false,
-        message: "User ID is required"
-      }, 400);
+        message: "Authentication required"
+      }, 401);
     }
 
-    const cart = await getOrCreateCart(parseInt(userId));
+    console.log(`📊 User ${user.email} (ID: ${user.id}) fetching cart summary`);
+
+    const cart = await getOrCreateCart(user.id);
 
     const totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
     const totalAmount = parseFloat(
@@ -415,6 +465,8 @@ export const getCartSummary = async (c: Context) => {
         0
       ).toFixed(2)
     );
+
+    console.log(`✅ Cart summary: ${totalItems} items, $${totalAmount}`);
 
     return c.json({
       success: true,
@@ -425,27 +477,30 @@ export const getCartSummary = async (c: Context) => {
       },
     });
   } catch (error) {
+    console.error('❌ Error fetching cart summary:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// GET CART SUMMARY (GET request with query param)
+// GET CART SUMMARY (GET - Protected)
 // For backward compatibility with existing frontend
 // ==============================
 export const getCartSummaryGet = async (c: Context) => {
   try {
-    // Get userId from query param
-    const userId = c.req.query("userId");
-
-    if (!userId) {
+    // ✅ Get authenticated user from context
+    const user = c.get('user');
+    
+    if (!user) {
       return c.json({
         success: false,
-        message: "User ID is required"
-      }, 400);
+        message: "Authentication required"
+      }, 401);
     }
 
-    const cart = await getOrCreateCart(parseInt(userId));
+    console.log(`📊 User ${user.email} (ID: ${user.id}) fetching cart summary (GET)`);
+
+    const cart = await getOrCreateCart(user.id);
 
     const totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
     const totalAmount = parseFloat(
@@ -454,6 +509,8 @@ export const getCartSummaryGet = async (c: Context) => {
         0
       ).toFixed(2)
     );
+
+    console.log(`✅ Cart summary: ${totalItems} items, $${totalAmount}`);
 
     return c.json({
       success: true,
@@ -464,6 +521,7 @@ export const getCartSummaryGet = async (c: Context) => {
       },
     });
   } catch (error) {
+    console.error('❌ Error fetching cart summary:', error);
     return serverError(c, error);
   }
 };

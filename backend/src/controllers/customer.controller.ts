@@ -1,3 +1,4 @@
+// src/controllers/customer.controller.ts
 import { Context } from "hono";
 import { prisma } from "../utils/prisma";
 import { serverError } from "../utils/serverError";
@@ -7,6 +8,18 @@ import { serverError } from "../utils/serverError";
 // ==========================================
 export const getAllCustomers = async (c: Context) => {
   try {
+    // ✅ Get authenticated admin user from context
+    const user = c.get("user");
+    
+    if (!user) {
+      return c.json({ 
+        success: false, 
+        message: "Authentication required" 
+      }, 401);
+    }
+
+    console.log(`👥 Admin ${user.email} (ID: ${user.id}) fetching customers list`);
+
     const { search, page = "1", limit = "10", sortBy = "createdAt", order = "desc" } = c.req.query();
 
     const where: any = { role: "CUSTOMER" };
@@ -15,6 +28,7 @@ export const getAllCustomers = async (c: Context) => {
         { name: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } },
       ];
+      console.log(`🔍 Searching for: "${search}"`);
     }
 
     const orderByField = sortBy || "createdAt";
@@ -38,6 +52,8 @@ export const getAllCustomers = async (c: Context) => {
       }),
       prisma.user.count({ where }),
     ]);
+
+    console.log(`📊 Found ${total} customers (page ${page}/${Math.ceil(total / parseInt(limit))})`);
 
     const customersWithStats = await Promise.all(
       customers.map(async (customer) => {
@@ -69,6 +85,8 @@ export const getAllCustomers = async (c: Context) => {
       })
     );
 
+    console.log(`✅ Customers list retrieved successfully by ${user.email}`);
+
     return c.json({
       success: true,
       message: "Customers retrieved successfully",
@@ -83,6 +101,7 @@ export const getAllCustomers = async (c: Context) => {
       },
     });
   } catch (error) {
+    console.error('❌ Error fetching customers:', error);
     return serverError(c, error);
   }
 };
@@ -92,7 +111,18 @@ export const getAllCustomers = async (c: Context) => {
 // ==========================================
 export const getCustomerById = async (c: Context) => {
   try {
+    // ✅ Get authenticated admin user from context
+    const user = c.get("user");
+    
+    if (!user) {
+      return c.json({ 
+        success: false, 
+        message: "Authentication required" 
+      }, 401);
+    }
+
     const id = Number(c.req.param("id"));
+    console.log(`👤 Admin ${user.email} (ID: ${user.id}) fetching customer ${id}`);
 
     const customer = await prisma.user.findUnique({
       where: { id },
@@ -107,12 +137,16 @@ export const getCustomerById = async (c: Context) => {
     });
 
     if (!customer) {
+      console.log(`❌ Customer ${id} not found`);
       return c.json({ success: false, message: "Customer not found" }, 404);
     }
 
     if (customer.role !== "CUSTOMER") {
+      console.log(`❌ User ${id} is not a customer (role: ${customer.role})`);
       return c.json({ success: false, message: "User is not a customer" }, 400);
     }
+
+    console.log(`📋 Fetching detailed stats for customer: ${customer.email}`);
 
     const orders = await prisma.order.findMany({
       where: { userId: id },
@@ -135,6 +169,8 @@ export const getCustomerById = async (c: Context) => {
       prisma.order.count({ where: { userId: id, status: "CANCELLED" } }),
     ]);
 
+    console.log(`✅ Customer details retrieved: ${customer.email} (${orders.length} orders)`);
+
     return c.json({
       success: true,
       message: "Customer details retrieved successfully",
@@ -154,6 +190,7 @@ export const getCustomerById = async (c: Context) => {
       },
     });
   } catch (error) {
+    console.error('❌ Error fetching customer details:', error);
     return serverError(c, error);
   }
 };
@@ -163,6 +200,20 @@ export const getCustomerById = async (c: Context) => {
 // ==========================================
 export const getCustomerStats = async (c: Context) => {
   try {
+    // ✅ Get authenticated admin user from context
+    const user = c.get("user");
+    
+    if (!user) {
+      return c.json({ 
+        success: false, 
+        message: "Authentication required" 
+      }, 401);
+    }
+
+    console.log(`📊 Admin ${user.email} (ID: ${user.id}) fetching customer statistics`);
+
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
     const [totalCustomers, activeCustomers, newCustomersThisMonth, topCustomers] = await Promise.all([
       prisma.user.count({ where: { role: "CUSTOMER" } }),
       prisma.user.count({
@@ -171,7 +222,7 @@ export const getCustomerStats = async (c: Context) => {
       prisma.user.count({
         where: {
           role: "CUSTOMER",
-          createdAt: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+          createdAt: { gte: startOfMonth },
         },
       }),
       prisma.order.groupBy({
@@ -201,6 +252,9 @@ export const getCustomerStats = async (c: Context) => {
       };
     });
 
+    console.log(`✅ Customer statistics retrieved by ${user.email}`);
+    console.log(`   Total: ${totalCustomers}, Active: ${activeCustomers}, New this month: ${newCustomersThisMonth}`);
+
     return c.json({
       success: true,
       message: "Customer statistics retrieved successfully",
@@ -213,6 +267,7 @@ export const getCustomerStats = async (c: Context) => {
       },
     });
   } catch (error) {
+    console.error('❌ Error fetching customer statistics:', error);
     return serverError(c, error);
   }
 };
@@ -222,7 +277,18 @@ export const getCustomerStats = async (c: Context) => {
 // ==========================================
 export const deleteCustomer = async (c: Context) => {
   try {
+    // ✅ Get authenticated admin user from context
+    const user = c.get("user");
+    
+    if (!user) {
+      return c.json({ 
+        success: false, 
+        message: "Authentication required" 
+      }, 401);
+    }
+
     const id = Number(c.req.param("id"));
+    console.log(`🗑️ Admin ${user.email} (ID: ${user.id}) attempting to delete customer ${id}`);
 
     const customer = await prisma.user.findUnique({
       where: { id },
@@ -230,14 +296,17 @@ export const deleteCustomer = async (c: Context) => {
     });
 
     if (!customer) {
+      console.log(`❌ Customer ${id} not found`);
       return c.json({ success: false, message: "Customer not found" }, 404);
     }
 
     if (customer.role !== "CUSTOMER") {
+      console.log(`❌ Cannot delete user ${id} - not a customer (role: ${customer.role})`);
       return c.json({ success: false, message: "Cannot delete admin users" }, 400);
     }
 
     if (customer._count.orders > 0) {
+      console.log(`⚠️ Cannot delete customer ${id} - has ${customer._count.orders} orders`);
       return c.json(
         {
           success: false,
@@ -247,14 +316,22 @@ export const deleteCustomer = async (c: Context) => {
       );
     }
 
-    await prisma.user.delete({ where: { id } });
+    // Also delete related cart data
+    await prisma.$transaction([
+      prisma.cartItem.deleteMany({ where: { cart: { userId: id } } }),
+      prisma.cart.deleteMany({ where: { userId: id } }),
+      prisma.user.delete({ where: { id } }),
+    ]);
+
+    console.log(`✅ Customer deleted: ${customer.email} (ID: ${id}) by ${user.email}`);
 
     return c.json({
       success: true,
       message: "Customer deleted successfully",
-      data: { id },
+      data: { id, name: customer.name, email: customer.email },
     });
   } catch (error) {
+    console.error('❌ Error deleting customer:', error);
     return serverError(c, error);
   }
 };
