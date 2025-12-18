@@ -23,51 +23,84 @@ app.use(logger());
 app.use("*", async (c, next) => {
   await next();
   
-  // Set security headers on every response
   c.header("X-Content-Type-Options", "nosniff");
   c.header("X-Frame-Options", "DENY");
   c.header("X-XSS-Protection", "1; mode=block");
   c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+  
+  // Don't cache API responses to prevent stale auth state
   c.header("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   c.header("Pragma", "no-cache");
   c.header("Expires", "0");
   
-  // httpS-only in production
   if (process.env.NODE_ENV === "production") {
     c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
 });
 
-// ✅ CORS Configuration
+// ✅ ENHANCED CORS Configuration - THIS IS THE KEY FIX
 app.use(
   "*",
   cors({
     origin: (origin) => {
-      const allowedOrigins = [
+      // Development origins
+      const devOrigins = [
         "http://localhost:3000",
         "http://localhost:5000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5000",
+      ];
+      
+      // Production origins
+      const prodOrigins = [
         "https://e-tuckshop.vercel.app",
         "https://etuckshop-backend.onrender.com",
       ];
       
-      if (!origin) return allowedOrigins[0];
-      if (allowedOrigins.includes(origin)) return origin;
-      if (origin.endsWith(".vercel.app")) return origin;
+      const allowedOrigins = [...devOrigins, ...prodOrigins];
       
-      return allowedOrigins[0];
+      // Allow requests with no origin (mobile apps, Postman, curl, etc.)
+      if (!origin) {
+        console.log("⚪ Request with no origin (likely server-side or tool)");
+        return "*";
+      }
+      
+      // Check if origin is in allowed list
+      if (allowedOrigins.includes(origin)) {
+        console.log("✅ Allowed origin:", origin);
+        return origin;
+      }
+      
+      // Allow any Vercel preview deployments
+      if (origin.endsWith(".vercel.app")) {
+        console.log("✅ Allowed Vercel preview:", origin);
+        return origin;
+      }
+      
+      // Reject unknown origins in production
+      if (process.env.NODE_ENV === "production") {
+        console.warn("❌ Rejected origin:", origin);
+        return allowedOrigins[0]; // Fallback to first allowed origin
+      }
+      
+      // In development, allow all origins for easier testing
+      console.log("⚠️ DEV MODE: Allowing origin:", origin);
+      return origin;
     },
-    credentials: true,
+    credentials: true, // CRITICAL: Enable cookies
     allowHeaders: [
       "Content-Type",
       "Authorization",
       "Cookie",
       "Set-Cookie",
       "X-Requested-With",
-      "X-User-ID",  // ✅ ADD THIS LINE
+      "X-User-ID",
+      "Accept",
+      "Origin",
     ],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     exposeHeaders: ["Set-Cookie"],
-    maxAge: 86400,
+    maxAge: 86400, // Cache preflight for 24 hours
   })
 );
 
@@ -79,11 +112,12 @@ app.get("/", (c) => {
     status: "online",
     version: "1.0.0",
     timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development",
     documentation: "/api",
   });
 });
 
-// Health check endpoint
+// Health check endpoint with detailed info
 app.get("/health", async (c) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -95,6 +129,8 @@ app.get("/health", async (c) => {
       timestamp: new Date().toISOString(),
       database: "connected",
       environment: process.env.NODE_ENV || "development",
+      clientUrl: process.env.CLIENT_URL || "http://localhost:3000",
+      cors: "enabled",
     });
   } catch (error) {
     return c.json(
@@ -117,7 +153,11 @@ app.get("/api", (c) => {
     version: "1.0.0",
     environment: process.env.NODE_ENV || "development",
     cors: {
-      allowedOrigin: process.env.CLIENT_URL || "http://localhost:3000",
+      enabled: true,
+      allowedOrigins: [
+        "http://localhost:3000",
+        "https://e-tuckshop.vercel.app",
+      ],
     },
     endpoints: {
       auth: "/api/auth",
@@ -132,6 +172,7 @@ app.get("/api", (c) => {
   });
 });
 
+// Database connection with retry logic
 async function checkDbConnection(retries = 5, delayMs = 3000) {
   for (let i = 1; i <= retries; i++) {
     try {
@@ -140,16 +181,16 @@ async function checkDbConnection(retries = 5, delayMs = 3000) {
       console.log("✅ Database connected successfully!");
       return;
     } catch (error) {
-      console.error(`❌ DB connection attempt ${i} failed`);
+      console.error(`❌ DB connection attempt ${i}/${retries} failed`);
       if (i === retries) {
         console.error("🚨 All DB connection attempts failed");
         throw error;
       }
+      console.log(`⏳ Retrying in ${delayMs / 1000}s...`);
       await new Promise(res => setTimeout(res, delayMs));
     }
   }
 }
-
 
 // Attach routes (mount under /api base path)
 const api = new Hono();
@@ -171,6 +212,7 @@ app.notFound((c) => {
       success: false,
       message: "Route not found",
       requestedPath: c.req.path,
+      method: c.req.method,
       availableEndpoints: {
         root: "/",
         health: "/health",
@@ -214,23 +256,41 @@ process.on("SIGINT", async () => {
 
 // Start server
 (async () => {
-  await checkDbConnection();
+  try {
+    await checkDbConnection();
 
-  const port = Number(process.env.PORT) || 5000;
-  const host = "0.0.0.0";
+    const port = Number(process.env.PORT) || 5000;
+    const host = "0.0.0.0";
 
-  serve({ 
-    port,
-    hostname: host,
-    fetch: app.fetch,
-    development: process.env.NODE_ENV !== "production",
-  });
+    serve({ 
+      port,
+      hostname: host,
+      fetch: app.fetch,
+      development: process.env.NODE_ENV !== "production",
+    });
 
-  console.log("=".repeat(50));
-  console.log(`🚀 Server running on http://localhost:${port}`);
-  console.log(`📦 Environment: ${process.env.NODE_ENV || "development"}`);
-  console.log(`🌐 Client URL: ${process.env.CLIENT_URL || "http://localhost:3000"}`);
-  console.log(`💚 Health check: http://localhost:${port}/health`);
-  console.log(`📚 API info: http://localhost:${port}/api`);
-  console.log("=".repeat(50));
+    console.log("=".repeat(60));
+    console.log(`🚀 Server running on http://localhost:${port}`);
+    console.log(`📦 Environment: ${process.env.NODE_ENV || "development"}`);
+    console.log(`🌐 Client URL: ${process.env.CLIENT_URL || "http://localhost:3000"}`);
+    console.log(`💚 Health check: http://localhost:${port}/health`);
+    console.log(`📚 API info: http://localhost:${port}/api`);
+    console.log("=".repeat(60));
+    console.log("");
+    console.log("🔍 CORS Configuration:");
+    console.log("   ✅ Credentials enabled");
+    console.log("   ✅ Development origins allowed");
+    console.log("   ✅ Production origins allowed");
+    console.log("   ✅ Vercel preview deployments allowed");
+    console.log("");
+    console.log("⚠️  IMPORTANT:");
+    console.log("   • For LOCAL testing: Frontend must run on http://localhost:3000");
+    console.log("   • For PRODUCTION: Backend must be deployed (not localhost)");
+    console.log("   • Vercel frontend + localhost backend = WON'T WORK");
+    console.log("");
+    console.log("=".repeat(60));
+  } catch (error) {
+    console.error("❌ Failed to start server:", error);
+    process.exit(1);
+  }
 })();
