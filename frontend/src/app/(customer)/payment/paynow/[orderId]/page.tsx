@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { orderService } from '@/lib/api/services/order.service';
@@ -23,6 +23,7 @@ import { formatCurrency } from '@/lib/utils';
 import apiClient from '@/lib/api/client';
 
 export default function PayNowPaymentPage() {
+  // ===== ALL HOOKS AT THE TOP =====
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -42,8 +43,10 @@ export default function PayNowPaymentPage() {
     queryFn: () => orderService.getOrderById(orderId),
   });
 
+  // ===== DERIVED STATE =====
   const order = orderData?.data;
 
+  // ===== EFFECTS =====
   useEffect(() => {
     // Validate order
     if (!isLoading && order) {
@@ -55,9 +58,10 @@ export default function PayNowPaymentPage() {
         router.push(`/orders/${orderId}`);
       }
     }
-  }, [order, isLoading, orderId, router]);
+  }, [order?.status, order?.paymentType, isLoading, orderId, router]);
 
-  const handlePayment = async (e: React.FormEvent) => {
+  // ===== EVENT HANDLERS =====
+  const handlePayment = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -102,11 +106,24 @@ export default function PayNowPaymentPage() {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [accountNumber, pin, orderId, paymentRef, router]);
 
+  const handleAccountNumberChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setAccountNumber(e.target.value.replace(/\D/g, ''));
+  }, []);
+
+  const handlePinChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPin(e.target.value.replace(/\D/g, ''));
+  }, []);
+
+  const handleCancel = useCallback(() => {
+    router.push(`/orders/${orderId}`);
+  }, [orderId, router]);
+
+  // ===== CONDITIONAL RENDERING =====
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 flex items-center justify-center">
         <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
       </div>
     );
@@ -114,7 +131,7 @@ export default function PayNowPaymentPage() {
 
   if (!order) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 flex items-center justify-center">
         <Card className="max-w-md w-full mx-4">
           <CardContent className="p-8 text-center">
             <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
@@ -132,11 +149,11 @@ export default function PayNowPaymentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 p-6">
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="w-20 h-20 bg-linear-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
+          <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
             <CreditCard className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -167,7 +184,7 @@ export default function PayNowPaymentPage() {
           <>
             {/* Order Summary */}
             <Card className="border-0 shadow-lg">
-              <CardHeader className="border-b bg-linear-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
+              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
                 <CardTitle className="flex items-center justify-between">
                   <span>Order Summary</span>
                   <Badge variant="outline" className="text-yellow-600">
@@ -225,7 +242,7 @@ export default function PayNowPaymentPage() {
 
             {/* Payment Form */}
             <Card className="border-0 shadow-xl">
-              <CardHeader className="border-b bg-linear-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
+              <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
                 <CardTitle className="flex items-center space-x-2">
                   <ShieldCheck className="w-5 h-5 text-blue-600" />
                   <span>Payment Details</span>
@@ -244,7 +261,7 @@ export default function PayNowPaymentPage() {
                       type="text"
                       placeholder="12345678"
                       value={accountNumber}
-                      onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ''))}
+                      onChange={handleAccountNumberChange}
                       maxLength={12}
                       className="text-lg"
                       disabled={isProcessing}
@@ -263,7 +280,7 @@ export default function PayNowPaymentPage() {
                       type="password"
                       placeholder="••••"
                       value={pin}
-                      onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                      onChange={handlePinChange}
                       maxLength={4}
                       className="text-lg text-center tracking-widest"
                       disabled={isProcessing}
@@ -320,7 +337,7 @@ export default function PayNowPaymentPage() {
             <div className="text-center">
               <Button
                 variant="ghost"
-                onClick={() => router.push(`/orders/${orderId}`)}
+                onClick={handleCancel}
                 disabled={isProcessing}
                 className="text-gray-600 hover:text-gray-900"
               >
