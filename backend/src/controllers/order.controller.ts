@@ -172,15 +172,16 @@ export const checkout = async (c: Context) => {
   }
 };
 // ==========================================
-// GENERATE QR CODE FOR CASH PAYMENT (FIXED - No auth required)
+// GENERATE QR CODE FOR CASH PAYMENT (FIXED)
 // ==========================================
 export const generateCashQR = async (c: Context) => {
   try {
     const user = c.get('user');
     const orderId = Number(c.req.param("orderId"));
 
+    // ✅ FIX: user.id instead of parseInt(user)
     const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: parseInt(user) },
+      where: { id: orderId, userId: user.id },
       include: {
         user: { select: { name: true, email: true } },
         orderItems: { include: { product: true } },
