@@ -35,12 +35,41 @@ export default function PayNowPaymentPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentPaymentRef, setCurrentPaymentRef] = useState(paymentRef);
 
   // Fetch order details
   const { data: orderData, isLoading } = useQuery({
     queryKey: ['order', orderId],
     queryFn: () => orderService.getOrderById(orderId),
   });
+
+  // If no payment ref or invalid, get a fresh one
+  useEffect(() => {
+    const initializePayment = async () => {
+      if (!paymentRef || !orderData?.data) return;
+      
+      // If order is pending and PayNow, but ref might be stale
+      if (orderData.data.status === 'PENDING' && orderData.data.paymentType === 'PAYNOW') {
+        try {
+          // Get fresh payment info
+          const response = await orderService.initiatePayNow(orderId);
+          if (response.success) {
+            // Extract ref from URL
+            const url = new URL(response.data.paymentUrl);
+            const freshRef = url.searchParams.get('ref');
+            if (freshRef && freshRef !== paymentRef) {
+              console.log('🔄 Updating to fresh payment reference');
+              setCurrentPaymentRef(freshRef);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to get fresh payment ref:', err);
+        }
+      }
+    };
+
+    initializePayment();
+  }, [orderId, paymentRef, orderData]);
 
   const order = orderData?.data;
 
@@ -77,7 +106,7 @@ export default function PayNowPaymentPage() {
       await new Promise((resolve) => setTimeout(resolve, 2500));
 
       const response = await apiClient.get(
-        `/orders/pay/paynow/process/${orderId}?ref=${paymentRef}`
+        `/orders/pay/paynow/process/${orderId}?ref=${currentPaymentRef || paymentRef}`
       );
 
       if (response.data.success) {

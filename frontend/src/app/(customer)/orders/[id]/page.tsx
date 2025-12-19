@@ -194,12 +194,21 @@ export default function OrderDetailPage() {
     generateQRMutation.mutate();
   }, [generateQRMutation]);
 
-  const handlePayNow = useCallback(() => {
-    orderService.initiatePayNow(orderId).then((response) => {
+  const handlePayNow = useCallback(async () => {
+    try {
+      // Get fresh payment URL with new reference
+      const response = await orderService.initiatePayNow(orderId);
+      
       if (response.success && response.data.paymentUrl) {
+        console.log('🔗 Redirecting to PayNow:', response.data.paymentUrl);
         window.location.href = response.data.paymentUrl;
+      } else {
+        toast.error('Failed to initiate payment');
       }
-    });
+    } catch (error: any) {
+      console.error('PayNow initiation error:', error);
+      toast.error(error.response?.data?.message || 'Failed to initiate payment');
+    }
   }, [orderId]);
 
   const handleDownloadQR = useCallback(() => {

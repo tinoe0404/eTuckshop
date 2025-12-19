@@ -361,6 +361,23 @@ export const processPayNowPayment = async (c: Context) => {
 
     console.log('🔄 Processing PayNow payment:', { orderId, paymentRef });
 
+    // Validate inputs
+    if (!orderId || isNaN(orderId)) {
+      console.log('❌ Invalid order ID:', orderId);
+      return c.json({ 
+        success: false, 
+        message: "Invalid order ID" 
+      }, 400);
+    }
+
+    if (!paymentRef) {
+      console.log('❌ Missing payment reference');
+      return c.json({ 
+        success: false, 
+        message: "Payment reference is required" 
+      }, 400);
+    }
+
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -372,37 +389,150 @@ export const processPayNowPayment = async (c: Context) => {
 
     if (!order) {
       console.log('❌ Order not found:', orderId);
-      return c.json({ success: false, message: "Order not found" }, 404);
+      return c.json({ 
+        success: false, 
+        message: "Order not found" 
+      }, 404);
     }
 
-    // Verify payment reference
-    if (order.paymentQR?.qrData !== paymentRef) {
-      console.log('❌ Invalid payment reference:', { expected: order.paymentQR?.qrData, received: paymentRef });
-      return c.json({ success: false, message: "Invalid payment reference" }, 400);
+    console.log('📦 Order found:', {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentType: order.paymentType,
+      hasPaymentQR: !!order.paymentQR,
+      paymentQRData: order.paymentQR?.qrData
+    });
+
+    // Check if payment reference exists
+    if (!order.paymentQR) {
+      console.log('❌ No payment QR record found for order:', orderId);
+      return c.json({ 
+        success: false, 
+        message: "Payment not initiated. Please start the payment process again." 
+      }, 400);
     }
 
+    // Verify payment reference matches
+    if (order.paymentQR.qrData !== paymentRef) {
+      console.log('❌ Invalid payment reference:', { 
+        expected: order.paymentQR.qrData, 
+        received: paymentRef 
+      });
+      return c.json({ 
+        success: false, 
+        message: "Invalid payment reference" 
+      }, 400);
+    }
+
+    // Check if already paid
     if (order.status === "PAID") {
       console.log('⚠️ Order already paid:', orderId);
-      return c.json({ success: false, message: "Order already paid" }, 400);
+      
+      // Check if QR code exists
+      if (order.paymentQR.qrCode) {
+        console.log('✅ QR code already exists, returning success');
+        const qrPayload = JSON.parse(order.paymentQR.qrData || '{}');
+        return c.json({
+          success: true,
+          message: "Payment already completed",
+          data: {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            paymentType: "PAYNOW",
+            paymentStatus: "PAID",
+            customer: {
+              name: order.user.name,
+              email: order.user.email,
+            },
+            orderSummary: {
+              items: order.orderItems.map((item: any) => ({
+                name: item.product.name,
+                quantity: item.quantity,
+                price: item.product.price,
+                subtotal: item.subtotal,
+              })),
+              totalItems: order.orderItems.reduce((sum: number, item: any) => sum + item.quantity, 0),
+              totalAmount: order.totalAmount,
+            },
+            qrCode: order.paymentQR.qrCode,
+            paidAt: order.paidAt?.toISOString(),
+            expiresAt: null,
+          },
+        });
+      } else {
+        // QR doesn't exist but order is paid, regenerate it
+        console.log('⚠️ Order paid but no QR code, regenerating...');
+      }
+    }
+
+    // Check if order is completed or cancelled
+    if (order.status === "COMPLETED") {
+      console.log('❌ Order already completed:', orderId);
+      return c.json({ 
+        success: false, 
+        message: "Order already completed" 
+      }, 400);
+    }
+
+    if (order.status === "CANCELLED") {
+      console.log('❌ Order is cancelled:', orderId);
+      return c.json({ 
+        success: false, 
+        message: "Order has been cancelled" 
+      }, 400);
     }
 
     console.log('✅ Payment verified, generating QR...');
 
-    // Build QR payload (no expiry for PayNow)
-    const qrPayload = buildQRPayload({ ...order, status: "PAID", paidAt: new Date() });
+    const qrPayload: QRPayload = {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      paymentType: "PAYNOW",
+      paymentStatus: "PAID",
+      customer: {
+        name: order.user.name,
+        email: order.user.email,
+      },
+      orderSummary: {
+        items: order.orderItems.map((item: any) => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          price: item.product.price,
+          subtotal: item.subtotal,
+        })),
+        totalItems: order.orderItems.reduce(
+          (sum: number, item: any) => sum + item.quantity,
+          0
+        ),
+        totalAmount: order.totalAmount,
+      },
+      // ✅ NO expiry for PayNow
+      paidAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+    
     const qrCode = await generateQRCode(qrPayload);
 
     console.log('✅ QR code generated, updating order...');
 
     // Update order to PAID and save QR
-    await prisma.$transaction([
+    const updatedOrder = await prisma.$transaction([
       prisma.order.update({
         where: { id: orderId },
-        data: { status: "PAID", paidAt: new Date() },
+        data: { 
+          status: "PAID", 
+          paidAt: new Date() 
+        },
       }),
       prisma.paymentQR.update({
         where: { orderId },
-        data: { qrCode, qrData: JSON.stringify(qrPayload), expiresAt: null, isUsed: false },
+        data: { 
+          qrCode, 
+          qrData: JSON.stringify(qrPayload), 
+          expiresAt: null, 
+          isUsed: false 
+        },
       }),
     ]);
 
