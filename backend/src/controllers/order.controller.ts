@@ -172,16 +172,19 @@ export const checkout = async (c: Context) => {
   }
 };
 // ==========================================
-// GENERATE QR CODE FOR CASH PAYMENT (FIXED)
+// GENERATE QR CODE FOR CASH PAYMENT
 // ==========================================
 export const generateCashQR = async (c: Context) => {
   try {
     const user = c.get('user');
     const orderId = Number(c.req.param("orderId"));
 
-    // ✅ FIX: user.id instead of parseInt(user)
+    // ✅ FIX 1: Use user.id instead of parseInt(user)
     const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: user.id },
+      where: { 
+        id: orderId, 
+        userId: user.id  // FIXED
+      },
       include: {
         user: { select: { name: true, email: true } },
         orderItems: { include: { product: true } },
@@ -197,7 +200,10 @@ export const generateCashQR = async (c: Context) => {
     }
 
     if (order.status !== "PENDING") {
-      return c.json({ success: false, message: `Order already ${order.status.toLowerCase()}` }, 400);
+      return c.json({ 
+        success: false, 
+        message: `Order already ${order.status.toLowerCase()}` 
+      }, 400);
     }
 
     // Set 15 minute expiry
@@ -210,8 +216,19 @@ export const generateCashQR = async (c: Context) => {
     // Save QR to database
     await prisma.paymentQR.upsert({
       where: { orderId: order.id },
-      update: { qrCode, qrData: JSON.stringify(qrPayload), expiresAt, isUsed: false },
-      create: { orderId: order.id, qrCode, qrData: JSON.stringify(qrPayload), paymentType: "CASH", expiresAt },
+      update: { 
+        qrCode, 
+        qrData: JSON.stringify(qrPayload), 
+        expiresAt, 
+        isUsed: false 
+      },
+      create: { 
+        orderId: order.id, 
+        qrCode, 
+        qrData: JSON.stringify(qrPayload), 
+        paymentType: "CASH", 
+        expiresAt 
+      },
     });
 
     return c.json({
@@ -226,24 +243,29 @@ export const generateCashQR = async (c: Context) => {
         orderSummary: qrPayload.orderSummary,
         qrCode,
         expiresAt,
-        expiresIn: "900 seconds", // 15 minutes = 900 seconds
+        expiresIn: "900 seconds",
       },
     });
   } catch (error) {
+    console.error("🔥 Generate Cash QR Error:", error);
     return serverError(c, error);
   }
 };
 
 // ==========================================
-// INITIATE PAYNOW PAYMENT (FIXED - No auth required)
+// INITIATE PAYNOW PAYMENT
 // ==========================================
 export const initiatePayNow = async (c: Context) => {
   try {
     const user = c.get('user');
     const orderId = Number(c.req.param("orderId"));
 
+    // ✅ FIX 1: Use user.id instead of parseInt(user)
     const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: user.id },
+      where: { 
+        id: orderId, 
+        userId: user.id  // FIXED
+      },
     });
 
     if (!order) {
@@ -255,7 +277,10 @@ export const initiatePayNow = async (c: Context) => {
     }
 
     if (order.status !== "PENDING") {
-      return c.json({ success: false, message: `Order already ${order.status.toLowerCase()}` }, 400);
+      return c.json({ 
+        success: false, 
+        message: `Order already ${order.status.toLowerCase()}` 
+      }, 400);
     }
 
     // Generate payment reference
@@ -265,10 +290,46 @@ export const initiatePayNow = async (c: Context) => {
     await prisma.paymentQR.upsert({
       where: { orderId: order.id },
       update: { qrData: paymentRef, isUsed: false },
-      create: { orderId: order.id, qrCode: "", qrData: paymentRef, paymentType: "PAYNOW" },
+      create: { 
+        orderId: order.id, 
+        qrCode: "", 
+        qrData: paymentRef, 
+        paymentType: "PAYNOW" 
+      },
     });
 
-    const paymentUrl = `${process.env.BASE_URL || "http://localhost:5000"}/api/orders/pay/paynow/process/${order.id}?ref=${paymentRef}`;
+    // ✅ FIX 2: Get frontend URL from request Origin header (works in live app!)
+    const getFrontendUrl = () => {
+      // First: Get from request Origin header (automatically detects live app URL)
+      const origin = c.req.header('origin') || c.req.header('referer');
+      if (origin) {
+        try {
+          const url = new URL(origin);
+          return url.origin; // Returns https://e-tuckshop.vercel.app in production
+        } catch (e) {
+          console.error('Failed to parse origin:', e);
+        }
+      }
+      
+      // Second: Environment variable
+      if (process.env.FRONTEND_URL) {
+        return process.env.FRONTEND_URL;
+      }
+      
+      // Third: Production hardcoded
+      if (process.env.NODE_ENV === 'production') {
+        return 'https://e-tuckshop.vercel.app';
+      }
+      
+      // Development fallback
+      return 'http://localhost:3000';
+    };
+
+    const frontendUrl = getFrontendUrl();
+    const paymentUrl = `${frontendUrl}/orders/pay/paynow/${order.id}?ref=${paymentRef}`;
+
+    console.log('🔗 PayNow URL generated:', paymentUrl);
+    console.log('📍 Origin header:', c.req.header('origin'));
 
     return c.json({
       success: true,
@@ -284,6 +345,7 @@ export const initiatePayNow = async (c: Context) => {
       },
     });
   } catch (error) {
+    console.error("🔥 Initiate PayNow Error:", error);
     return serverError(c, error);
   }
 };
@@ -297,6 +359,8 @@ export const processPayNowPayment = async (c: Context) => {
     const orderId = Number(c.req.param("orderId"));
     const paymentRef = c.req.query("ref");
 
+    console.log('🔄 Processing PayNow payment:', { orderId, paymentRef });
+
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -307,21 +371,28 @@ export const processPayNowPayment = async (c: Context) => {
     });
 
     if (!order) {
+      console.log('❌ Order not found:', orderId);
       return c.json({ success: false, message: "Order not found" }, 404);
     }
 
     // Verify payment reference
     if (order.paymentQR?.qrData !== paymentRef) {
+      console.log('❌ Invalid payment reference:', { expected: order.paymentQR?.qrData, received: paymentRef });
       return c.json({ success: false, message: "Invalid payment reference" }, 400);
     }
 
     if (order.status === "PAID") {
+      console.log('⚠️ Order already paid:', orderId);
       return c.json({ success: false, message: "Order already paid" }, 400);
     }
+
+    console.log('✅ Payment verified, generating QR...');
 
     // Build QR payload (no expiry for PayNow)
     const qrPayload = buildQRPayload({ ...order, status: "PAID", paidAt: new Date() });
     const qrCode = await generateQRCode(qrPayload);
+
+    console.log('✅ QR code generated, updating order...');
 
     // Update order to PAID and save QR
     await prisma.$transaction([
@@ -334,6 +405,8 @@ export const processPayNowPayment = async (c: Context) => {
         data: { qrCode, qrData: JSON.stringify(qrPayload), expiresAt: null, isUsed: false },
       }),
     ]);
+
+    console.log('✅ Payment processed successfully for order:', orderId);
 
     return c.json({
       success: true,
@@ -352,6 +425,7 @@ export const processPayNowPayment = async (c: Context) => {
       },
     });
   } catch (error) {
+    console.error('💥 PayNow payment processing error:', error);
     return serverError(c, error);
   }
 };
