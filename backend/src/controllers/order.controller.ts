@@ -326,7 +326,7 @@ export const initiatePayNow = async (c: Context) => {
     };
 
     const frontendUrl = getFrontendUrl();
-    const paymentUrl = `${frontendUrl}/orders/pay/paynow/${order.id}?ref=${paymentRef}`;
+    const paymentUrl = `${frontendUrl}/orders/payment/paynow/${order.id}?ref=${paymentRef}`;
 
     console.log('🔗 PayNow URL generated:', paymentUrl);
     console.log('📍 Origin header:', c.req.header('origin'));

@@ -1,6 +1,4 @@
 // src/routes/orders.route.ts
-// FULL NEXTAUTH IMPLEMENTATION (CUSTOMER + ADMIN)
-
 import { Hono } from "hono";
 import {
   checkout,
@@ -29,81 +27,18 @@ const router = new Hono();
 
 /**
  * ======================================================
- * PAYNOW CALLBACK (PUBLIC)
+ * PUBLIC ROUTES (NO AUTH)
  * ======================================================
- * Called by PayNow servers
  */
+
+// PayNow webhook/callback - must be BEFORE authenticated routes
 router.get("/pay/paynow/process/:orderId", processPayNowPayment);
 
 /**
  * ======================================================
- * CUSTOMER ROUTES (NextAuth)
- * X-User-Id header REQUIRED
+ * ADMIN ROUTES (NextAuth - Admin only)
  * ======================================================
- */
-
-router.post(
-  "/checkout",
-  requireAuth,
-  requireCustomer,
-  checkout
-);
-
-router.post(
-  "/generate-qr/:orderId",
-  requireAuth,
-  requireCustomer,
-  generateCashQR
-);
-
-router.get(
-  "/pay/paynow/:orderId",
-  requireAuth,
-  requireCustomer,
-  initiatePayNow
-);
-
-router.get(
-  "/qr/:orderId",
-  requireAuth,
-  requireCustomer,
-  getOrderQR
-);
-
-router.post(
-  "/cancel/:orderId",
-  requireAuth,
-  requireCustomer,
-  cancelOrder
-);
-
-// User orders (GET & POST supported)
-router.get(
-  "/",
-  requireAuth,
-  requireCustomer,
-  getUserOrdersGet
-);
-
-router.post(
-  "/user-orders",
-  requireAuth,
-  requireCustomer,
-  getUserOrders
-);
-
-router.get(
-  "/:id",
-  requireAuth,
-  requireCustomer,
-  getOrderById
-);
-
-/**
- * ======================================================
- * ADMIN ROUTES (NextAuth)
- * requireAuth → requireAdmin
- * ======================================================
+ * These MUST come before generic routes like "/:id"
  */
 
 router.get(
@@ -139,6 +74,78 @@ router.patch(
   requireAuth,
   requireAdmin,
   rejectOrder
+);
+
+/**
+ * ======================================================
+ * CUSTOMER ROUTES (NextAuth)
+ * ======================================================
+ */
+
+// Checkout
+router.post(
+  "/checkout",
+  requireAuth,
+  requireCustomer,
+  checkout
+);
+
+// Generate Cash QR
+router.post(
+  "/generate-qr/:orderId",
+  requireAuth,
+  requireCustomer,
+  generateCashQR
+);
+
+// Initiate PayNow - Returns payment URL for frontend redirect
+// IMPORTANT: This route path must match your frontend folder structure
+// If frontend is /orders/payment/paynow/[orderId], change this to /payment/paynow/:orderId
+router.get(
+  "/pay/paynow/:orderId",
+  requireAuth,
+  requireCustomer,
+  initiatePayNow
+);
+
+// Get Order QR Code
+router.get(
+  "/qr/:orderId",
+  requireAuth,
+  requireCustomer,
+  getOrderQR
+);
+
+// Cancel Order
+router.post(
+  "/cancel/:orderId",
+  requireAuth,
+  requireCustomer,
+  cancelOrder
+);
+
+// Get User Orders (GET method)
+router.get(
+  "/",
+  requireAuth,
+  requireCustomer,
+  getUserOrdersGet
+);
+
+// Get User Orders (POST method - legacy support)
+router.post(
+  "/user-orders",
+  requireAuth,
+  requireCustomer,
+  getUserOrders
+);
+
+// Get Order by ID - MUST be last to avoid conflicts
+router.get(
+  "/:id",
+  requireAuth,
+  requireCustomer,
+  getOrderById
 );
 
 export default router;

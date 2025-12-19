@@ -1,3 +1,4 @@
+// lib/api/services/order.service.ts
 import apiClient from '@/lib/api/client';
 import { getSession } from 'next-auth/react';
 import { ApiResponse, Order } from '@/types';
@@ -66,7 +67,7 @@ export const orderService = {
     return response.data;
   },
 
-  // Initiate PayNow payment
+  // Initiate PayNow payment - Returns URL for frontend navigation
   initiatePayNow: async (orderId: number) => {
     const userId = await getUserId();
     const response = await apiClient.get<

@@ -23,7 +23,6 @@ import { formatCurrency } from '@/lib/utils';
 import apiClient from '@/lib/api/client';
 
 export default function PayNowPaymentPage() {
-  // ===== ALL HOOKS AT THE TOP =====
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -43,12 +42,10 @@ export default function PayNowPaymentPage() {
     queryFn: () => orderService.getOrderById(orderId),
   });
 
-  // ===== DERIVED STATE =====
   const order = orderData?.data;
 
-  // ===== EFFECTS =====
+  // Validate order
   useEffect(() => {
-    // Validate order
     if (!isLoading && order) {
       if (order.status === 'PAID') {
         router.push(`/orders/${orderId}?payment=already_paid`);
@@ -58,14 +55,12 @@ export default function PayNowPaymentPage() {
         router.push(`/orders/${orderId}`);
       }
     }
-  }, [order?.status, order?.paymentType, isLoading, orderId, router]);
+  }, [order, isLoading, orderId, router]);
 
-  // ===== EVENT HANDLERS =====
-  const handlePayment = useCallback(async (e: React.FormEvent) => {
+  const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    // Validate inputs
     if (!accountNumber || accountNumber.length < 8) {
       setError('Please enter a valid account number (min 8 digits)');
       return;
@@ -79,18 +74,14 @@ export default function PayNowPaymentPage() {
     setIsProcessing(true);
 
     try {
-      // Simulate payment processing delay
       await new Promise((resolve) => setTimeout(resolve, 2500));
 
-      // Call backend webhook to complete payment
       const response = await apiClient.get(
         `/orders/pay/paynow/process/${orderId}?ref=${paymentRef}`
       );
 
       if (response.data.success) {
         setPaymentSuccess(true);
-        
-        // Wait a moment to show success message
         setTimeout(() => {
           router.push(`/orders/${orderId}?payment=success`);
         }, 2000);
@@ -106,21 +97,8 @@ export default function PayNowPaymentPage() {
     } finally {
       setIsProcessing(false);
     }
-  }, [accountNumber, pin, orderId, paymentRef, router]);
+  };
 
-  const handleAccountNumberChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setAccountNumber(e.target.value.replace(/\D/g, ''));
-  }, []);
-
-  const handlePinChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setPin(e.target.value.replace(/\D/g, ''));
-  }, []);
-
-  const handleCancel = useCallback(() => {
-    router.push(`/orders/${orderId}`);
-  }, [orderId, router]);
-
-  // ===== CONDITIONAL RENDERING =====
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 flex items-center justify-center">
@@ -151,7 +129,6 @@ export default function PayNowPaymentPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 p-6">
       <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
         <div className="text-center space-y-2">
           <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
             <CreditCard className="w-10 h-10 text-white" />
@@ -164,7 +141,6 @@ export default function PayNowPaymentPage() {
           </p>
         </div>
 
-        {/* Payment Success State */}
         {paymentSuccess ? (
           <Card className="border-0 shadow-xl">
             <CardContent className="p-12 text-center">
@@ -182,7 +158,6 @@ export default function PayNowPaymentPage() {
           </Card>
         ) : (
           <>
-            {/* Order Summary */}
             <Card className="border-0 shadow-lg">
               <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
                 <CardTitle className="flex items-center justify-between">
@@ -209,7 +184,6 @@ export default function PayNowPaymentPage() {
                   
                   <Separator />
 
-                  {/* Order Items */}
                   <div className="space-y-2">
                     {order.orderItems?.map((item) => (
                       <div key={item.id} className="flex justify-between items-center text-sm">
@@ -240,7 +214,6 @@ export default function PayNowPaymentPage() {
               </CardContent>
             </Card>
 
-            {/* Payment Form */}
             <Card className="border-0 shadow-xl">
               <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
                 <CardTitle className="flex items-center space-x-2">
@@ -250,7 +223,6 @@ export default function PayNowPaymentPage() {
               </CardHeader>
               <CardContent className="p-6">
                 <form onSubmit={handlePayment} className="space-y-6">
-                  {/* Mock Account Number */}
                   <div className="space-y-2">
                     <Label htmlFor="account">
                       Account Number
@@ -261,7 +233,7 @@ export default function PayNowPaymentPage() {
                       type="text"
                       placeholder="12345678"
                       value={accountNumber}
-                      onChange={handleAccountNumberChange}
+                      onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ''))}
                       maxLength={12}
                       className="text-lg"
                       disabled={isProcessing}
@@ -269,7 +241,6 @@ export default function PayNowPaymentPage() {
                     />
                   </div>
 
-                  {/* Mock PIN */}
                   <div className="space-y-2">
                     <Label htmlFor="pin">
                       PIN
@@ -280,7 +251,7 @@ export default function PayNowPaymentPage() {
                       type="password"
                       placeholder="••••"
                       value={pin}
-                      onChange={handlePinChange}
+                      onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                       maxLength={4}
                       className="text-lg text-center tracking-widest"
                       disabled={isProcessing}
@@ -288,7 +259,6 @@ export default function PayNowPaymentPage() {
                     />
                   </div>
 
-                  {/* Error Message */}
                   {error && (
                     <div className="flex items-start space-x-2 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                       <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
@@ -296,7 +266,6 @@ export default function PayNowPaymentPage() {
                     </div>
                   )}
 
-                  {/* Submit Button */}
                   <Button
                     type="submit"
                     size="lg"
@@ -316,7 +285,6 @@ export default function PayNowPaymentPage() {
                     )}
                   </Button>
 
-                  {/* Security Notice */}
                   <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
                     <div className="flex items-start space-x-2">
                       <ShieldCheck className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
@@ -333,11 +301,10 @@ export default function PayNowPaymentPage() {
               </CardContent>
             </Card>
 
-            {/* Cancel Option */}
             <div className="text-center">
               <Button
                 variant="ghost"
-                onClick={handleCancel}
+                onClick={() => router.push(`/orders/${orderId}`)}
                 disabled={isProcessing}
                 className="text-gray-600 hover:text-gray-900"
               >
