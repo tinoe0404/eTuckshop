@@ -1,5 +1,5 @@
 // ============================================
-// FILE: src/types/index.ts (CORRECTED - No Duplicates)
+// FILE: src/types/index.ts (FIXED)
 // ============================================
 
 // -----------------------------
@@ -119,9 +119,11 @@ export interface OrderItem {
   product: Product;
 }
 
+// ✅ FIXED: Added qrCode property
 export interface PaymentQR {
-  expiresAt: string | null;
-  isUsed: boolean;
+  qrCode: string | null;          // ✅ The actual QR code image (base64 or URL)
+  expiresAt: string | null;        // For CASH orders (15min expiry)
+  isUsed: boolean;                 // Has this QR been scanned?
   paymentType: 'CASH' | 'PAYNOW';
 }
 
@@ -142,7 +144,7 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   orderItems: OrderItem[];
-  paymentQR?: PaymentQR;
+  paymentQR?: PaymentQR;  // Optional - only exists after QR generation
 }
 
 // -----------------------------

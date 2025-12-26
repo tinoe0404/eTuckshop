@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cartService } from '@/lib/api/services/cart.service';
 import { orderService } from '@/lib/api/services/order.service';
 import { useSession } from 'next-auth/react';
-import { useCartStore } from '@/lib/store/cartStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -45,7 +44,7 @@ type PaymentMethod = 'CASH' | 'PAYNOW' | null;
 export default function CheckoutPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  const { setTotalItems } = useCartStore();
+  const queryClient = useQueryClient(); // ✅ Added
   
   // ===== ALL HOOKS MUST BE CALLED FIRST =====
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>(null);
@@ -64,7 +63,11 @@ export default function CheckoutPage() {
     onSuccess: async (response) => {
       if (response.success) {
         toast.success('Order placed successfully!');
-        setTotalItems(0);
+        
+        // ✅ REMOVED: setTotalItems(0) - doesn't exist
+        // ✅ ADDED: Invalidate cart queries to clear cart in UI
+        queryClient.invalidateQueries({ queryKey: ['cart'] });
+        queryClient.invalidateQueries({ queryKey: ['cart-summary'] });
 
         const { orderId, paymentType } = response.data;
 

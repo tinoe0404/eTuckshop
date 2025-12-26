@@ -252,6 +252,8 @@ export function useCancelOrder() {
 
 /**
  * ✅ Generate cash QR mutation
+ * - Immediately shows QR after generation
+ * - Invalidates order and QR queries
  */
 export function useGenerateCashQR() {
   const queryClient = useQueryClient();
@@ -259,8 +261,10 @@ export function useGenerateCashQR() {
   return useMutation({
     mutationFn: (orderId: number) => orderService.generateCashQR(orderId),
     
-    onSuccess: (data, orderId) => {
-      // Invalidate specific order to show QR
+    onSuccess: (response, orderId) => {
+      toast.success('QR code generated successfully!');
+      
+      // Invalidate to fetch updated order with QR
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.qr(orderId) });
     },

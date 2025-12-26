@@ -4,7 +4,6 @@ import { useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCartStore } from '@/lib/store/cartStore';
 import { productService } from '@/lib/api/services/product.service';
 import { cartService } from '@/lib/api/services/cart.service';
 import { orderService } from '@/lib/api/services/order.service';
@@ -189,7 +188,6 @@ export default function CustomerDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: session, status } = useSession();
-  const { setTotalItems } = useCartStore();
 
   // ===== ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS =====
   
@@ -280,8 +278,10 @@ export default function CustomerDashboard() {
       return { previousCart };
     },
     onSuccess: (res) => {
-      setTotalItems(res.data.totalItems);
+      // ✅ REMOVED: setTotalItems(res.data.totalItems)
+      // React Query cache is already updated via invalidation
       queryClient.invalidateQueries({ queryKey: ['cart'] });
+      queryClient.invalidateQueries({ queryKey: ['cart-summary'] });
       queryClient.invalidateQueries({ queryKey: ['products-featured'] });
       toast.success('Added to cart!', { description: 'Product added successfully' });
     },

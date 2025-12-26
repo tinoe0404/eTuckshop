@@ -1,9 +1,11 @@
+// ============================================
+// FILE: src/app/orders/page.tsx (REFACTORED)
+// ============================================
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { orderService } from '@/lib/api/services/order.service';
+import { useUserOrders } from '@/lib/hooks/useOrders'; // ✅ Use the hook
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,22 +37,37 @@ type StatusFilter = 'ALL' | 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED';
 export default function UserOrdersPage() {
   // ===== ALL HOOKS AT THE TOP =====
   const router = useRouter();
+  
+  // ✅ UI state only
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
 
-  // Fetch user orders
-  const { data: ordersData, isLoading } = useQuery({
-    queryKey: ['user-orders', statusFilter],
-    queryFn: orderService.getUserOrders,
-  });
+  // ✅ Fetch user orders with React Query hook
+  const { data: ordersData, isLoading } = useUserOrders();
 
-  // ===== DERIVED STATE AND CALLBACKS =====
+  // ===== DERIVED STATE =====
   const orders = ordersData?.data || [];
 
-  // Filter orders by status
-  const filteredOrders = statusFilter === 'ALL' 
-    ? orders 
-    : orders.filter((order: Order) => order.status === statusFilter);
+  // ✅ Client-side filtering (OK for user's own orders - small dataset)
+  // NOTE: For admin with 1000s of orders, this should be server-side
+  const filteredOrders = useMemo(() => {
+    return statusFilter === 'ALL' 
+      ? orders 
+      : orders.filter((order: Order) => order.status === statusFilter);
+  }, [orders, statusFilter]);
 
+  // ✅ Compute stats from cached data
+  const stats = useMemo(() => {
+    return {
+      total: orders.length,
+      pending: orders.filter((o: Order) => o.status === 'PENDING').length,
+      completed: orders.filter((o: Order) => o.status === 'COMPLETED').length,
+      totalSpent: orders
+        .filter((o: Order) => o.status === 'COMPLETED')
+        .reduce((sum: number, o: Order) => sum + o.totalAmount, 0),
+    };
+  }, [orders]);
+
+  // ===== CALLBACKS =====
   const getStatusColor = useCallback((status: string) => {
     switch (status) {
       case 'PENDING':
@@ -143,7 +160,7 @@ export default function UserOrdersPage() {
                 <div>
                   <p className="text-sm text-gray-400">Total Orders</p>
                   <p className="text-2xl font-bold text-white">
-                    {orders.length}
+                    {stats.total}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center">
@@ -159,7 +176,7 @@ export default function UserOrdersPage() {
                 <div>
                   <p className="text-sm text-gray-400">Pending</p>
                   <p className="text-2xl font-bold text-yellow-400">
-                    {orders.filter((o: Order) => o.status === 'PENDING').length}
+                    {stats.pending}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center">
@@ -175,7 +192,7 @@ export default function UserOrdersPage() {
                 <div>
                   <p className="text-sm text-gray-400">Completed</p>
                   <p className="text-2xl font-bold text-green-400">
-                    {orders.filter((o: Order) => o.status === 'COMPLETED').length}
+                    {stats.completed}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
@@ -191,11 +208,7 @@ export default function UserOrdersPage() {
                 <div>
                   <p className="text-sm text-gray-400">Total Spent</p>
                   <p className="text-2xl font-bold text-blue-400">
-                    {formatCurrency(
-                      orders
-                        .filter((o: Order) => o.status === 'COMPLETED')
-                        .reduce((sum: number, o: Order) => sum + o.totalAmount, 0)
-                    )}
+                    {formatCurrency(stats.totalSpent)}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">

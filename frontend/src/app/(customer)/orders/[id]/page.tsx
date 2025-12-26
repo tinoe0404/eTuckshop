@@ -1,9 +1,16 @@
+// ============================================
+// FILE: src/app/orders/[id]/page.tsx (REFACTORED)
+// ============================================
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { orderService } from '@/lib/api/services/order.service';
+import { 
+  useOrder, 
+  useOrderQR, 
+  useGenerateCashQR, 
+  useCancelOrder 
+} from '@/lib/hooks/useOrders'; // ✅ Use the hooks
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,59 +45,33 @@ import {
   QrCode,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { Order } from '@/types';
+import { orderService } from '@/lib/api/services/order.service';
 
 export default function OrderDetailPage() {
-  // ===== ALL HOOKS MUST BE AT THE TOP =====
+  // ===== ALL HOOKS AT THE TOP =====
   const router = useRouter();
   const params = useParams();
-  const queryClient = useQueryClient();
   const orderId = Number(params.id);
 
+  // ✅ Local UI state only
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
-  // Fetch order details
-  const { data: orderData, isLoading } = useQuery({
-    queryKey: ['order', orderId],
-    queryFn: () => orderService.getOrderById(orderId),
-    refetchInterval: (query) => {
-      if (!query.state.data) return false;
-      const order = query.state.data.data;
-      if (order && ['PENDING', 'PAID'].includes(order.status)) {
-        return 5000;
-      }
-      return false;
-    },
-  });
+  // ✅ Fetch order details with React Query
+  const { data: orderData, isLoading } = useOrder(orderId);
 
-  // Generate QR for CASH orders
-  const generateQRMutation = useMutation({
-    mutationFn: () => orderService.generateCashQR(orderId),
-    onSuccess: (response) => {
-      if (response.success) {
-        setQrCodeUrl(response.data.qrCode);
-        toast.success('QR code generated successfully!');
-        queryClient.invalidateQueries({ queryKey: ['order', orderId] });
-      }
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to generate QR code');
-    },
-  });
+  // ✅ Fetch QR code separately (only if needed)
+  const order = orderData?.data;
+  const shouldFetchQR = order?.status === 'PAID' || 
+    (order?.status === 'PENDING' && order?.paymentType === 'CASH' && order?.paymentQR?.qrCode);
+  
+  const { data: qrData } = useOrderQR(shouldFetchQR ? orderId : null);
 
-  // Cancel order mutation
-  const cancelOrderMutation = useMutation({
-    mutationFn: () => orderService.cancelOrder(orderId),
-    onSuccess: () => {
-      toast.success('Order cancelled successfully');
-      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
-      queryClient.invalidateQueries({ queryKey: ['user-orders'] });
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to cancel order');
-    },
-  });
+  // ✅ Mutations
+  const generateQRMutation = useGenerateCashQR();
+  const cancelOrderMutation = useCancelOrder();
+
+  // ===== DERIVED STATE =====
+  const qrCodeUrl = qrData?.data?.qrCode || order?.paymentQR?.qrCode || null;
 
   // ===== ALL EFFECTS AFTER HOOKS =====
   
@@ -110,27 +91,8 @@ export default function OrderDetailPage() {
     }
   }, [orderId]);
 
-  // Fetch QR code for PAID PayNow orders
-  useEffect(() => {
-    const fetchPayNowQR = async () => {
-      if (orderData?.data && orderData.data.status === 'PAID' && orderData.data.paymentType === 'PAYNOW' && !qrCodeUrl) {
-        try {
-          const qrResponse = await orderService.getOrderQR(orderId);
-          if (qrResponse.success && qrResponse.data.qrCode) {
-            setQrCodeUrl(qrResponse.data.qrCode);
-          }
-        } catch (error) {
-          console.error('Failed to fetch PayNow QR:', error);
-        }
-      }
-    };
-
-    fetchPayNowQR();
-  }, [orderData, orderId, qrCodeUrl]);
-
   // Countdown timer for CASH QR expiry
   useEffect(() => {
-    const order = orderData?.data;
     if (!order || !qrCodeUrl || order.paymentType !== 'CASH') return;
 
     const expiresAt = order.paymentQR?.expiresAt;
@@ -150,9 +112,9 @@ export default function OrderDetailPage() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [orderData, qrCodeUrl]);
+  }, [order, qrCodeUrl]);
 
-  // ===== HELPER FUNCTIONS =====
+  // ===== CALLBACKS =====
   
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -191,8 +153,12 @@ export default function OrderDetailPage() {
   }, []);
 
   const handleGenerateQR = useCallback(() => {
-    generateQRMutation.mutate();
-  }, [generateQRMutation]);
+    generateQRMutation.mutate(orderId);
+  }, [generateQRMutation, orderId]);
+
+  const handleCancelOrder = useCallback(() => {
+    cancelOrderMutation.mutate(orderId);
+  }, [cancelOrderMutation, orderId]);
 
   const handlePayNow = useCallback(async () => {
     try {
@@ -200,13 +166,11 @@ export default function OrderDetailPage() {
       const response = await orderService.initiatePayNow(orderId);
       
       if (response.success && response.data.paymentUrl) {
-        console.log('🔗 Redirecting to PayNow:', response.data.paymentUrl);
         window.location.href = response.data.paymentUrl;
       } else {
         toast.error('Failed to initiate payment');
       }
     } catch (error: any) {
-      console.error('PayNow initiation error:', error);
       toast.error(error.response?.data?.message || 'Failed to initiate payment');
     }
   }, [orderId]);
@@ -221,10 +185,9 @@ export default function OrderDetailPage() {
     link.click();
     document.body.removeChild(link);
     toast.success('QR code downloaded');
-  }, [qrCodeUrl, orderData]);
+  }, [qrCodeUrl, order]);
 
-  // ===== DERIVED STATE =====
-  const order = orderData?.data;
+  // ===== COMPUTED FLAGS =====
   const isQRExpired = timeLeft === 0;
   const canGenerateQR = order?.status === 'PENDING' && order?.paymentType === 'CASH';
   const needsPayment = order?.status === 'PENDING' && order?.paymentType === 'PAYNOW';
@@ -336,7 +299,7 @@ export default function OrderDetailPage() {
                     <AlertDialogFooter>
                       <AlertDialogCancel className="border-gray-700 text-gray-300 hover:bg-gray-800">Keep Order</AlertDialogCancel>
                       <AlertDialogAction
-                        onClick={() => cancelOrderMutation.mutate()}
+                        onClick={handleCancelOrder}
                         className="bg-red-600 hover:bg-red-700"
                         disabled={cancelOrderMutation.isPending}
                       >
