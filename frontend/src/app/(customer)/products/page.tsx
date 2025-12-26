@@ -2,13 +2,11 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productService } from '@/lib/api/services/product.service';
 import { categoryService } from '@/lib/api/services/category.service';
-import { cartService } from '@/lib/api/services/cart.service';
-import { useCartStore } from '@/lib/store/cartStore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { useAddToCart } from '@/lib/hooks/useCart';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { toast } from 'sonner';
 import {
   Search,
   Filter,
@@ -41,8 +38,8 @@ import Image from 'next/image';
 export default function ProductsPage() {
   // ===== ALL HOOKS AT THE TOP =====
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const { setTotalItems } = useCartStore();
+  const addToCartMutation = useAddToCart();
+
   
   // View mode
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -66,29 +63,7 @@ export default function ProductsPage() {
     queryFn: categoryService.getAll,
   });
 
-  // Add to cart mutation
-  const addToCartMutation = useMutation({
-    mutationFn: (productId: number) =>
-      cartService.addToCart({ productId, quantity: 1 }),
-
-    onSuccess: (response) => {
-      if (response.success) {
-        // Update Zustand immediately
-        setTotalItems(response.data.totalItems);
-
-        // Refetch cart everywhere else in the app
-        queryClient.invalidateQueries({ queryKey: ['cart'] });
-        queryClient.invalidateQueries({ queryKey: ['cart-summary'] });
-
-        toast.success('Added to cart!');
-      }
-    },
-
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to add to cart');
-    },
-  });
-
+  
   // ===== DERIVED STATE =====
   const products = productsData?.data || [];
   const categories = categoriesData?.data || [];
@@ -154,8 +129,9 @@ export default function ProductsPage() {
   }, []);
 
   const handleAddToCart = useCallback((productId: number) => {
-    addToCartMutation.mutate(productId);
+    addToCartMutation.mutate({ productId, quantity: 1 });
   }, [addToCartMutation]);
+  
 
   const handleViewProduct = useCallback((productId: number) => {
     router.push(`/products/${productId}`);
