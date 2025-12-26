@@ -1,70 +1,71 @@
+// ============================================
+// FILE: src/lib/api/services/cart.service.ts (FIXED)
+// ============================================
+
 import apiClient from '@/lib/api/client';
-import { getSession } from 'next-auth/react';
 import { ApiResponse, Cart } from '@/types';
 
-// Helper to get userId from session
-const getUserId = async (): Promise<string> => {
-  const session = await getSession();
-  if (!session?.user?.id) {
-    throw new Error('Not authenticated');
-  }
-  return session.user.id;
-};
+/**
+ * ✅ FIXED: Removed getSession() calls
+ * - Session is handled by apiClient interceptor (X-User-Id header)
+ * - No need to pass userId manually
+ */
 
 export const cartService = {
-  // Get cart summary - USE GET with query param
+  /**
+   * ✅ Get full cart details
+   * FIXED: Uses GET instead of POST
+   */
+  getCart: async () => {
+    const response = await apiClient.get<ApiResponse<Cart>>('/cart');
+    return response.data;
+  },
+
+  /**
+   * ✅ Get cart summary (lightweight)
+   * Returns only { totalItems, totalAmount }
+   */
   getCartSummary: async () => {
-    const userId = await getUserId();
     const response = await apiClient.get<
       ApiResponse<{
         totalItems: number;
         totalAmount: number;
       }>
-    >(`/cart/summary?userId=${userId}`);
+    >('/cart/summary');
     return response.data;
   },
 
-  // Get cart
-  getCart: async () => {
-    const userId = await getUserId();
-    const response = await apiClient.post<ApiResponse<Cart>>('/cart', { userId });
-    return response.data;
-  },
-
-  // Add to cart
+  /**
+   * ✅ Add item to cart
+   */
   addToCart: async (data: { productId: number; quantity?: number }) => {
-    const userId = await getUserId();
-    const response = await apiClient.post<ApiResponse<Cart>>('/cart/add', {
-      userId,
-      ...data,
-    });
+    const response = await apiClient.post<ApiResponse<Cart>>('/cart/add', data);
     return response.data;
   },
 
-  // Update cart item
+  /**
+   * ✅ Update cart item quantity
+   */
   updateCartItem: async (data: { productId: number; quantity: number }) => {
-    const userId = await getUserId();
-    const response = await apiClient.patch<ApiResponse<Cart>>('/cart/update', {
-      userId,
-      ...data,
-    });
+    const response = await apiClient.patch<ApiResponse<Cart>>('/cart/update', data);
     return response.data;
   },
 
-  // Remove from cart
+  /**
+   * ✅ Remove item from cart
+   */
   removeFromCart: async (productId: number) => {
-    const userId = await getUserId();
     const response = await apiClient.delete<ApiResponse<Cart>>(
-      `/cart/remove/${productId}`,
-      { data: { userId } }
+      `/cart/remove/${productId}`
     );
     return response.data;
   },
 
-  // Clear cart
+  /**
+   * ✅ Clear entire cart
+   */
   clearCart: async () => {
-    const userId = await getUserId();
-    const response = await apiClient.post<ApiResponse<Cart>>('/cart/clear', { userId });
+    const response = await apiClient.post<ApiResponse<Cart>>('/cart/clear');
     return response.data;
   },
 };
