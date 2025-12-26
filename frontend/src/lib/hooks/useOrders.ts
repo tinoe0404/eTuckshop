@@ -1,14 +1,24 @@
+// ============================================
+// FILE: src/lib/hooks/useOrders.ts (REFACTORED)
+// ============================================
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { orderService } from '@/lib/api/services/order.service';
-import { queryKeys } from '@/lib/api/queryKeys';
-import { Order } from '@/types';
+import { queryKeys, invalidateOrderQueries } from '@/lib/api/queryKeys';
+import { QUERY_DEFAULTS, REALTIME_QUERY_DEFAULTS } from '@/lib/api/queryConfig';
 import { toast } from 'sonner';
 
 // ========================
-// Query Hooks
+// QUERY HOOKS
 // ========================
 
-export function useOrders(params: {
+/**
+ * ✅ ADMIN: Fetch all orders with filters (real-time)
+ * - Auto-refreshes every 30s
+ * - Critical for order management
+ * - Server-side filtering (NOT client-side)
+ */
+export function useAdminOrders(params: {
   status?: string;
   paymentType?: string;
   page?: number;
@@ -17,57 +27,113 @@ export function useOrders(params: {
   return useQuery({
     queryKey: queryKeys.orders.list(params),
     queryFn: () => orderService.getAllOrders(params),
+    ...REALTIME_QUERY_DEFAULTS, // ✅ Auto-refresh for admin
   });
 }
 
+/**
+ * ✅ ADMIN: Fetch order stats (real-time)
+ * - Dashboard metrics
+ * - Auto-refreshes every 30s
+ */
 export function useOrderStats() {
   return useQuery({
     queryKey: queryKeys.orders.stats(),
     queryFn: orderService.getOrderStats,
+    ...REALTIME_QUERY_DEFAULTS, // ✅ Always fresh stats
   });
 }
 
+/**
+ * ✅ Fetch single order by ID
+ * - Used in order detail pages
+ */
 export function useOrder(id: number | null | undefined) {
   return useQuery({
-    queryKey: queryKeys.orders.detail(id!),
+    queryKey: id ? queryKeys.orders.detail(id) : ['orders', 'detail', 'null'],
     queryFn: () => orderService.getOrderById(id!),
     enabled: !!id,
+    ...QUERY_DEFAULTS,
   });
 }
 
+/**
+ * ✅ CUSTOMER: Fetch user's orders
+ * - Standard caching (5min staleTime)
+ */
 export function useUserOrders() {
   return useQuery({
     queryKey: queryKeys.orders.userOrders(),
     queryFn: orderService.getUserOrders,
+    ...QUERY_DEFAULTS,
+  });
+}
+
+/**
+ * ✅ Fetch order QR code
+ * - Real-time to check expiry status
+ */
+export function useOrderQR(orderId: number | null) {
+  return useQuery({
+    queryKey: orderId ? queryKeys.orders.qr(orderId) : ['orders', 'qr', 'null'],
+    queryFn: () => orderService.getOrderQR(orderId!),
+    enabled: !!orderId,
+    ...REALTIME_QUERY_DEFAULTS, // ✅ Check QR expiry in real-time
   });
 }
 
 // ========================
-// Mutation Hooks with Optimistic Updates
+// MUTATION HOOKS
 // ========================
 
+/**
+ * ✅ Checkout mutation
+ * - Clears cart after success
+ * - Invalidates order queries
+ */
+export function useCheckout() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (data: { paymentType: 'CASH' | 'PAYNOW' }) =>
+      orderService.checkout(data),
+    
+    onSuccess: () => {
+      // Invalidate cart (it's now empty)
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      
+      // Invalidate user orders (new order created)
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.userOrders() });
+      
+      // Don't show toast here - let the page handle routing
+    },
+    
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to checkout');
+    },
+  });
+}
+
+/**
+ * ✅ ADMIN: Complete order mutation
+ * - Optimistic updates for instant UI
+ * - Rollback on error
+ */
 export function useCompleteOrder() {
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: (orderId: number) => orderService.completeOrder(orderId),
     
+    // ✅ Optimistic update
     onMutate: async (orderId) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: queryKeys.orders.lists() });
-      await queryClient.cancelQueries({ queryKey: queryKeys.orders.stats() });
       
-      // Snapshot all order list queries
-      const previousQueries = new Map();
-      queryClient.getQueriesData({ queryKey: queryKeys.orders.lists() })
-        .forEach(([key, data]) => {
-          previousQueries.set(JSON.stringify(key), data);
-        });
+      // Snapshot previous state
+      const previousOrders = queryClient.getQueryData(queryKeys.orders.lists());
       
-      // Snapshot stats
-      const previousStats = queryClient.getQueryData(queryKeys.orders.stats());
-      
-      // Optimistically update order status in all list queries
+      // Optimistically update order status
       queryClient.setQueriesData(
         { queryKey: queryKeys.orders.lists() },
         (old: any) => {
@@ -77,13 +143,9 @@ export function useCompleteOrder() {
             ...old,
             data: {
               ...old.data,
-              orders: old.data.orders.map((order: Order) =>
+              orders: old.data.orders.map((order: any) =>
                 order.id === orderId
-                  ? {
-                      ...order,
-                      status: 'COMPLETED',
-                      completedAt: new Date().toISOString(),
-                    }
+                  ? { ...order, status: 'COMPLETED', completedAt: new Date().toISOString() }
                   : order
               ),
             },
@@ -91,63 +153,31 @@ export function useCompleteOrder() {
         }
       );
       
-      // Optimistically update stats
-      queryClient.setQueryData(queryKeys.orders.stats(), (old: any) => {
-        if (!old?.data) return old;
-        
-        // Find the order to update stats correctly
-        const allOrders = queryClient.getQueriesData({ queryKey: queryKeys.orders.lists() });
-        const order = allOrders
-          .flatMap(([_, data]: any) => data?.data?.orders || [])
-          .find((o: Order) => o.id === orderId);
-        
-        if (!order) return old;
-        
-        return {
-          ...old,
-          data: {
-            ...old.data,
-            orders: {
-              ...old.data.orders,
-              pending: order.status === 'PENDING' ? old.data.orders.pending - 1 : old.data.orders.pending,
-              paid: order.status === 'PAID' ? old.data.orders.paid - 1 : old.data.orders.paid,
-              completed: old.data.orders.completed + 1,
-            },
-          },
-        };
-      });
-      
-      return { previousQueries, previousStats };
+      return { previousOrders };
     },
     
+    // ✅ Rollback on error
     onError: (err, orderId, context) => {
-      // Rollback all queries
-      if (context?.previousQueries) {
-        context.previousQueries.forEach((data, key) => {
-          queryClient.setQueryData(JSON.parse(key), data);
-        });
+      if (context?.previousOrders) {
+        queryClient.setQueryData(queryKeys.orders.lists(), context.previousOrders);
       }
-      
-      if (context?.previousStats) {
-        queryClient.setQueryData(queryKeys.orders.stats(), context.previousStats);
-      }
-      
-      const message = (err as any).response?.data?.message || 'Failed to complete order';
-      toast.error(message);
+      toast.error((err as any).response?.data?.message || 'Failed to complete order');
     },
     
-    onSuccess: (response) => {
-      toast.success(response.message || 'Order completed successfully');
-    },
-    
-    onSettled: () => {
-      // Refetch to ensure data consistency
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
+    onSuccess: () => {
+      toast.success('Order completed successfully');
+      
+      // Invalidate to sync with server
+      invalidateOrderQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.stats() });
+      queryClient.invalidateQueries({ queryKey: ['products'] }); // ✅ Stock changed
     },
   });
 }
 
+/**
+ * ✅ ADMIN: Reject order mutation
+ */
 export function useRejectOrder() {
   const queryClient = useQueryClient();
   
@@ -155,22 +185,12 @@ export function useRejectOrder() {
     mutationFn: ({ orderId, reason }: { orderId: number; reason?: string }) =>
       orderService.rejectOrder(orderId, reason),
     
+    // ✅ Optimistic update
     onMutate: async ({ orderId }) => {
-      // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: queryKeys.orders.lists() });
-      await queryClient.cancelQueries({ queryKey: queryKeys.orders.stats() });
       
-      // Snapshot all order list queries
-      const previousQueries = new Map();
-      queryClient.getQueriesData({ queryKey: queryKeys.orders.lists() })
-        .forEach(([key, data]) => {
-          previousQueries.set(JSON.stringify(key), data);
-        });
+      const previousOrders = queryClient.getQueryData(queryKeys.orders.lists());
       
-      // Snapshot stats
-      const previousStats = queryClient.getQueryData(queryKeys.orders.stats());
-      
-      // Optimistically update order status in all list queries
       queryClient.setQueriesData(
         { queryKey: queryKeys.orders.lists() },
         (old: any) => {
@@ -180,12 +200,9 @@ export function useRejectOrder() {
             ...old,
             data: {
               ...old.data,
-              orders: old.data.orders.map((order: Order) =>
+              orders: old.data.orders.map((order: any) =>
                 order.id === orderId
-                  ? {
-                      ...order,
-                      status: 'CANCELLED',
-                    }
+                  ? { ...order, status: 'CANCELLED' }
                   : order
               ),
             },
@@ -193,59 +210,89 @@ export function useRejectOrder() {
         }
       );
       
-      // Optimistically update stats
-      queryClient.setQueryData(queryKeys.orders.stats(), (old: any) => {
-        if (!old?.data) return old;
-        
-        // Find the order to update stats correctly
-        const allOrders = queryClient.getQueriesData({ queryKey: queryKeys.orders.lists() });
-        const order = allOrders
-          .flatMap(([_, data]: any) => data?.data?.orders || [])
-          .find((o: Order) => o.id === orderId);
-        
-        if (!order) return old;
-        
-        return {
-          ...old,
-          data: {
-            ...old.data,
-            orders: {
-              ...old.data.orders,
-              pending: order.status === 'PENDING' ? old.data.orders.pending - 1 : old.data.orders.pending,
-              paid: order.status === 'PAID' ? old.data.orders.paid - 1 : old.data.orders.paid,
-              cancelled: old.data.orders.cancelled + 1,
-            },
-          },
-        };
-      });
-      
-      return { previousQueries, previousStats };
+      return { previousOrders };
     },
     
     onError: (err, { orderId }, context) => {
-      // Rollback all queries
-      if (context?.previousQueries) {
-        context.previousQueries.forEach((data, key) => {
-          queryClient.setQueryData(JSON.parse(key), data);
-        });
+      if (context?.previousOrders) {
+        queryClient.setQueryData(queryKeys.orders.lists(), context.previousOrders);
       }
-      
-      if (context?.previousStats) {
-        queryClient.setQueryData(queryKeys.orders.stats(), context.previousStats);
-      }
-      
-      const message = (err as any).response?.data?.message || 'Failed to reject order';
-      toast.error(message);
+      toast.error((err as any).response?.data?.message || 'Failed to reject order');
     },
     
-    onSuccess: (response) => {
-      toast.success(response.message || 'Order rejected successfully');
+    onSuccess: () => {
+      toast.success('Order rejected successfully');
+      invalidateOrderQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.stats() });
+      queryClient.invalidateQueries({ queryKey: ['products'] }); // ✅ Stock restored
+    },
+  });
+}
+
+/**
+ * ✅ Cancel order mutation (customer)
+ */
+export function useCancelOrder() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (orderId: number) => orderService.cancelOrder(orderId),
+    
+    onSuccess: () => {
+      toast.success('Order cancelled successfully');
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.userOrders() });
+      queryClient.invalidateQueries({ queryKey: ['products'] }); // ✅ Stock restored
     },
     
-    onSettled: () => {
-      // Refetch to ensure data consistency
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to cancel order');
+    },
+  });
+}
+
+/**
+ * ✅ Generate cash QR mutation
+ */
+export function useGenerateCashQR() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (orderId: number) => orderService.generateCashQR(orderId),
+    
+    onSuccess: (data, orderId) => {
+      // Invalidate specific order to show QR
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.qr(orderId) });
+    },
+    
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to generate QR code');
+    },
+  });
+}
+
+/**
+ * ✅ Initiate PayNow mutation
+ */
+export function useInitiatePayNow() {
+  return useMutation({
+    mutationFn: (orderId: number) => orderService.initiatePayNow(orderId),
+    
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to initiate payment');
+    },
+  });
+}
+
+/**
+ * ✅ ADMIN: Scan QR code mutation
+ */
+export function useScanQRCode() {
+  return useMutation({
+    mutationFn: (qrData: string) => orderService.scanQRCode(qrData),
+    
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Invalid QR code');
     },
   });
 }
