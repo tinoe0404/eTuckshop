@@ -1,8 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { analyticsService } from '@/lib/api/services/analytics.service';
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -17,116 +15,49 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import type { AnalyticsData } from '@/types';
-
-// ==========================================
-// CUSTOM HOOKS FOR STATE MANAGEMENT
-// ==========================================
-
-const useDateRange = () => {
-  const [dateRange, setDateRange] = useState<{
-    startDate: string;
-    endDate: string;
-  }>(() => {
-    const endDate = new Date();
-    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    
-    return {
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
-    };
-  });
-
-  const [activePeriod, setActivePeriod] = useState<'7D' | '30D' | '90D'>('30D');
-
-  const setLast7Days = () => {
-    const endDate = new Date();
-    const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    setDateRange({
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
-    });
-    setActivePeriod('7D');
-  };
-
-  const setLast30Days = () => {
-    const endDate = new Date();
-    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    setDateRange({
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
-    });
-    setActivePeriod('30D');
-  };
-
-  const setLast90Days = () => {
-    const endDate = new Date();
-    const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    setDateRange({
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
-    });
-    setActivePeriod('90D');
-  };
-
-  return {
-    dateRange,
-    activePeriod,
-    setLast7Days,
-    setLast30Days,
-    setLast90Days,
-  };
-};
-
-const useAnalytics = (dateRange: { startDate: string; endDate: string }) => {
-  return useQuery({
-    queryKey: ['analytics', dateRange.startDate, dateRange.endDate],
-    queryFn: () => analyticsService.getAnalytics(dateRange),
-    retry: 2,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
-  });
-};
+import { useAnalyticsData } from '@/lib/hooks/useAnalytics';
+import { useDateRangeFilter } from '@/lib/hooks/useDateRangeFilter';
+import type { DailyStats, TopProduct, Order } from '@/types';
 
 // ==========================================
 // MAIN COMPONENT
 // ==========================================
 
 export default function AdminAnalyticsPage() {
-  // ✅ FIX: ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
-  const { dateRange, activePeriod, setLast7Days, setLast30Days, setLast90Days } = useDateRange();
+  // ✅ Date range filter state (UI only)
+  const { dateRange, activePeriod, setLast7Days, setLast30Days, setLast90Days } = 
+    useDateRangeFilter('30D');
   
+  // ✅ Fetch analytics data (auto-refreshes every 30s)
   const {
     data: analyticsResponse,
     isLoading,
     error,
     refetch,
     isFetching,
-  } = useAnalytics(dateRange);
+  } = useAnalyticsData(dateRange);
 
-  const analytics: AnalyticsData | undefined = analyticsResponse?.data;
+  // ✅ Extract data safely
+  const analytics = analyticsResponse?.data;
   const summary = analytics?.summary;
   const dailyStats = analytics?.dailyStats || [];
   const topProducts = analytics?.topProducts || [];
   const recentOrders = analytics?.recentOrders || [];
 
-  // ✅ Memoized calculations for chart scaling - MUST BE BEFORE RETURNS
+  // ✅ Memoized chart scaling calculations
   const chartMetrics = useMemo(() => {
     if (dailyStats.length === 0) {
       return { maxSales: 1, maxRevenue: 1 };
     }
 
     return {
-      maxSales: Math.max(...dailyStats.map((d) => d.sales), 1),
-      maxRevenue: Math.max(...dailyStats.map((d) => d.revenue), 1),
+      maxSales: Math.max(...dailyStats.map((d: DailyStats) => d.sales), 1),
+      maxRevenue: Math.max(...dailyStats.map((d: DailyStats) => d.revenue), 1),
     };
   }, [dailyStats]);
 
   const isPositiveGrowth = (summary?.revenueGrowth || 0) >= 0;
 
-  // ✅ NOW IT'S SAFE TO RETURN CONDITIONALLY - ALL HOOKS HAVE BEEN CALLED
-  
   // ==========================================
   // LOADING STATE
   // ==========================================
@@ -374,7 +305,7 @@ export default function AdminAnalyticsPage() {
                   {/* Chart */}
                   <div className="h-80 relative bg-slate-900/30 rounded-lg p-4">
                     <div className="flex items-end justify-between h-full gap-1">
-                      {dailyStats.map((stat, index) => {
+                      {dailyStats.map((stat: DailyStats, index: number) => {
                         const salesHeight = Math.max(
                           (stat.sales / chartMetrics.maxSales) * 100,
                           3
@@ -485,7 +416,7 @@ export default function AdminAnalyticsPage() {
                     </p>
                   </div>
                 ) : (
-                  topProducts.slice(0, 5).map((product, index) => (
+                  topProducts.slice(0, 5).map((product: TopProduct, index: number) => (
                     <div
                       key={product.productId}
                       className="flex items-center space-x-3 p-3 bg-slate-900/50 rounded-lg hover:bg-slate-700/50 transition-colors border border-slate-700/50"
@@ -532,8 +463,8 @@ export default function AdminAnalyticsPage() {
                     Recent orders will appear here
                   </p>
                 </div>
-              ) : (
-                recentOrders.slice(0, 5).map((order) => (
+                              ) : (
+                recentOrders.slice(0, 5).map((order: Order) => (
                   <div
                     key={order.id}
                     className="flex items-center justify-between p-4 bg-slate-900/50 rounded-lg hover:bg-slate-700/50 transition-colors border border-slate-700/50"

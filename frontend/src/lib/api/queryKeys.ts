@@ -7,6 +7,7 @@
  * - Type-safe
  * - Hierarchical structure
  * - Easy invalidation
+ * - Follows React Query v5 recommendations
  */
 
 export const queryKeys = {
@@ -79,7 +80,7 @@ export const queryKeys = {
   },
   
   // ========================
-  // CUSTOMERS
+  // CUSTOMERS (ADMIN)
   // ========================
   customers: {
     all: ['customers'] as const,
@@ -97,25 +98,28 @@ export const queryKeys = {
   },
   
   // ========================
-  // DASHBOARD
-  // ========================
-  dashboard: {
-    all: ['dashboard'] as const,
-    stats: () => [...queryKeys.dashboard.all, 'stats'] as const,
-  },
-  
-  // ========================
-  // ANALYTICS
+  // ANALYTICS (ADMIN)
   // ========================
   analytics: {
     all: ['analytics'] as const,
-    summary: (dateRange?: { start: string; end: string }) => 
-      [...queryKeys.analytics.all, 'summary', dateRange] as const,
+    
+    // Dashboard stats (main admin page)
+    dashboard: () => [...queryKeys.analytics.all, 'dashboard'] as const,
+    
+    // Detailed analytics with date range filters
+    details: () => [...queryKeys.analytics.all, 'detail'] as const,
+    detail: (params?: { startDate?: string; endDate?: string }) => 
+      [...queryKeys.analytics.details(), params] as const,
   },
 } as const;
 
+// ============================================
+// HELPER FUNCTIONS FOR INVALIDATION
+// ============================================
+
 /**
  * ✅ HELPER: Invalidate all product-related queries
+ * Use after: create/update/delete product
  */
 export const invalidateProductQueries = (queryClient: any) => {
   queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
@@ -123,6 +127,7 @@ export const invalidateProductQueries = (queryClient: any) => {
 
 /**
  * ✅ HELPER: Invalidate all cart-related queries
+ * Use after: add to cart, remove from cart, update quantity
  */
 export const invalidateCartQueries = (queryClient: any) => {
   queryClient.invalidateQueries({ queryKey: queryKeys.cart.all });
@@ -130,7 +135,38 @@ export const invalidateCartQueries = (queryClient: any) => {
 
 /**
  * ✅ HELPER: Invalidate all order-related queries
+ * Use after: create order, update order status, payment completion
  */
 export const invalidateOrderQueries = (queryClient: any) => {
   queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
 };
+
+/**
+ * ✅ HELPER: Invalidate all analytics queries
+ * Use after: order completion, product changes, major data updates
+ */
+export const invalidateAnalyticsQueries = (queryClient: any) => {
+  queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
+};
+
+/**
+ * ✅ HELPER: Invalidate all customer queries
+ * Use after: customer updates, role changes
+ */
+export const invalidateCustomerQueries = (queryClient: any) => {
+  queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
+};
+
+/**
+ * ✅ HELPER: Invalidate all category queries
+ * Use after: create/update/delete category
+ */
+export const invalidateCategoryQueries = (queryClient: any) => {
+  queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
+};
+
+// ============================================
+// TYPE EXPORTS
+// ============================================
+
+export type QueryKeys = typeof queryKeys;
