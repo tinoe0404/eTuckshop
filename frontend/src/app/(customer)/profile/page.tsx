@@ -1,15 +1,16 @@
-// File: src/app/profile/page.tsx
+// ============================================
+// FILE: src/app/profile/page.tsx (REFACTORED)
+// ============================================
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useSession, signOut } from 'next-auth/react';
-import { orderService } from '@/lib/api/services/order.service';
-import { profileService } from '@/lib/api/services/profile.service';
+import { useUserOrders } from '@/lib/hooks/useOrders'; // ✅ Use the hook
+import { useUpdateProfile, useChangePassword } from '@/lib/hooks/useProfile'; // ✅ New hooks
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +51,8 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
+// ===== HELPER FUNCTIONS =====
+
 function getUserId(user: any): number {
   if (!user?.id) throw new Error('User ID not found');
   const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
@@ -57,7 +60,7 @@ function getUserId(user: any): number {
   return userId;
 }
 
-/* -------------------- Validation -------------------- */
+// ===== VALIDATION SCHEMAS =====
 
 const profileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -78,28 +81,27 @@ const passwordSchema = z
 type ProfileFormData = z.infer<typeof profileSchema>;
 type PasswordFormData = z.infer<typeof passwordSchema>;
 
-/* -------------------- Page -------------------- */
+// ===== MAIN COMPONENT =====
 
 export default function ProfilePage() {
-  // ===== ALL HOOKS MUST BE AT THE TOP =====
+  // ===== ALL HOOKS AT THE TOP =====
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { data: session, status, update } = useSession();
 
+  // ✅ UI state only
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  /* -------------------- Orders & Stats -------------------- */
+  // ✅ Fetch orders with proper hook
+  const { data: ordersData } = useUserOrders();
 
-  const { data: ordersData } = useQuery({
-    queryKey: ['user-orders'],
-    queryFn: orderService.getUserOrders,
-    enabled: status === 'authenticated',
-  });
+  // ✅ Mutations with proper hooks
+  const updateProfileMutation = useUpdateProfile();
+  const changePasswordMutation = useChangePassword();
 
-  /* -------------------- Forms -------------------- */
+  // ===== FORMS =====
 
   const {
     register: registerProfile,
@@ -121,55 +123,6 @@ export default function ProfilePage() {
     reset: resetPassword,
   } = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
-  });
-
-  /* -------------------- Mutations -------------------- */
-
-  const updateProfileMutation = useMutation({
-    mutationFn: async (data: ProfileFormData) => {
-      const userId = getUserId(session?.user);
-      return profileService.updateProfile(userId, data);
-    },
-    onSuccess: async (response) => {
-      await update({
-        name: response.data.name,
-        email: response.data.email,
-        image: response.data.image,
-      });
-      toast.success('Profile updated successfully');
-      setIsEditingProfile(false);
-    },
-    onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.message ??
-          error.message ??
-          'Failed to update profile'
-      );
-    },
-  });
-
-  const changePasswordMutation = useMutation({
-    mutationFn: async (data: PasswordFormData) => {
-      const userId = getUserId(session?.user);
-      return profileService.changePassword(userId, {
-        currentPassword: data.currentPassword,
-        newPassword: data.newPassword,
-      });
-    },
-    onSuccess: async () => {
-      toast.success('Password changed successfully. Please login again.');
-      resetPassword();
-      setTimeout(async () => {
-        await signOut({ redirect: true, callbackUrl: '/login' });
-      }, 2000);
-    },
-    onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.message ??
-          error.message ??
-          'Failed to change password'
-      );
-    },
   });
 
   // ===== DERIVED STATE =====
@@ -212,13 +165,43 @@ export default function ProfilePage() {
 
   // ===== EVENT HANDLERS =====
 
-  const handleUpdateProfile = useCallback((data: ProfileFormData) => {
-    updateProfileMutation.mutate(data);
-  }, [updateProfileMutation]);
+  const handleUpdateProfile = useCallback(async (data: ProfileFormData) => {
+    try {
+      const userId = getUserId(user);
+      const response = await updateProfileMutation.mutateAsync({ 
+        userId, 
+        data 
+      });
+      
+      // ✅ Update NextAuth session
+      await update({
+        name: response.data.name,
+        email: response.data.email,
+        image: response.data.image,
+      });
+      
+      setIsEditingProfile(false);
+    } catch (error) {
+      // Error already handled by mutation hook
+    }
+  }, [user, updateProfileMutation, update]);
 
-  const handleChangePassword = useCallback((data: PasswordFormData) => {
-    changePasswordMutation.mutate(data);
-  }, [changePasswordMutation]);
+  const handleChangePassword = useCallback(async (data: PasswordFormData) => {
+    try {
+      const userId = getUserId(user);
+      await changePasswordMutation.mutateAsync({ 
+        userId, 
+        data: {
+          currentPassword: data.currentPassword,
+          newPassword: data.newPassword,
+        }
+      });
+      
+      resetPassword();
+    } catch (error) {
+      // Error already handled by mutation hook
+    }
+  }, [user, changePasswordMutation, resetPassword]);
 
   const handleCancelEdit = useCallback(() => {
     setIsEditingProfile(false);
@@ -234,8 +217,6 @@ export default function ProfilePage() {
 
   // ===== CONDITIONAL RENDERING =====
 
-  /* -------------------- Auth Guard -------------------- */
-
   if (status === 'loading') {
     return (
       <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
@@ -244,7 +225,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (status === 'unauthenticated') {
+  if (status === 'unauthenticated' || !user || user.role !== 'CUSTOMER') {
     return (
       <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
@@ -252,15 +233,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (!user || user.role !== 'CUSTOMER') {
-    return (
-      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
-      </div>
-    );
-  }
-
-  /* -------------------- Render -------------------- */
+  // ===== RENDER =====
 
   return (
     <div className="min-h-screen bg-[#0f1419] p-6">
