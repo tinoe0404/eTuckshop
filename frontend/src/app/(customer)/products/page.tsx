@@ -1,12 +1,15 @@
+// ============================================
+// FILE: src/app/products/page.tsx (REFACTORED)
+// ============================================
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { productService } from '@/lib/api/services/product.service';
-import { categoryService } from '@/lib/api/services/category.service';
+import { useProducts } from '@/lib/hooks/useProducts'; // ✅ NEW
+import { useCategories } from '@/lib/hooks/useCategories'; // ✅ NEW
+import { useAddToCart } from '@/lib/hooks/useCart'; // ✅ ALREADY ADDED
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useAddToCart } from '@/lib/hooks/useCart';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -38,12 +41,15 @@ import Image from 'next/image';
 export default function ProductsPage() {
   // ===== ALL HOOKS AT THE TOP =====
   const router = useRouter();
+  
+  // ✅ React Query hooks (no manual queries!)
+  const { data: productsData, isLoading: productsLoading } = useProducts();
+  const { data: categoriesData } = useCategories();
   const addToCartMutation = useAddToCart();
 
-  
   // View mode
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -51,19 +57,6 @@ export default function ProductsPage() {
   const [priceRange, setPriceRange] = useState<string>('all');
   const [stockFilter, setStockFilter] = useState<string>('all');
 
-  // Fetch products
-  const { data: productsData, isLoading: productsLoading } = useQuery({
-    queryKey: ['products'],
-    queryFn: productService.getAll,
-  });
-
-  // Fetch categories
-  const { data: categoriesData } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryService.getAll,
-  });
-
-  
   // ===== DERIVED STATE =====
   const products = productsData?.data || [];
   const categories = categoriesData?.data || [];
@@ -128,14 +121,19 @@ export default function ProductsPage() {
     setStockFilter('all');
   }, []);
 
-  const handleAddToCart = useCallback((productId: number) => {
-    addToCartMutation.mutate({ productId, quantity: 1 });
-  }, [addToCartMutation]);
-  
+  const handleAddToCart = useCallback(
+    (productId: number) => {
+      addToCartMutation.mutate({ productId, quantity: 1 });
+    },
+    [addToCartMutation]
+  );
 
-  const handleViewProduct = useCallback((productId: number) => {
-    router.push(`/products/${productId}`);
-  }, [router]);
+  const handleViewProduct = useCallback(
+    (productId: number) => {
+      router.push(`/products/${productId}`);
+    },
+    [router]
+  );
 
   // ===== RENDER =====
   return (
@@ -144,19 +142,19 @@ export default function ProductsPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-white">
-              Products
-            </h1>
-            <p className="text-gray-400 mt-1">
-              Discover our amazing collection
-            </p>
+            <h1 className="text-4xl font-bold text-white">Products</h1>
+            <p className="text-gray-400 mt-1">Discover our amazing collection</p>
           </div>
           <div className="flex items-center space-x-2">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'outline'}
               size="icon"
               onClick={() => setViewMode('grid')}
-              className={viewMode === 'grid' ? 'bg-blue-600 hover:bg-blue-700' : 'border-gray-700 text-gray-300 hover:bg-gray-800'}
+              className={
+                viewMode === 'grid'
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : 'border-gray-700 text-gray-300 hover:bg-gray-800'
+              }
             >
               <Grid3x3 className="w-4 h-4" />
             </Button>
@@ -164,7 +162,11 @@ export default function ProductsPage() {
               variant={viewMode === 'list' ? 'default' : 'outline'}
               size="icon"
               onClick={() => setViewMode('list')}
-              className={viewMode === 'list' ? 'bg-blue-600 hover:bg-blue-700' : 'border-gray-700 text-gray-300 hover:bg-gray-800'}
+              className={
+                viewMode === 'list'
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : 'border-gray-700 text-gray-300 hover:bg-gray-800'
+              }
             >
               <List className="w-4 h-4" />
             </Button>
@@ -196,7 +198,9 @@ export default function ProductsPage() {
                     <SelectValue placeholder="Category" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1a2332] border-gray-700">
-                    <SelectItem value="all" className="text-gray-300">All Categories</SelectItem>
+                    <SelectItem value="all" className="text-gray-300">
+                      All Categories
+                    </SelectItem>
                     {categories.map((cat: Category) => (
                       <SelectItem key={cat.id} value={cat.id.toString()} className="text-gray-300">
                         {cat.name} ({cat.productCount || 0})
@@ -212,10 +216,18 @@ export default function ProductsPage() {
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1a2332] border-gray-700">
-                    <SelectItem value="name" className="text-gray-300">Name (A-Z)</SelectItem>
-                    <SelectItem value="price-low" className="text-gray-300">Price (Low to High)</SelectItem>
-                    <SelectItem value="price-high" className="text-gray-300">Price (High to Low)</SelectItem>
-                    <SelectItem value="stock" className="text-gray-300">Stock (High to Low)</SelectItem>
+                    <SelectItem value="name" className="text-gray-300">
+                      Name (A-Z)
+                    </SelectItem>
+                    <SelectItem value="price-low" className="text-gray-300">
+                      Price (Low to High)
+                    </SelectItem>
+                    <SelectItem value="price-high" className="text-gray-300">
+                      Price (High to Low)
+                    </SelectItem>
+                    <SelectItem value="stock" className="text-gray-300">
+                      Stock (High to Low)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -226,11 +238,21 @@ export default function ProductsPage() {
                     <SelectValue placeholder="Price Range" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1a2332] border-gray-700">
-                    <SelectItem value="all" className="text-gray-300">All Prices</SelectItem>
-                    <SelectItem value="0-10" className="text-gray-300">$0 - $10</SelectItem>
-                    <SelectItem value="10-25" className="text-gray-300">$10 - $25</SelectItem>
-                    <SelectItem value="25-50" className="text-gray-300">$25 - $50</SelectItem>
-                    <SelectItem value="50" className="text-gray-300">$50+</SelectItem>
+                    <SelectItem value="all" className="text-gray-300">
+                      All Prices
+                    </SelectItem>
+                    <SelectItem value="0-10" className="text-gray-300">
+                      $0 - $10
+                    </SelectItem>
+                    <SelectItem value="10-25" className="text-gray-300">
+                      $10 - $25
+                    </SelectItem>
+                    <SelectItem value="25-50" className="text-gray-300">
+                      $25 - $50
+                    </SelectItem>
+                    <SelectItem value="50" className="text-gray-300">
+                      $50+
+                    </SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -241,15 +263,27 @@ export default function ProductsPage() {
                     <SelectValue placeholder="Stock Level" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1a2332] border-gray-700">
-                    <SelectItem value="all" className="text-gray-300">All Stock</SelectItem>
-                    <SelectItem value="HIGH" className="text-gray-300">High Stock</SelectItem>
-                    <SelectItem value="MEDIUM" className="text-gray-300">Medium Stock</SelectItem>
-                    <SelectItem value="LOW" className="text-gray-300">Low Stock</SelectItem>
+                    <SelectItem value="all" className="text-gray-300">
+                      All Stock
+                    </SelectItem>
+                    <SelectItem value="HIGH" className="text-gray-300">
+                      High Stock
+                    </SelectItem>
+                    <SelectItem value="MEDIUM" className="text-gray-300">
+                      Medium Stock
+                    </SelectItem>
+                    <SelectItem value="LOW" className="text-gray-300">
+                      Low Stock
+                    </SelectItem>
                   </SelectContent>
                 </Select>
 
                 {/* Reset Filters */}
-                <Button variant="outline" onClick={resetFilters} className="border-gray-700 text-gray-300 hover:bg-gray-800">
+                <Button
+                  variant="outline"
+                  onClick={resetFilters}
+                  className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                >
                   Reset Filters
                 </Button>
               </div>
@@ -257,8 +291,8 @@ export default function ProductsPage() {
               {/* Results Count */}
               <div className="flex items-center justify-between pt-2">
                 <p className="text-sm text-gray-400">
-                  Showing <span className="font-semibold text-white">{filteredProducts.length}</span>{' '}
-                  of <span className="font-semibold text-white">{products.length}</span> products
+                  Showing <span className="font-semibold text-white">{filteredProducts.length}</span> of{' '}
+                  <span className="font-semibold text-white">{products.length}</span> products
                 </p>
               </div>
             </div>
@@ -269,9 +303,7 @@ export default function ProductsPage() {
         {productsLoading ? (
           <div
             className={
-              viewMode === 'grid'
-                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                : 'space-y-4'
+              viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'
             }
           >
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -291,14 +323,12 @@ export default function ProductsPage() {
               <div className="text-center space-y-4">
                 <ShoppingBag className="w-20 h-20 mx-auto text-gray-600" />
                 <div>
-                  <h3 className="text-xl font-semibold text-white">
-                    No products found
-                  </h3>
-                  <p className="text-gray-400 mt-2">
-                    Try adjusting your filters or search query
-                  </p>
+                  <h3 className="text-xl font-semibold text-white">No products found</h3>
+                  <p className="text-gray-400 mt-2">Try adjusting your filters or search query</p>
                 </div>
-                <Button onClick={resetFilters} className="bg-blue-600 hover:bg-blue-700 text-white">Reset Filters</Button>
+                <Button onClick={resetFilters} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  Reset Filters
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -323,9 +353,7 @@ export default function ProductsPage() {
                     </div>
                   )}
                   <div className="absolute top-3 right-3 space-y-2">
-                    <Badge
-                      className={`${getStockLevelColor(product.stockLevel)} border-0 shadow-lg`}
-                    >
+                    <Badge className={`${getStockLevelColor(product.stockLevel)} border-0 shadow-lg`}>
                       {product.stockLevel}
                     </Badge>
                   </div>
@@ -341,23 +369,15 @@ export default function ProductsPage() {
                     >
                       {product.name}
                     </h3>
-                    <p className="text-sm text-gray-400 line-clamp-1">
-                      {product.category.name}
-                    </p>
+                    <p className="text-sm text-gray-400 line-clamp-1">{product.category.name}</p>
                   </div>
                   {product.description && (
-                    <p className="text-sm text-gray-400 line-clamp-2">
-                      {product.description}
-                    </p>
+                    <p className="text-sm text-gray-400 line-clamp-2">{product.description}</p>
                   )}
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-2xl font-bold text-blue-400">
-                        {formatCurrency(product.price)}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {product.stock} in stock
-                      </p>
+                      <p className="text-2xl font-bold text-blue-400">{formatCurrency(product.price)}</p>
+                      <p className="text-xs text-gray-500">{product.stock} in stock</p>
                     </div>
                     <div className="flex items-center space-x-1 text-yellow-500">
                       <Star className="w-4 h-4 fill-current" />
@@ -398,12 +418,7 @@ export default function ProductsPage() {
                     {/* Image */}
                     <div className="relative w-full md:w-48 h-48 bg-gradient-to-br from-gray-800 to-gray-900 shrink-0">
                       {product.image ? (
-                        <Image
-                          src={product.image}
-                          alt={product.name}
-                          fill
-                          className="object-cover"
-                        />
+                        <Image src={product.image} alt={product.name} fill className="object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <ShoppingBag className="w-16 h-16 text-gray-600" />
@@ -422,31 +437,21 @@ export default function ProductsPage() {
                             >
                               {product.name}
                             </h3>
-                            <p className="text-sm text-gray-400 mt-1">
-                              {product.category.name}
-                            </p>
+                            <p className="text-sm text-gray-400 mt-1">{product.category.name}</p>
                           </div>
-                          <Badge
-                            className={`${getStockLevelColor(product.stockLevel)} border-0`}
-                          >
+                          <Badge className={`${getStockLevelColor(product.stockLevel)} border-0`}>
                             {product.stockLevel}
                           </Badge>
                         </div>
                         {product.description && (
-                          <p className="text-gray-400 line-clamp-2">
-                            {product.description}
-                          </p>
+                          <p className="text-gray-400 line-clamp-2">{product.description}</p>
                         )}
                       </div>
 
                       <div className="flex items-center justify-between mt-4">
                         <div>
-                          <p className="text-3xl font-bold text-blue-400">
-                            {formatCurrency(product.price)}
-                          </p>
-                          <p className="text-sm text-gray-500 mt-1">
-                            {product.stock} in stock
-                          </p>
+                          <p className="text-3xl font-bold text-blue-400">{formatCurrency(product.price)}</p>
+                          <p className="text-sm text-gray-500 mt-1">{product.stock} in stock</p>
                         </div>
                         <div className="flex items-center space-x-3">
                           <Button
