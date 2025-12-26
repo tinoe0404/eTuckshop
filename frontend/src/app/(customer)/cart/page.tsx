@@ -3,11 +3,14 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { cartService } from '@/lib/api/services/cart.service';
-import { useCartStore } from '@/lib/store/cartStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+  useCart,
+  useUpdateCartItem,
+  useRemoveFromCart,
+  useClearCart,
+} from '@/lib/hooks/useCart';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,7 +26,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { toast } from 'sonner';
 import {
   ShoppingCart,
   Trash2,
@@ -42,55 +44,13 @@ import Image from 'next/image';
 
 export default function CartPage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const { setTotalItems } = useCartStore();
   const [quantityInputs, setQuantityInputs] = useState<Record<number, string>>({});
 
-  const { data: cartData, isLoading, error } = useQuery({
-    queryKey: ['cart'],
-    queryFn: cartService.getCart,
-    retry: 2,
-  });
+  const { data: cartData, isLoading, error } = useCart();
+  const updateMutation = useUpdateCartItem();
+  const removeMutation = useRemoveFromCart();
+  const clearMutation = useClearCart();
 
-  const updateMutation = useMutation({
-    mutationFn: ({ productId, quantity }: { productId: number; quantity: number }) =>
-      cartService.updateCartItem({ productId, quantity }),
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-      queryClient.invalidateQueries({ queryKey: ['cart-summary'] });
-      setTotalItems(response.data.totalItems);
-      toast.success('Cart updated');
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to update cart');
-    },
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: (productId: number) => cartService.removeFromCart(productId),
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-      queryClient.invalidateQueries({ queryKey: ['cart-summary'] });
-      setTotalItems(response.data.totalItems);
-      toast.success('Item removed from cart');
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to remove item');
-    },
-  });
-
-  const clearMutation = useMutation({
-    mutationFn: cartService.clearCart,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-      queryClient.invalidateQueries({ queryKey: ['cart-summary'] });
-      setTotalItems(0);
-      toast.success('Cart cleared');
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to clear cart');
-    },
-  });
 
   const cart = cartData?.data;
   const items = cart?.items || [];

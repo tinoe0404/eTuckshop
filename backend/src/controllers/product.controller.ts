@@ -3,27 +3,58 @@ import { Context } from "hono";
 import { prisma } from "../utils/prisma";
 import { getStockLevel } from "../utils/stock";
 import { serverError } from "../utils/serverError";
+import { cache } from "../utils/redis";
+
+// Cache TTL constants (in seconds)
+const CACHE_TTL = {
+  PRODUCT_LIST: 300,      // 5 minutes
+  PRODUCT_DETAIL: 300,    // 5 minutes
+  CATEGORY_PRODUCTS: 300, // 5 minutes
+};
 
 // ==============================
-// GET ALL PRODUCTS (Public)
+// GET ALL PRODUCTS (Public) - CACHED
 // ==============================
 export const getAllProducts = async (c: Context) => {
   try {
     console.log('📦 Fetching all products');
 
+    // 1. Build cache key
+    const cacheKey = "products:all";
+
+    // 2. Try cache first
+    const cached = await cache.get<any>(cacheKey);
+    if (cached) {
+      return c.json({
+        success: true,
+        message: "Products retrieved successfully (cached)",
+        data: cached,
+        cached: true,
+      });
+    }
+
+    // 3. Cache miss - query database
     const products = await prisma.product.findMany({
       include: { category: true },
     });
 
-    console.log(`✅ Retrieved ${products.length} products`);
+    console.log(`✅ Retrieved ${products.length} products from DB`);
 
+    // 4. Transform data
+    const transformedProducts = products.map((p) => ({
+      ...p,
+      stockLevel: getStockLevel(p.stock),
+    }));
+
+    // 5. Set cache with TTL
+    await cache.set(cacheKey, transformedProducts, CACHE_TTL.PRODUCT_LIST);
+
+    // 6. Return response
     return c.json({
       success: true,
       message: "Products retrieved successfully",
-      data: products.map((p) => ({
-        ...p,
-        stockLevel: getStockLevel(p.stock),
-      })),
+      data: transformedProducts,
+      cached: false,
     });
   } catch (error) {
     console.error('❌ Error fetching products:', error);
@@ -32,13 +63,28 @@ export const getAllProducts = async (c: Context) => {
 };
 
 // ==============================
-// GET PRODUCT BY ID (Public)
+// GET PRODUCT BY ID (Public) - CACHED
 // ==============================
 export const getProductById = async (c: Context) => {
   try {
     const id = Number(c.req.param("id"));
     console.log(`🔍 Fetching product ID: ${id}`);
 
+    // 1. Build cache key
+    const cacheKey = `products:detail:${id}`;
+
+    // 2. Try cache first
+    const cached = await cache.get<any>(cacheKey);
+    if (cached) {
+      return c.json({
+        success: true,
+        message: "Product retrieved successfully (cached)",
+        data: cached,
+        cached: true,
+      });
+    }
+
+    // 3. Cache miss - query database
     const product = await prisma.product.findUnique({
       where: { id },
       include: { category: true },
@@ -54,13 +100,21 @@ export const getProductById = async (c: Context) => {
 
     console.log(`✅ Product found: ${product.name}`);
 
+    // 4. Transform data
+    const transformedProduct = {
+      ...product,
+      stockLevel: getStockLevel(product.stock),
+    };
+
+    // 5. Set cache with TTL
+    await cache.set(cacheKey, transformedProduct, CACHE_TTL.PRODUCT_DETAIL);
+
+    // 6. Return response
     return c.json({
       success: true,
       message: "Product retrieved successfully",
-      data: {
-        ...product,
-        stockLevel: getStockLevel(product.stock),
-      },
+      data: transformedProduct,
+      cached: false,
     });
   } catch (error) {
     console.error('❌ Error fetching product:', error);
@@ -69,13 +123,28 @@ export const getProductById = async (c: Context) => {
 };
 
 // ==============================
-// GET PRODUCTS BY CATEGORY (Public)
+// GET PRODUCTS BY CATEGORY (Public) - CACHED
 // ==============================
 export const getProductsByCategory = async (c: Context) => {
   try {
     const categoryId = Number(c.req.param("categoryId"));
     console.log(`📂 Fetching products for category ID: ${categoryId}`);
 
+    // 1. Build cache key
+    const cacheKey = `products:category:${categoryId}`;
+
+    // 2. Try cache first
+    const cached = await cache.get<any>(cacheKey);
+    if (cached) {
+      return c.json({
+        success: true,
+        message: "Products retrieved successfully (cached)",
+        data: cached,
+        cached: true,
+      });
+    }
+
+    // 3. Cache miss - query database
     const products = await prisma.product.findMany({
       where: { categoryId },
       include: { category: true },
@@ -83,13 +152,21 @@ export const getProductsByCategory = async (c: Context) => {
 
     console.log(`✅ Retrieved ${products.length} products for category ${categoryId}`);
 
+    // 4. Transform data
+    const transformedProducts = products.map((p) => ({
+      ...p,
+      stockLevel: getStockLevel(p.stock),
+    }));
+
+    // 5. Set cache with TTL
+    await cache.set(cacheKey, transformedProducts, CACHE_TTL.CATEGORY_PRODUCTS);
+
+    // 6. Return response
     return c.json({
       success: true,
       message: "Products retrieved successfully",
-      data: products.map((p) => ({
-        ...p,
-        stockLevel: getStockLevel(p.stock),
-      })),
+      data: transformedProducts,
+      cached: false,
     });
   } catch (error) {
     console.error('❌ Error fetching products by category:', error);
@@ -98,7 +175,7 @@ export const getProductsByCategory = async (c: Context) => {
 };
 
 // ==============================
-// CREATE PRODUCT (Admin Only)
+// CREATE PRODUCT (Admin Only) - WITH CACHE INVALIDATION
 // ==============================
 export const createProduct = async (c: Context) => {
   try {
@@ -161,6 +238,9 @@ export const createProduct = async (c: Context) => {
 
     console.log(`✅ Product created: ${product.name} (ID: ${product.id}) by ${user.email}`);
 
+    // 🔄 INVALIDATE CACHE
+    await cache.invalidateProducts();
+
     return c.json(
       {
         success: true,
@@ -179,7 +259,7 @@ export const createProduct = async (c: Context) => {
 };
 
 // ==============================
-// UPDATE PRODUCT (Admin Only)
+// UPDATE PRODUCT (Admin Only) - WITH CACHE INVALIDATION
 // ==============================
 export const updateProduct = async (c: Context) => {
   try {
@@ -238,6 +318,9 @@ export const updateProduct = async (c: Context) => {
 
     console.log(`✅ Product updated: ${updated.name} (ID: ${id}) by ${user.email}`);
 
+    // 🔄 INVALIDATE CACHE
+    await cache.invalidateProducts();
+
     return c.json({
       success: true,
       message: "Product updated successfully",
@@ -253,7 +336,7 @@ export const updateProduct = async (c: Context) => {
 };
 
 // ==============================
-// DELETE PRODUCT (Admin Only)
+// DELETE PRODUCT (Admin Only) - WITH CACHE INVALIDATION
 // ==============================
 export const deleteProduct = async (c: Context) => {
   try {
@@ -314,6 +397,9 @@ export const deleteProduct = async (c: Context) => {
     await prisma.product.delete({ where: { id } });
 
     console.log(`✅ Product deleted: ${product.name} (ID: ${id}) by ${user.email}`);
+
+    // 🔄 INVALIDATE CACHE
+    await cache.invalidateProducts();
 
     return c.json({
       success: true,
