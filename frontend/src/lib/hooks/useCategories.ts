@@ -1,6 +1,11 @@
+// ============================================
+// FILE: src/hooks/useCategories.ts (IMPROVED)
+// ============================================
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { categoryService } from '@/lib/api/services/category.service';
 import { queryKeys } from '@/lib/api/queryKeys';
+import { STATIC_QUERY_DEFAULTS, MUTATION_DEFAULTS } from '@/lib/api/queryConfig';
 import { Category } from '@/types';
 import { toast } from 'sonner';
 
@@ -8,25 +13,40 @@ import { toast } from 'sonner';
 // Query Hooks
 // ========================
 
+/**
+ * ✅ Fetch all categories
+ * Uses STATIC_QUERY_DEFAULTS because categories rarely change
+ */
 export function useCategories() {
   return useQuery({
     queryKey: queryKeys.categories.lists(),
     queryFn: categoryService.getAll,
+    ...STATIC_QUERY_DEFAULTS, // 30min staleTime, only refetch on explicit action
   });
 }
 
+/**
+ * ✅ Fetch category statistics (product counts, stock, etc.)
+ * Uses STATIC_QUERY_DEFAULTS - stats update when categories/products change
+ */
 export function useCategoryStats() {
   return useQuery({
     queryKey: queryKeys.categories.stats(),
     queryFn: categoryService.getStats,
+    ...STATIC_QUERY_DEFAULTS,
   });
 }
 
+/**
+ * ✅ Fetch single category by ID
+ * Uses STATIC_QUERY_DEFAULTS
+ */
 export function useCategory(id: number) {
   return useQuery({
     queryKey: queryKeys.categories.detail(id),
     queryFn: () => categoryService.getById(id),
     enabled: !!id,
+    ...STATIC_QUERY_DEFAULTS,
   });
 }
 
@@ -40,6 +60,8 @@ export function useCreateCategory() {
   return useMutation({
     mutationFn: (data: { name: string; description?: string }) =>
       categoryService.create(data),
+    
+    ...MUTATION_DEFAULTS, // Smart retry logic
     
     onMutate: async (newCategory) => {
       // Cancel outgoing refetches
@@ -130,6 +152,8 @@ export function useUpdateCategory() {
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: { name?: string; description?: string } }) =>
       categoryService.update(id, data),
+    
+    ...MUTATION_DEFAULTS,
     
     onMutate: async ({ id, data }) => {
       // Cancel outgoing refetches
@@ -240,6 +264,8 @@ export function useDeleteCategory() {
   
   return useMutation({
     mutationFn: (id: number) => categoryService.delete(id),
+    
+    ...MUTATION_DEFAULTS,
     
     onMutate: async (deletedId) => {
       // Cancel outgoing refetches
