@@ -77,4 +77,26 @@ export const cache = {
     ]);
     console.log("🔄 Product caches invalidated");
   },
+
+  /**
+   * Invalidate all analytics caches
+   * Call this when orders are created/updated/completed
+   */
+  async invalidateAnalytics(): Promise<void> {
+    await cache.delPattern("analytics:*");
+    console.log("🔄 Analytics caches invalidated");
+  },
+
+  /**
+   * Invalidate everything (nuclear option)
+   * Use sparingly - only for major data changes
+   */
+  async invalidateAll(): Promise<void> {
+    await Promise.all([
+      cache.delPattern("products:*"),
+      cache.delPattern("categories:*"),
+      cache.delPattern("analytics:*"),
+    ]);
+    console.log("🔄 All caches invalidated");
+  },
 };

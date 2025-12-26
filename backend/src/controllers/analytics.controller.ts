@@ -2,9 +2,16 @@
 import { Context } from "hono";
 import { prisma } from "../utils/prisma";
 import { serverError } from "../utils/serverError";
+import { cache } from "../utils/redis";
+
+// Cache TTL constants (in seconds)
+const CACHE_TTL = {
+  DASHBOARD_STATS: 60,  // 1 minute - updates frequently with new orders
+  ANALYTICS: 120,       // 2 minutes - more complex query, less critical freshness
+};
 
 // ==========================================
-// GET DASHBOARD STATS
+// GET DASHBOARD STATS - CACHED
 // ==========================================
 export const getDashboardStats = async (c: Context) => {
   try {
@@ -12,6 +19,22 @@ export const getDashboardStats = async (c: Context) => {
     const user = c.get('user');
     console.log(`📊 Admin ${user.email} (ID: ${user.id}) fetching dashboard stats`);
 
+    // 1. Build cache key (admin-agnostic - same for all admins)
+    const cacheKey = "analytics:dashboard:stats";
+
+    // 2. Try cache first
+    const cached = await cache.get<any>(cacheKey);
+    if (cached) {
+      console.log(`✅ Dashboard stats served from cache for ${user.email}`);
+      return c.json({
+        success: true,
+        message: "Dashboard stats retrieved successfully (cached)",
+        data: cached,
+        cached: true,
+      });
+    }
+
+    // 3. Cache miss - query database
     // Get today's date at midnight for today's revenue calculation
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -71,19 +94,27 @@ export const getDashboardStats = async (c: Context) => {
 
     console.log(`✅ Dashboard stats retrieved successfully for ${user.email}`);
 
+    // 4. Transform data
+    const stats = {
+      totalOrders,
+      pendingOrders,
+      completedOrders,
+      totalProducts,
+      lowStockProducts,
+      totalRevenue: parseFloat((totalRevenue._sum.totalAmount || 0).toFixed(2)),
+      todayRevenue: parseFloat((todayRevenue._sum.totalAmount || 0).toFixed(2)),
+      totalCustomers,
+    };
+
+    // 5. Set cache with TTL
+    await cache.set(cacheKey, stats, CACHE_TTL.DASHBOARD_STATS);
+
+    // 6. Return response
     return c.json({
       success: true,
       message: "Dashboard stats retrieved successfully",
-      data: {
-        totalOrders,
-        pendingOrders,
-        completedOrders,
-        totalProducts,
-        lowStockProducts,
-        totalRevenue: parseFloat((totalRevenue._sum.totalAmount || 0).toFixed(2)),
-        todayRevenue: parseFloat((todayRevenue._sum.totalAmount || 0).toFixed(2)),
-        totalCustomers,
-      },
+      data: stats,
+      cached: false,
     });
   } catch (error) {
     console.error('❌ Error fetching dashboard stats:', error);
@@ -92,7 +123,7 @@ export const getDashboardStats = async (c: Context) => {
 };
 
 // ==========================================
-// GET ANALYTICS DASHBOARD DATA
+// GET ANALYTICS DASHBOARD DATA - CACHED WITH QUERY PARAMS
 // ==========================================
 export const getAnalytics = async (c: Context) => {
   try {
@@ -111,8 +142,26 @@ export const getAnalytics = async (c: Context) => {
     // Set end date to end of day
     end.setHours(23, 59, 59, 999);
 
-    console.log(`📅 Date range: ${start.toISOString().split('T')[0]} to ${end.toISOString().split('T')[0]}`);
+    // 1. Build cache key with date range encoded
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+    const cacheKey = `analytics:data:${startStr}:${endStr}`;
 
+    console.log(`📅 Date range: ${startStr} to ${endStr}`);
+
+    // 2. Try cache first
+    const cached = await cache.get<any>(cacheKey);
+    if (cached) {
+      console.log(`✅ Analytics data served from cache for ${user.email}`);
+      return c.json({
+        success: true,
+        message: "Analytics data retrieved successfully (cached)",
+        data: cached,
+        cached: true,
+      });
+    }
+
+    // 3. Cache miss - query database
     // Parallel queries for better performance
     const [
       totalUsers,
@@ -257,27 +306,35 @@ export const getAnalytics = async (c: Context) => {
     console.log(`   Growth: ${revenueGrowth.toFixed(2)}%`);
     console.log(`   Daily Stats Points: ${dailyStats.length}`);
 
+    // 4. Transform data
+    const analyticsData = {
+      summary: {
+        totalUsers,
+        totalProducts,
+        totalSales: completedOrders,
+        totalRevenue: parseFloat((revenueData._sum.totalAmount || 0).toFixed(2)),
+        averageOrderValue: parseFloat((revenueData._avg.totalAmount || 0).toFixed(2)),
+        totalOrders,
+        revenueGrowth: parseFloat(revenueGrowth.toFixed(2)),
+      },
+      dailyStats,
+      topProducts: topProductsWithDetails,
+      recentOrders,
+      dateRange: {
+        start: startStr,
+        end: endStr,
+      },
+    };
+
+    // 5. Set cache with TTL
+    await cache.set(cacheKey, analyticsData, CACHE_TTL.ANALYTICS);
+
+    // 6. Return response
     return c.json({
       success: true,
       message: "Analytics data retrieved successfully",
-      data: {
-        summary: {
-          totalUsers,
-          totalProducts,
-          totalSales: completedOrders,
-          totalRevenue: parseFloat((revenueData._sum.totalAmount || 0).toFixed(2)),
-          averageOrderValue: parseFloat((revenueData._avg.totalAmount || 0).toFixed(2)),
-          totalOrders,
-          revenueGrowth: parseFloat(revenueGrowth.toFixed(2)),
-        },
-        dailyStats,
-        topProducts: topProductsWithDetails,
-        recentOrders,
-        dateRange: {
-          start: start.toISOString().split('T')[0],
-          end: end.toISOString().split('T')[0],
-        },
-      },
+      data: analyticsData,
+      cached: false,
     });
   } catch (error) {
     console.error('❌ Error fetching analytics data:', error);
