@@ -33,15 +33,14 @@ import {
   Box,
   DollarSign,
   ShoppingBag,
-  Filter,
   BarChart3,
   Loader2,
 } from 'lucide-react';
 import { formatCurrency, getStockLevelColor } from '@/lib/utils';
 import { Product, Category } from '@/types';
 
-// Import optimized hooks and store
-import { useProducts } from '@/lib/hooks/useProducts';
+// ✅ FIXED: Use useAdminProducts for real-time updates
+import { useAdminProducts } from '@/lib/hooks/useProducts';
 import { useCategories } from '@/lib/hooks/useCategories';
 import { useInventoryUIStore, StockFilter, SortBy } from '@/lib/store/useInventoryUIStore';
 import { useInventoryStats, useFilteredProducts } from '@/lib/hooks/useInventory';
@@ -50,7 +49,7 @@ export default function AdminInventoryPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  // Auth protection with useEffect
+  // Auth protection
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.replace('/login');
@@ -60,7 +59,7 @@ export default function AdminInventoryPage() {
     }
   }, [status, session, router]);
 
-  // UI Store (Zustand)
+  // UI Store (Zustand) - Only UI state
   const {
     searchQuery,
     categoryFilter,
@@ -72,14 +71,14 @@ export default function AdminInventoryPage() {
     setSortBy,
   } = useInventoryUIStore();
 
-  // Server State (React Query)
-  const { data: productsData, isLoading: productsLoading } = useProducts();
+  // ✅ FIXED: Server State (React Query) - Use admin hook for real-time updates
+  const { data: productsData, isLoading: productsLoading } = useAdminProducts();
   const { data: categoriesData } = useCategories();
 
   const products = productsData?.data || [];
   const categories = categoriesData?.data || [];
 
-  // Custom hooks for computed values
+  // ✅ Client-side computed values (instant UI updates)
   const inventoryStats = useInventoryStats(products, categories);
   const filteredProducts = useFilteredProducts(products);
 
@@ -453,31 +452,28 @@ export default function AdminInventoryPage() {
                 </Select>
 
                 {/* Sort */}
+                <Select
+                  value={sortBy}
+                  onValueChange={(value) => setSortBy(value as SortBy)}
+                >
+                  <SelectTrigger className="col-span-2 sm:col-span-2 bg-[#0f1419] border-gray-700 text-white">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
 
+                  <SelectContent className="bg-[#1a2332] border-gray-700 text-white">
+                    <SelectItem value="name" className="hover:bg-gray-700">
+                      Name (A-Z)
+                    </SelectItem>
 
-              <Select
-                value={sortBy}
-                onValueChange={(value) => setSortBy(value as SortBy)}
-              >
-                <SelectTrigger className="col-span-2 sm:col-span-2 bg-[#0f1419] border-gray-700 text-white">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
+                    <SelectItem value="stock-low" className="hover:bg-gray-700">
+                      Stock (Low to High)
+                    </SelectItem>
 
-                <SelectContent className="bg-[#1a2332] border-gray-700 text-white">
-                  <SelectItem value="name" className="hover:bg-gray-700">
-                    Name (A-Z)
-                  </SelectItem>
-
-                  <SelectItem value="stock-low" className="hover:bg-gray-700">
-                    Stock (Low to High)
-                  </SelectItem>
-
-                  <SelectItem value="stock-high" className="hover:bg-gray-700">
-                    Stock (High to Low)
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-
+                    <SelectItem value="stock-high" className="hover:bg-gray-700">
+                      Stock (High to Low)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             
