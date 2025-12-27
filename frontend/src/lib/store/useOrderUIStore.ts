@@ -1,5 +1,5 @@
 // ============================================
-// FILE: src/lib/store/orderUIStore.ts (REFACTORED)
+// FILE: src/lib/store/useOrderUIStore.ts (REFACTORED)
 // ============================================
 
 import { create } from 'zustand';
@@ -8,11 +8,11 @@ import { create } from 'zustand';
  * ✅ BEST PRACTICE: Zustand only stores UI state
  * 
  * ❌ REMOVED:
- * - viewingOrder (now from React Query via orderId)
+ * - viewingOrder (Order object) → Moved to React Query
  * 
  * ✅ KEPT:
  * - Filter states (searchQuery, statusFilter, etc.)
- * - Dialog open/close states
+ * - Dialog open/close states (with IDs only)
  * - Pagination states
  */
 
@@ -20,20 +20,19 @@ export type OrderStatus = 'ALL' | 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED'
 export type PaymentType = 'ALL' | 'CASH' | 'PAYNOW';
 
 interface OrderUIStore {
-  // ===== FILTERS (CLIENT-SIDE) =====
-  // ⚠️ NOTE: Server-side filtering happens in useAdminOrders params
-  // These are for additional client-side UX (instant feedback)
+  // ===== CLIENT-SIDE SEARCH (COSMETIC) =====
+  // ⚠️ This filters already-loaded orders for instant UX
+  // For real search, add searchQuery to server params
   searchQuery: string;
   
   // ===== SERVER FILTERS (PASSED TO API) =====
-  // These map to React Query params
   statusFilter: OrderStatus;
   paymentFilter: PaymentType;
   currentPage: number;
   pageSize: number;
   
-  // ===== DIALOGS (UI STATE ONLY) =====
-  viewingOrderId: number | null; // ✅ Store ID, not full order
+  // ===== DIALOGS (STORE IDs, NOT FULL OBJECTS) =====
+  viewingOrderId: number | null; // ✅ Store ID, fetch from React Query
   completingOrderId: number | null;
   rejectingOrderId: number | null;
   rejectReason: string;
@@ -45,7 +44,7 @@ interface OrderUIStore {
   setCurrentPage: (page: number) => void;
   
   // ===== ACTIONS - DIALOGS =====
-  openViewDialog: (orderId: number) => void; // ✅ Takes ID, not full order
+  openViewDialog: (orderId: number) => void; // ✅ Takes ID only
   closeViewDialog: () => void;
   
   openCompleteDialog: (orderId: number) => void;
@@ -79,7 +78,7 @@ export const useOrderUIStore = create<OrderUIStore>((set) => ({
   
   setStatusFilter: (status) => set({ 
     statusFilter: status, 
-    currentPage: 1, // ✅ Reset page on filter change
+    currentPage: 1, // ✅ Reset page when filter changes
   }),
   
   setPaymentFilter: (payment) => set({ 
@@ -110,15 +109,18 @@ export const useOrderUIStore = create<OrderUIStore>((set) => ({
 }));
 
 /**
- * ✅ USAGE EXAMPLE:
+ * ✅ CORRECT USAGE PATTERN:
  * 
- * // In OrdersPage component:
- * const { viewingOrderId, openViewDialog } = useOrderUIStore();
- * const { data: viewingOrder } = useOrder(viewingOrderId); // ✅ Fetch from React Query
+ * // Component:
+ * const { viewingOrderId, openViewDialog, closeViewDialog } = useOrderUIStore();
+ * const { data: orderData } = useOrder(viewingOrderId); // ✅ Fetch from React Query
+ * const viewingOrder = orderData?.data;
  * 
- * // Open dialog with ID:
+ * // Open dialog:
  * <Button onClick={() => openViewDialog(order.id)}>View</Button>
  * 
- * // Render dialog:
- * {viewingOrder && <OrderDialog order={viewingOrder} />}
+ * // Dialog always shows fresh data from React Query:
+ * <Dialog open={viewingOrderId !== null} onOpenChange={closeViewDialog}>
+ *   {viewingOrder && <OrderDetails order={viewingOrder} />}
+ * </Dialog>
  */

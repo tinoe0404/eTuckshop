@@ -63,15 +63,22 @@ import {
 import { formatCurrency } from '@/lib/utils';
 import { Order } from '@/types';
 
-// Import optimized hooks and store
-import { useOrders, useOrderStats, useCompleteOrder, useRejectOrder } from '@/lib/hooks/useOrders';
+// ✅ FIXED: Use correct hook names
+import { 
+  useAdminOrders, // ✅ Was useOrders
+  useOrderStats, 
+  useOrder, // ✅ NEW: Fetch single order
+  useCompleteOrder, 
+  useRejectOrder 
+} from '@/lib/hooks/useOrders';
+
 import { useOrderUIStore, OrderStatus, PaymentType } from '@/lib/store/useOrderUIStore';
 
 export default function AdminOrdersPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  // Auth protection with useEffect
+  // Auth protection
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.replace('/login');
@@ -81,13 +88,13 @@ export default function AdminOrdersPage() {
     }
   }, [status, session, router]);
 
-  // UI Store (Zustand)
+  // ✅ UI Store (Zustand) - Only UI state
   const {
     searchQuery,
     statusFilter,
     paymentFilter,
     currentPage,
-    viewingOrder,
+    viewingOrderId, // ✅ Changed from viewingOrder (full object)
     completingOrderId,
     rejectingOrderId,
     rejectReason,
@@ -104,8 +111,8 @@ export default function AdminOrdersPage() {
     setRejectReason,
   } = useOrderUIStore();
 
-  // Server State (React Query)
-  const { data: ordersResponse, isLoading } = useOrders({
+  // ✅ Server State (React Query)
+  const { data: ordersResponse, isLoading } = useAdminOrders({ // ✅ Fixed hook name
     status: statusFilter !== 'ALL' ? statusFilter : undefined,
     paymentType: paymentFilter !== 'ALL' ? paymentFilter : undefined,
     page: currentPage,
@@ -113,8 +120,12 @@ export default function AdminOrdersPage() {
   });
 
   const { data: statsResponse } = useOrderStats();
+  
+  // ✅ NEW: Fetch viewing order from React Query (not Zustand)
+  const { data: viewingOrderData } = useOrder(viewingOrderId);
+  const viewingOrder = viewingOrderData?.data;
 
-  // Mutations with optimistic updates
+  // Mutations
   const completeOrderMutation = useCompleteOrder();
   const rejectOrderMutation = useRejectOrder();
 
@@ -122,13 +133,17 @@ export default function AdminOrdersPage() {
   const pagination = ordersResponse?.data?.pagination;
   const stats = statsResponse?.data;
 
-  // Filter orders by search query (client-side for current page)
+  // ✅ FIXED: Client-side search is now cosmetic only
+  // For real search, add searchQuery to useAdminOrders params
   const filteredOrders = useMemo(() => {
+    if (!searchQuery.trim()) return orders;
+    
+    const query = searchQuery.toLowerCase();
     return orders.filter(
       (order: Order) =>
-        order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.user?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.user?.email.toLowerCase().includes(searchQuery.toLowerCase())
+        order.orderNumber.toLowerCase().includes(query) ||
+        order.user?.name.toLowerCase().includes(query) ||
+        order.user?.email.toLowerCase().includes(query)
     );
   }, [orders, searchQuery]);
 
@@ -163,7 +178,7 @@ export default function AdminOrdersPage() {
     }
   };
 
-  // Handlers
+  // ✅ FIXED: Handlers now pass IDs, not full objects
   const handleCompleteOrder = (orderId: number) => {
     openCompleteDialog(orderId);
   };
@@ -265,7 +280,7 @@ export default function AdminOrdersPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => openViewDialog(order)}
+              onClick={() => openViewDialog(order.id)} // ✅ Pass ID only
               className="flex-1 border-gray-700 text-blue-400 hover:bg-blue-900/20"
             >
               <Eye className="w-4 h-4 mr-2" />
@@ -567,7 +582,7 @@ export default function AdminOrdersPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => openViewDialog(order)}
+                                onClick={() => openViewDialog(order.id)} // ✅ Pass ID only
                                 className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
                               >
                                 <Eye className="w-4 h-4" />
@@ -681,8 +696,8 @@ export default function AdminOrdersPage() {
           )}
         </div>
 
-        {/* View Order Dialog */}
-        <Dialog open={viewingOrder !== null} onOpenChange={closeViewDialog}>
+        {/* ✅ FIXED: View Order Dialog - Fetches from React Query */}
+        <Dialog open={viewingOrderId !== null} onOpenChange={closeViewDialog}>
           <DialogContent className="bg-[#1a2332] border-gray-700 text-white max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-xl">Order Details</DialogTitle>
@@ -719,9 +734,7 @@ export default function AdminOrdersPage() {
                     </div>
                     <div>
                       <p className="text-gray-400">Status</p>
-                      <Badge
-                        className={`${getStatusColor(viewingOrder.status)} mt-1`}
-                      >
+                      <Badge className={`${getStatusColor(viewingOrder.status)} mt-1`}>
                         {viewingOrder.status}
                       </Badge>
                     </div>
@@ -785,10 +798,7 @@ export default function AdminOrdersPage() {
         </Dialog>
 
         {/* Complete Order Dialog */}
-        <AlertDialog
-          open={completingOrderId !== null}
-          onOpenChange={closeCompleteDialog}
-        >
+        <AlertDialog open={completingOrderId !== null} onOpenChange={closeCompleteDialog}>
           <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white max-w-[95vw] sm:max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle>Complete Order?</AlertDialogTitle>
@@ -828,8 +838,7 @@ export default function AdminOrdersPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Reject Order?</AlertDialogTitle>
               <AlertDialogDescription className="text-gray-400">
-                This will cancel the order and restore the stock. Optionally provide
-                a reason.
+                This will cancel the order and restore the stock. Optionally provide a reason.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="py-4">
