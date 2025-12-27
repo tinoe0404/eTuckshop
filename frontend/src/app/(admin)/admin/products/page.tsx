@@ -2,10 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { productService } from '@/lib/api/services/product.service';
-import { categoryService } from '@/lib/api/services/category.service';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,12 +64,22 @@ import {
 import { formatCurrency, getStockLevelColor } from '@/lib/utils';
 import { Product, Category } from '@/types';
 
+// ✅ FIXED: Use proper hooks instead of raw queries/mutations
+import {
+  useAdminProducts,
+  useCreateProduct,
+  useUpdateProduct,
+  useDeleteProduct,
+  useBulkDeleteProducts
+} from '@/lib/hooks/useProducts';
+
+import { useCategories } from '@/lib/hooks/useCategories';
+
 type SortField = 'name' | 'price' | 'stock' | 'category';
 type SortOrder = 'asc' | 'desc';
 
 export default function AdminProductsPage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { data: session, status } = useSession();
 
   /* =========================
@@ -111,7 +118,7 @@ export default function AdminProductsPage() {
   }, [status, session, router]);
 
   /* =========================
-     QUERIES
+     ✅ FIXED: Use proper hooks
   ========================= */
   const {
     data: productsData,
@@ -119,95 +126,23 @@ export default function AdminProductsPage() {
     isError: productsError,
     error: productsErrorData,
     refetch: refetchProducts
-  } = useQuery({
-    queryKey: ['admin-products'],
-    queryFn: productService.getAll,
-    refetchInterval: 30000,
-    refetchOnWindowFocus: true,
-    staleTime: 15000,
-    retry: 2,
-    enabled: status === 'authenticated' && session?.user?.role === 'ADMIN'
-  });
+  } = useAdminProducts();
 
   const {
     data: categoriesData,
     refetch: refetchCategories
-  } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryService.getAll,
-    staleTime: 60000,
-    enabled: status === 'authenticated' && session?.user?.role === 'ADMIN'
-  });
+  } = useCategories();
 
   const products = productsData?.data || [];
   const categories = categoriesData?.data || [];
 
   /* =========================
-     MUTATIONS
+     ✅ FIXED: Use mutation hooks
   ========================= */
-  const createProductMutation = useMutation({
-    mutationFn: (data: any) => productService.create(data),
-    onSuccess: () => {
-      toast.success('Product created successfully');
-      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
-      setIsCreateDialogOpen(false);
-      resetForm();
-    },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Failed to create product');
-    }
-  });
-
-  const updateProductMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) =>
-      productService.update(id, data),
-    onSuccess: () => {
-      toast.success('Product updated successfully');
-      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
-      setIsEditDialogOpen(false);
-      setEditingProduct(null);
-      resetForm();
-    },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Failed to update product');
-    }
-  });
-
-  const deleteProductMutation = useMutation({
-    mutationFn: (id: number) => productService.delete(id),
-    onSuccess: () => {
-      toast.success('Product deleted successfully');
-      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
-      setDeleteProductId(null);
-    },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Failed to delete product');
-    }
-  });
-
-  const bulkDeleteMutation = useMutation({
-    mutationFn: async (ids: number[]) => {
-      const results = await Promise.allSettled(
-        ids.map(id => productService.delete(id))
-      );
-      
-      const failed = results.filter(r => r.status === 'rejected').length;
-      if (failed > 0) {
-        throw new Error(`Failed to delete ${failed} product(s)`);
-      }
-      
-      return results;
-    },
-    onSuccess: () => {
-      toast.success('Products deleted successfully');
-      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
-      setSelectedProducts(new Set());
-      setShowBulkDelete(false);
-    },
-    onError: (error: any) => {
-      toast.error(error?.message || 'Failed to delete some products');
-    }
-  });
+  const createProductMutation = useCreateProduct();
+  const updateProductMutation = useUpdateProduct();
+  const deleteProductMutation = useDeleteProduct();
+  const bulkDeleteMutation = useBulkDeleteProducts();
 
   /* =========================
      UTILITY FUNCTIONS
@@ -279,7 +214,7 @@ export default function AdminProductsPage() {
   };
 
   /* =========================
-     HANDLERS
+     ✅ FIXED: Simplified handlers
   ========================= */
   const handleCreateProduct = () => {
     if (!validateForm()) return;
@@ -293,7 +228,12 @@ export default function AdminProductsPage() {
       image: formData.image.trim() || undefined
     };
 
-    createProductMutation.mutate(payload);
+    createProductMutation.mutate(payload, {
+      onSuccess: () => {
+        setIsCreateDialogOpen(false);
+        resetForm();
+      }
+    });
   };
 
   const handleEditProduct = (product: Product) => {
@@ -321,10 +261,16 @@ export default function AdminProductsPage() {
       image: formData.image.trim() || undefined
     };
 
-    updateProductMutation.mutate({
-      id: editingProduct.id,
-      data: payload
-    });
+    updateProductMutation.mutate(
+      { id: editingProduct.id, data: payload },
+      {
+        onSuccess: () => {
+          setIsEditDialogOpen(false);
+          setEditingProduct(null);
+          resetForm();
+        }
+      }
+    );
   };
 
   const handleSelectProduct = (id: number, checked: boolean) => {
@@ -354,6 +300,15 @@ export default function AdminProductsPage() {
       setSortField(field);
       setSortOrder('asc');
     }
+  };
+
+  const handleBulkDelete = () => {
+    bulkDeleteMutation.mutate(Array.from(selectedProducts), {
+      onSuccess: () => {
+        setSelectedProducts(new Set());
+        setShowBulkDelete(false);
+      }
+    });
   };
 
   /* =========================
@@ -1068,9 +1023,7 @@ export default function AdminProductsPage() {
               <AlertDialogAction
                 className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
                 disabled={bulkDeleteMutation.isPending}
-                onClick={() =>
-                  bulkDeleteMutation.mutate(Array.from(selectedProducts))
-                }
+                onClick={handleBulkDelete}
               >
                 {bulkDeleteMutation.isPending ? (
                   <>
