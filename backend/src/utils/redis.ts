@@ -6,97 +6,97 @@ export const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
+// Cache TTL constants (in seconds)
+export const TTL = {
+  ORDER_DETAIL: 60 * 60, // 1 hour (User won't check older orders often)
+  USER_ORDERS: 60 * 5,   // 5 minutes
+  STATS: 60 * 5,         // 5 minutes (Expensive query)
+};
+
 /**
- * Cache helper functions
+ * ⚡ Standardized Cache Wrapper
+ * Tries to get data from Redis. If missing, runs the callback, caches the result, and returns it.
  */
+export const getOrSetCache = async <T>(
+  key: string,
+  callback: () => Promise<T>,
+  ttlSeconds: number = 300
+): Promise<T> => {
+  try {
+    // 1. Try fetch from cache
+    const cachedData = await redis.get<T>(key);
+    if (cachedData) {
+      console.log(`🎯 Cache HIT: ${key}`);
+      return cachedData;
+    }
+
+    // 2. Cache miss - execute callback
+    console.log(`❌ Cache MISS: ${key} - Fetching from DB`);
+    const freshData = await callback();
+
+    // 3. Save to cache (if data exists)
+    if (freshData !== null && freshData !== undefined) {
+      await redis.setex(key, ttlSeconds, JSON.stringify(freshData));
+    }
+
+    return freshData;
+  } catch (error) {
+    console.error(`⚠️ Redis Error (${key}):`, error);
+    // Fallback: If Redis fails, just return fresh data without crashing
+    return await callback();
+  }
+};
+
 export const cache = {
   /**
-   * Get cached data
+   * Delete specific key
    */
-  async get<T>(key: string): Promise<T | null> {
-    try {
-      const data = await redis.get<T>(key);
-      if (data) {
-        console.log(`🎯 Cache HIT: ${key}`);
-      } else {
-        console.log(`❌ Cache MISS: ${key}`);
-      }
-      return data;
-    } catch (error) {
-      console.error(`⚠️ Redis GET error for ${key}:`, error);
-      return null;
+  async del(key: string) {
+    await redis.del(key);
+  },
+
+  /**
+   * Delete keys by pattern
+   */
+  async delPattern(pattern: string) {
+    const keys = await redis.keys(pattern);
+    if (keys.length > 0) {
+      await redis.del(...keys);
+      console.log(`🗑️ Cleared ${keys.length} keys for pattern: ${pattern}`);
     }
   },
 
   /**
-   * Set cached data with TTL
+   * 🔄 Invalidate Product Caches (Used when stock changes)
    */
-  async set(key: string, value: any, ttlSeconds: number): Promise<void> {
-    try {
-      await redis.setex(key, ttlSeconds, JSON.stringify(value));
-      console.log(`💾 Cache SET: ${key} (TTL: ${ttlSeconds}s)`);
-    } catch (error) {
-      console.error(`⚠️ Redis SET error for ${key}:`, error);
-    }
-  },
-
-  /**
-   * Delete a single key
-   */
-  async del(key: string): Promise<void> {
-    try {
-      await redis.del(key);
-      console.log(`🗑️ Cache DEL: ${key}`);
-    } catch (error) {
-      console.error(`⚠️ Redis DEL error for ${key}:`, error);
-    }
-  },
-
-  /**
-   * Delete multiple keys by pattern
-   */
-  async delPattern(pattern: string): Promise<void> {
-    try {
-      const keys = await redis.keys(pattern);
-      if (keys.length > 0) {
-        await redis.del(...keys);
-        console.log(`🗑️ Cache DEL pattern: ${pattern} (${keys.length} keys)`);
-      }
-    } catch (error) {
-      console.error(`⚠️ Redis DEL pattern error for ${pattern}:`, error);
-    }
-  },
-
-  /**
-   * Invalidate all product caches
-   */
-  async invalidateProducts(): Promise<void> {
+  async invalidateProducts() {
     await Promise.all([
-      cache.delPattern("products:*"),
-      cache.delPattern("categories:*"), // Categories may contain product counts
+      cache.delPattern("products:all"),
+      cache.delPattern("products:detail:*"),
+      cache.delPattern("products:category:*"),
     ]);
-    console.log("🔄 Product caches invalidated");
   },
 
   /**
-   * Invalidate all analytics caches
-   * Call this when orders are created/updated/completed
+   * 🔄 Invalidate Order Caches
+   * specificOrderId: Optional. If provided, clears that specific order detail.
+   * userId: Optional. If provided, clears that user's order list.
    */
-  async invalidateAnalytics(): Promise<void> {
-    await cache.delPattern("analytics:*");
-    console.log("🔄 Analytics caches invalidated");
-  },
+  async invalidateOrders(specificOrderId?: number, userId?: number) {
+    const tasks = [
+      cache.del("orders:stats"), // Always clear stats on order change
+      // We don't cache admin list ("orders:all") because it needs to be real-time
+    ];
 
-  /**
-   * Invalidate everything (nuclear option)
-   * Use sparingly - only for major data changes
-   */
-  async invalidateAll(): Promise<void> {
-    await Promise.all([
-      cache.delPattern("products:*"),
-      cache.delPattern("categories:*"),
-      cache.delPattern("analytics:*"),
-    ]);
-    console.log("🔄 All caches invalidated");
+    if (specificOrderId) {
+      tasks.push(cache.del(`orders:detail:${specificOrderId}`));
+    }
+
+    if (userId) {
+      tasks.push(cache.del(`orders:user:${userId}`));
+    }
+
+    await Promise.all(tasks);
+    console.log(`🔄 Order caches invalidated (ID: ${specificOrderId || 'N/A'}, User: ${userId || 'N/A'})`);
   },
 };
