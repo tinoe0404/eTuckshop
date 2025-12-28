@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/sheet';
 import { useRouter } from 'next/navigation';
 import { useLogout } from '@/lib/hooks/useAuth';
-import { useCartCount } from '/lib/store/cartStore';
+import { useCartCount } from '@/lib/hooks/useCart';
 
 export default function CustomerHeader() {
   const router = useRouter();

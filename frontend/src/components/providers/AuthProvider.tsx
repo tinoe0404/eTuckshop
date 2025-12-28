@@ -21,13 +21,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       return;
     }
 
-    // If on public path, allow access
-    if (isPublicPath) {
-      // If authenticated and on login/register, redirect to appropriate dashboard
-      if (status === 'authenticated' && (pathname === '/login' || pathname === '/register')) {
-        const redirectTo = session?.user?.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard';
-        router.replace(redirectTo);
-      }
+
+    // Inside AuthProvider.tsx useEffect
+    if (status === 'authenticated' && (pathname === '/login' || pathname === '/register')) {
+      // Use session role directly from NextAuth
+      const target = session?.user?.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard';
+      router.replace(target);
       return;
     }
 

@@ -62,7 +62,6 @@ export default function LoginPageContent() {
   }, []);
 
   /* ------------------------------- Handlers -------------------------------- */
-
   const onSubmit = async (data: LoginFormData) => {
     if (!selectedRole) {
       toast.error("Please select a role to continue");
@@ -72,54 +71,39 @@ export default function LoginPageContent() {
     setLoading(true);
 
     try {
-      // Step 1: NextAuth login
+      // 1. Attempt NextAuth Sign In
+      // This sends email, password, AND role to your authorize function
       const result = await signIn("credentials", {
         email: data.email,
         password: data.password,
         role: selectedRole,
-        redirect: false,
+        redirect: false, // Keep false so we can handle the error/success locally
       });
 
       if (result?.error) {
-        toast.error(result.error);
+        // This handles 401 (Wrong pass) and 403 (Role mismatch) from your backend
+        toast.error("Invalid credentials or unauthorized role access.");
         setLoading(false);
         return;
       }
 
-      // Step 2: Admin backend JWT
+      // 2. Success Path
+      toast.success("Login successful! Redirecting...");
+
+      // 3. Update the client-side state
+      // router.refresh() forces Next.js to re-fetch server data/session
+      router.refresh();
+
+      // 4. Perform the redirect based on the role we ALREADY verified
       if (selectedRole === "ADMIN") {
-        const apiUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-
-        const response = await fetch(`${apiUrl}/auth/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            email: data.email,
-            password: data.password,
-          }),
-        });
-
-        const backendData = await response.json();
-
-        if (!response.ok || !backendData.success) {
-          toast.error("Failed to authenticate with backend");
-          setLoading(false);
-          return;
-        }
-
-        toast.success("Login successful! Redirecting...");
         router.replace("/admin/dashboard");
-        return;
+      } else {
+        router.replace("/dashboard");
       }
 
-      // Customer redirect
-      toast.success("Login successful! Redirecting...");
-      router.replace("/dashboard");
     } catch (err) {
-      console.error("Login error:", err);
-      toast.error("An error occurred during login");
+      console.error("Login Navigation Error:", err);
+      toast.error("A connection error occurred. Please try again.");
     } finally {
       setLoading(false);
     }

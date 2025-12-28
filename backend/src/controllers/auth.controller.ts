@@ -104,68 +104,43 @@ export const register = async (c: Context) => {
  * Called BY NextAuth during login (authorize callback)
  * No authentication required - this IS the authentication
  */
+// Location: Your backend controller
 export const verifyCredentials = async (c: Context) => {
   try {
     const body = await c.req.json();
-    const { email, password } = body;
+    // 1. Destructure the role sent from the frontend
+    const { email, password, role: requestedRole } = body; 
 
-    console.log('🔐 Verify credentials request:', { email, passwordProvided: !!password });
-
-    if (!email || !password) {
-      console.log('❌ Missing credentials');
+    if (!email || !password || !requestedRole) {
       return c.json({ 
         success: false, 
-        message: "Email and password are required" 
+        message: "Email, password, and role are required" 
       }, 400);
     }
 
-    console.log('🔍 Looking up user:', email);
     const user = await prisma.user.findUnique({ where: { email } });
 
-    if (!user) {
-      console.log('❌ User not found:', email);
-      return c.json({ 
-        success: false, 
-        message: "Invalid credentials" 
-      }, 401);
+    // 2. Validate user existence and password
+    if (!user || !user.password) {
+      return c.json({ success: false, message: "Invalid credentials" }, 401);
     }
 
-    console.log('✅ User found:', { id: user.id, email: user.email, hasPassword: !!user.password });
-
-    if (!user.password) {
-      console.log('❌ User has no password (OAuth account?)');
-      return c.json({ 
-        success: false, 
-        message: "Invalid credentials" 
-      }, 401);
-    }
-
-    console.log('🔐 Verifying password...');
     const isValid = await Bun.password.verify(password, user.password);
-    
-    console.log('🔐 Password verification result:', isValid);
-
     if (!isValid) {
-      console.log('❌ Invalid password for user:', email);
+      return c.json({ success: false, message: "Invalid credentials" }, 401);
+    }
+
+    // 3. STRICT ROLE CHECK
+    // This ensures an Admin email can only login if "ADMIN" role was chosen
+    if (user.role !== requestedRole) {
       return c.json({ 
         success: false, 
-        message: "Invalid credentials" 
-      }, 401);
+        message: `This account is not registered as a ${requestedRole.toLowerCase()}.` 
+      }, 403);
     }
 
     const { password: _, ...safeUser } = user;
-
-    console.log('✅ Credentials verified successfully:', safeUser.email);
-    console.log('📤 Returning user data:', { 
-      id: safeUser.id, 
-      email: safeUser.email, 
-      role: safeUser.role 
-    });
-
-    return c.json({
-      success: true,
-      user: safeUser,
-    });
+    return c.json({ success: true, user: safeUser });
   } catch (error) {
     console.error('💥 Verify credentials error:', error);
     return serverError(c, error);

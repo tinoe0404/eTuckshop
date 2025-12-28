@@ -13,26 +13,17 @@ export default withAuth(
       email: token?.email,
     });
 
-    // ✅ Redirect authenticated users away from auth pages
-    if (path.startsWith('/login') || path.startsWith('/register')) {
-      if (token) {
-        console.log('   ↪️ Authenticated user on auth page, redirecting...');
-        const redirectUrl = token.role === 'ADMIN' 
-          ? '/admin/dashboard' 
-          : '/dashboard';
-        return NextResponse.redirect(new URL(redirectUrl, req.url));
+
+    // Prevent Admins from seeing Customer Dashboard
+    if (path.startsWith('/dashboard') && !path.startsWith('/admin')) {
+      if (token?.role === 'ADMIN') {
+        return NextResponse.redirect(new URL('/admin/dashboard', req.url));
       }
     }
 
-    // ✅ Protect admin routes - only ADMIN role allowed
+    // Prevent Customers from seeing Admin Dashboard
     if (path.startsWith('/admin')) {
-      if (!token) {
-        console.log('   ↪️ No token on admin route, redirecting to login');
-        return NextResponse.redirect(new URL('/login', req.url));
-      }
-      
-      if (token.role !== 'ADMIN') {
-        console.log('   ↪️ Non-admin user on admin route, redirecting to dashboard');
+      if (token?.role !== 'ADMIN') {
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
     }
