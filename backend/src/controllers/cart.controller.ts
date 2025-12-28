@@ -1,23 +1,22 @@
 // src/controllers/cart.controller.ts
-// ✅ FIXED: Uses requireAuth middleware and c.get('user')
-
 import { Context } from "hono";
 import { prisma } from "../utils/prisma";
 import { getStockLevel } from "../utils/stock";
 import { serverError } from "../utils/serverError";
+import { cache, getOrSetCache } from "../utils/redis";
+
+const CART_TTL = 60 * 60; // 1 Hour
 
 // ==============================
-// HELPER: GET OR CREATE CART
+// HELPER: GET OR CREATE CART (DB)
 // ==============================
-const getOrCreateCart = async (userId: number) => {
+const getOrCreateCartDB = async (userId: number) => {
   let cart = await prisma.cart.findUnique({
     where: { userId },
     include: {
       items: {
         include: {
-          product: {
-            include: { category: true },
-          },
+          product: { include: { category: true } },
         },
       },
     },
@@ -29,20 +28,17 @@ const getOrCreateCart = async (userId: number) => {
       include: {
         items: {
           include: {
-            product: {
-              include: { category: true },
-            },
+            product: { include: { category: true } },
           },
         },
       },
     });
   }
-
   return cart;
 };
 
 // ==============================
-// HELPER: CALCULATE CART TOTALS
+// HELPER: CALCULATE TOTALS
 // ==============================
 const calculateCartTotals = (cart: any) => {
   const items = cart.items.map((item: any) => ({
@@ -76,452 +72,206 @@ const calculateCartTotals = (cart: any) => {
 };
 
 // ==============================
-// GET CART (Protected - requireAuth)
+// HELPER: INVALIDATE CACHE
+// ==============================
+const invalidateCartCache = async (userId: number) => {
+  await Promise.all([
+    cache.del(`cart:${userId}`),
+    cache.del(`cart:summary:${userId}`),
+  ]);
+};
+
+// ==============================
+// GET CART (Cached)
 // ==============================
 export const getCart = async (c: Context) => {
   try {
-    // ✅ Get authenticated user from context
     const user = c.get('user');
     
-    if (!user) {
-      return c.json({
-        success: false,
-        message: "Authentication required"
-      }, 401);
-    }
-
-    console.log(`🛒 User ${user.email} (ID: ${user.id}) fetching cart`);
-
-    const cart = await getOrCreateCart(user.id);
-    const cartWithTotals = calculateCartTotals(cart);
-
-    console.log(`✅ Cart retrieved: ${cartWithTotals.totalItems} items, $${cartWithTotals.totalAmount}`);
+    // Cache Key: cart:123
+    const cartData = await getOrSetCache(`cart:${user.id}`, async () => {
+        const cart = await getOrCreateCartDB(user.id);
+        return calculateCartTotals(cart);
+    }, CART_TTL);
 
     return c.json({
       success: true,
       message: "Cart retrieved successfully",
-      data: cartWithTotals,
+      data: cartData,
     });
   } catch (error) {
-    console.error('❌ Error fetching cart:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// ADD TO CART (Protected - requireAuth)
+// ADD TO CART
 // ==============================
 export const addToCart = async (c: Context) => {
   try {
-    // ✅ Get authenticated user from context
     const user = c.get('user');
-    
-    if (!user) {
-      return c.json({
-        success: false,
-        message: "Authentication required"
-      }, 401);
-    }
-
     const { productId, quantity = 1 } = await c.req.json();
 
-    console.log(`➕ User ${user.email} (ID: ${user.id}) adding product ${productId} (qty: ${quantity}) to cart`);
+    if (!productId || quantity < 1) return c.json({ success: false, message: "Invalid input" }, 400);
 
-    // Validate input
-    if (!productId || quantity < 1) {
-      console.log('❌ Invalid product ID or quantity');
-      return c.json(
-        { success: false, message: "Invalid product ID or quantity" },
-        400
-      );
-    }
-
-    // Check if product exists and has stock
-    const product = await prisma.product.findUnique({
-      where: { id: parseInt(productId) },
-    });
-
-    if (!product) {
-      console.log(`❌ Product ${productId} not found`);
-      return c.json(
-        { success: false, message: "Product not found" },
-        404
-      );
-    }
+    const product = await prisma.product.findUnique({ where: { id: parseInt(productId) } });
+    if (!product) return c.json({ success: false, message: "Product not found" }, 404);
 
     if (product.stock < quantity) {
-      console.log(`❌ Insufficient stock for product ${productId}: requested ${quantity}, available ${product.stock}`);
-      return c.json(
-        {
-          success: false,
-          message: `Insufficient stock. Only ${product.stock} available`,
-        },
-        400
-      );
+        return c.json({ success: false, message: `Insufficient stock. Only ${product.stock} available` }, 400);
     }
 
-    // Get or create cart
-    const cart = await getOrCreateCart(user.id);
-
-    // Check if item already in cart
+    const cart = await getOrCreateCartDB(user.id);
     const existingItem = await prisma.cartItem.findFirst({
-      where: {
-        cartId: cart.id,
-        productId: parseInt(productId),
-      },
+        where: { cartId: cart.id, productId: parseInt(productId) }
     });
 
     if (existingItem) {
-      // Update quantity
-      const newQuantity = existingItem.quantity + parseInt(quantity);
-
-      if (product.stock < newQuantity) {
-        console.log(`❌ Cannot add ${quantity} more - only ${product.stock - existingItem.quantity} available`);
-        return c.json(
-          {
-            success: false,
-            message: `Cannot add ${quantity} more. Only ${product.stock - existingItem.quantity} available`,
-          },
-          400
-        );
-      }
-
-      await prisma.cartItem.update({
-        where: { id: existingItem.id },
-        data: { quantity: newQuantity },
-      });
-
-      console.log(`✅ Updated cart item quantity: ${existingItem.quantity} → ${newQuantity}`);
+        if (product.stock < existingItem.quantity + quantity) {
+            return c.json({ success: false, message: "Insufficient stock for total quantity" }, 400);
+        }
+        await prisma.cartItem.update({
+            where: { id: existingItem.id },
+            data: { quantity: existingItem.quantity + quantity }
+        });
     } else {
-      // Add new item
-      await prisma.cartItem.create({
-        data: {
-          cartId: cart.id,
-          productId: parseInt(productId),
-          quantity: parseInt(quantity),
-        },
-      });
-
-      console.log(`✅ Added new item to cart: ${product.name} (qty: ${quantity})`);
+        await prisma.cartItem.create({
+            data: { cartId: cart.id, productId: parseInt(productId), quantity: parseInt(quantity) }
+        });
     }
 
-    // Fetch updated cart
-    const updatedCart = await prisma.cart.findUnique({
-      where: { id: cart.id },
-      include: {
-        items: {
-          include: {
-            product: {
-              include: { category: true },
-            },
-          },
-        },
-      },
-    });
+    // 🔄 Invalidate Cache
+    await invalidateCartCache(user.id);
 
-    const cartWithTotals = calculateCartTotals(updatedCart);
-
+    // Return fresh data (skipping cache for the response)
+    const updatedCart = await getOrCreateCartDB(user.id);
     return c.json({
       success: true,
-      message: "Product added to cart successfully",
-      data: cartWithTotals,
+      message: "Product added to cart",
+      data: calculateCartTotals(updatedCart),
     });
   } catch (error) {
-    console.error('❌ Error adding to cart:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// UPDATE CART ITEM (Protected - requireAuth)
+// UPDATE CART ITEM
 // ==============================
 export const updateCartItem = async (c: Context) => {
   try {
-    // ✅ Get authenticated user from context
     const user = c.get('user');
-    
-    if (!user) {
-      return c.json({
-        success: false,
-        message: "Authentication required"
-      }, 401);
-    }
-
     const { productId, quantity } = await c.req.json();
 
-    console.log(`✏️ User ${user.email} (ID: ${user.id}) updating cart item ${productId} to qty ${quantity}`);
+    if (!productId || quantity < 1) return c.json({ success: false, message: "Invalid input" }, 400);
 
-    if (!productId || quantity < 1) {
-      console.log('❌ Invalid product ID or quantity');
-      return c.json(
-        { success: false, message: "Invalid product ID or quantity" },
-        400
-      );
-    }
-
-    const cart = await getOrCreateCart(user.id);
-
-    // Find cart item
+    const cart = await getOrCreateCartDB(user.id);
     const cartItem = await prisma.cartItem.findFirst({
-      where: {
-        cartId: cart.id,
-        productId: parseInt(productId),
-      },
-      include: { product: true },
+        where: { cartId: cart.id, productId: parseInt(productId) },
+        include: { product: true }
     });
 
-    if (!cartItem) {
-      console.log(`❌ Item ${productId} not found in cart`);
-      return c.json(
-        { success: false, message: "Item not found in cart" },
-        404
-      );
-    }
-
-    // Check stock
+    if (!cartItem) return c.json({ success: false, message: "Item not found in cart" }, 404);
     if (cartItem.product.stock < quantity) {
-      console.log(`❌ Insufficient stock: requested ${quantity}, available ${cartItem.product.stock}`);
-      return c.json(
-        {
-          success: false,
-          message: `Insufficient stock. Only ${cartItem.product.stock} available`,
-        },
-        400
-      );
+        return c.json({ success: false, message: `Insufficient stock. Only ${cartItem.product.stock} available` }, 400);
     }
 
-    // Update quantity
     await prisma.cartItem.update({
-      where: { id: cartItem.id },
-      data: { quantity: parseInt(quantity) },
+        where: { id: cartItem.id },
+        data: { quantity: parseInt(quantity) }
     });
 
-    console.log(`✅ Cart item updated: ${cartItem.product.name} quantity ${cartItem.quantity} → ${quantity}`);
+    // 🔄 Invalidate Cache
+    await invalidateCartCache(user.id);
 
-    // Fetch updated cart
-    const updatedCart = await prisma.cart.findUnique({
-      where: { id: cart.id },
-      include: {
-        items: {
-          include: {
-            product: {
-              include: { category: true },
-            },
-          },
-        },
-      },
-    });
-
-    const cartWithTotals = calculateCartTotals(updatedCart);
-
+    const updatedCart = await getOrCreateCartDB(user.id);
     return c.json({
       success: true,
-      message: "Cart updated successfully",
-      data: cartWithTotals,
+      message: "Cart updated",
+      data: calculateCartTotals(updatedCart),
     });
   } catch (error) {
-    console.error('❌ Error updating cart item:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// REMOVE FROM CART (Protected - requireAuth)
+// REMOVE FROM CART
 // ==============================
 export const removeFromCart = async (c: Context) => {
   try {
-    // ✅ Get authenticated user from context
     const user = c.get('user');
-    
-    if (!user) {
-      return c.json({
-        success: false,
-        message: "Authentication required"
-      }, 401);
-    }
-
     const productId = Number(c.req.param("productId"));
 
-    console.log(`🗑️ User ${user.email} (ID: ${user.id}) removing product ${productId} from cart`);
-
-    const cart = await getOrCreateCart(user.id);
-
-    // Find and delete cart item
+    const cart = await getOrCreateCartDB(user.id);
     const cartItem = await prisma.cartItem.findFirst({
-      where: {
-        cartId: cart.id,
-        productId,
-      },
-      include: { product: true },
+        where: { cartId: cart.id, productId }
     });
 
-    if (!cartItem) {
-      console.log(`❌ Item ${productId} not found in cart`);
-      return c.json(
-        { success: false, message: "Item not found in cart" },
-        404
-      );
-    }
+    if (!cartItem) return c.json({ success: false, message: "Item not found" }, 404);
 
-    await prisma.cartItem.delete({
-      where: { id: cartItem.id },
-    });
+    await prisma.cartItem.delete({ where: { id: cartItem.id } });
 
-    console.log(`✅ Removed from cart: ${cartItem.product.name}`);
+    // 🔄 Invalidate Cache
+    await invalidateCartCache(user.id);
 
-    // Fetch updated cart
-    const updatedCart = await prisma.cart.findUnique({
-      where: { id: cart.id },
-      include: {
-        items: {
-          include: {
-            product: {
-              include: { category: true },
-            },
-          },
-        },
-      },
-    });
-
-    const cartWithTotals = calculateCartTotals(updatedCart);
-
+    const updatedCart = await getOrCreateCartDB(user.id);
     return c.json({
       success: true,
-      message: "Item removed from cart successfully",
-      data: cartWithTotals,
+      message: "Item removed",
+      data: calculateCartTotals(updatedCart),
     });
   } catch (error) {
-    console.error('❌ Error removing from cart:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// CLEAR CART (Protected - requireAuth)
+// CLEAR CART
 // ==============================
 export const clearCart = async (c: Context) => {
   try {
-    // ✅ Get authenticated user from context
     const user = c.get('user');
-    
-    if (!user) {
-      return c.json({
-        success: false,
-        message: "Authentication required"
-      }, 401);
-    }
+    const cart = await getOrCreateCartDB(user.id);
 
-    console.log(`🧹 User ${user.email} (ID: ${user.id}) clearing cart`);
+    await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
 
-    const cart = await getOrCreateCart(user.id);
-
-    // Delete all cart items
-    const deletedCount = await prisma.cartItem.deleteMany({
-      where: { cartId: cart.id },
-    });
-
-    console.log(`✅ Cart cleared: ${deletedCount.count} items removed`);
+    // 🔄 Invalidate Cache
+    await invalidateCartCache(user.id);
 
     return c.json({
       success: true,
-      message: "Cart cleared successfully",
-      data: {
-        id: cart.id,
-        userId: cart.userId,
-        items: [],
-        totalItems: 0,
-        totalAmount: 0,
-      },
+      message: "Cart cleared",
+      data: { ...cart, items: [], totalItems: 0, totalAmount: 0 },
     });
   } catch (error) {
-    console.error('❌ Error clearing cart:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// GET CART SUMMARY (POST - Protected)
-// ==============================
-export const getCartSummary = async (c: Context) => {
-  try {
-    // ✅ Get authenticated user from context
-    const user = c.get('user');
-    
-    if (!user) {
-      return c.json({
-        success: false,
-        message: "Authentication required"
-      }, 401);
-    }
-
-    console.log(`📊 User ${user.email} (ID: ${user.id}) fetching cart summary`);
-
-    const cart = await getOrCreateCart(user.id);
-
-    const totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
-    const totalAmount = parseFloat(
-      cart.items.reduce(
-        (sum, item) => sum + item.product.price * item.quantity,
-        0
-      ).toFixed(2)
-    );
-
-    console.log(`✅ Cart summary: ${totalItems} items, $${totalAmount}`);
-
-    return c.json({
-      success: true,
-      message: "Cart summary retrieved successfully",
-      data: {
-        totalItems,
-        totalAmount
-      },
-    });
-  } catch (error) {
-    console.error('❌ Error fetching cart summary:', error);
-    return serverError(c, error);
-  }
-};
-
-// ==============================
-// GET CART SUMMARY (GET - Protected)
-// For backward compatibility with existing frontend
+// GET CART SUMMARY (Cached)
 // ==============================
 export const getCartSummaryGet = async (c: Context) => {
   try {
-    // ✅ Get authenticated user from context
     const user = c.get('user');
-    
-    if (!user) {
-      return c.json({
-        success: false,
-        message: "Authentication required"
-      }, 401);
-    }
 
-    console.log(`📊 User ${user.email} (ID: ${user.id}) fetching cart summary (GET)`);
+    // Cache Key: cart:summary:123
+    // Smaller payload, faster to fetch than full cart
+    const summary = await getOrSetCache(`cart:summary:${user.id}`, async () => {
+        const cart = await getOrCreateCartDB(user.id);
+        const cartWithTotals = calculateCartTotals(cart);
+        return {
+            totalItems: cartWithTotals.totalItems,
+            totalAmount: cartWithTotals.totalAmount
+        };
+    }, CART_TTL);
 
-    const cart = await getOrCreateCart(user.id);
-
-    const totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
-    const totalAmount = parseFloat(
-      cart.items.reduce(
-        (sum, item) => sum + item.product.price * item.quantity,
-        0
-      ).toFixed(2)
-    );
-
-    console.log(`✅ Cart summary: ${totalItems} items, $${totalAmount}`);
-
-    return c.json({
-      success: true,
-      message: "Cart summary retrieved successfully",
-      data: {
-        totalItems,
-        totalAmount
-      },
-    });
+    return c.json({ success: true, data: summary });
   } catch (error) {
-    console.error('❌ Error fetching cart summary:', error);
     return serverError(c, error);
   }
 };
+
+// Legacy Post Method
+export const getCartSummary = async (c: Context) => getCartSummaryGet(c);
