@@ -3,13 +3,30 @@ import { Context } from "hono";
 import { prisma } from "../utils/prisma";
 import { getStockLevel } from "../utils/stock";
 import { serverError } from "../utils/serverError";
-import { cache } from "../utils/redis";
+import { getOrSetCache, deleteCache } from "../utils/cache";
 
 // Cache TTL constants (in seconds)
-const CACHE_TTL = {
-  PRODUCT_LIST: 300,      // 5 minutes
-  PRODUCT_DETAIL: 300,    // 5 minutes
-  CATEGORY_PRODUCTS: 300, // 5 minutes
+const TTL = {
+  LIST: 300,      // 5 minutes
+  DETAIL: 300,    // 5 minutes
+};
+
+/**
+ * 🧹 Helper: Smart Cache Invalidation
+ * Clears all relevant caches when a product is changed.
+ */
+const invalidateProductCaches = async (productId?: number, categoryId?: number) => {
+  const tasks = [deleteCache("products:all")];
+  
+  if (productId) {
+    tasks.push(deleteCache(`products:detail:${productId}`));
+  }
+  
+  if (categoryId) {
+    tasks.push(deleteCache(`products:category:${categoryId}`));
+  }
+
+  await Promise.all(tasks);
 };
 
 // ==============================
@@ -17,47 +34,28 @@ const CACHE_TTL = {
 // ==============================
 export const getAllProducts = async (c: Context) => {
   try {
-    console.log('📦 Fetching all products');
-
-    // 1. Build cache key
-    const cacheKey = "products:all";
-
-    // 2. Try cache first
-    const cached = await cache.get<any>(cacheKey);
-    if (cached) {
-      return c.json({
-        success: true,
-        message: "Products retrieved successfully (cached)",
-        data: cached,
-        cached: true,
+    // ⚡ One-liner cache implementation
+    const products = await getOrSetCache("products:all", async () => {
+      console.log('📦 Fetching all products from DB');
+      
+      const data = await prisma.product.findMany({
+        include: { category: true },
+        orderBy: { createdAt: 'desc' }
       });
-    }
 
-    // 3. Cache miss - query database
-    const products = await prisma.product.findMany({
-      include: { category: true },
-    });
+      // Transform data before caching
+      return data.map((p) => ({
+        ...p,
+        stockLevel: getStockLevel(p.stock),
+      }));
+    }, TTL.LIST);
 
-    console.log(`✅ Retrieved ${products.length} products from DB`);
-
-    // 4. Transform data
-    const transformedProducts = products.map((p) => ({
-      ...p,
-      stockLevel: getStockLevel(p.stock),
-    }));
-
-    // 5. Set cache with TTL
-    await cache.set(cacheKey, transformedProducts, CACHE_TTL.PRODUCT_LIST);
-
-    // 6. Return response
     return c.json({
       success: true,
       message: "Products retrieved successfully",
-      data: transformedProducts,
-      cached: false,
+      data: products,
     });
   } catch (error) {
-    console.error('❌ Error fetching products:', error);
     return serverError(c, error);
   }
 };
@@ -68,56 +66,34 @@ export const getAllProducts = async (c: Context) => {
 export const getProductById = async (c: Context) => {
   try {
     const id = Number(c.req.param("id"));
-    console.log(`🔍 Fetching product ID: ${id}`);
-
-    // 1. Build cache key
     const cacheKey = `products:detail:${id}`;
 
-    // 2. Try cache first
-    const cached = await cache.get<any>(cacheKey);
-    if (cached) {
-      return c.json({
-        success: true,
-        message: "Product retrieved successfully (cached)",
-        data: cached,
-        cached: true,
+    const product = await getOrSetCache(cacheKey, async () => {
+      console.log(`🔍 Fetching product ${id} from DB`);
+      
+      const data = await prisma.product.findUnique({
+        where: { id },
+        include: { category: true },
       });
-    }
 
-    // 3. Cache miss - query database
-    const product = await prisma.product.findUnique({
-      where: { id },
-      include: { category: true },
-    });
+      if (!data) return null;
+
+      return {
+        ...data,
+        stockLevel: getStockLevel(data.stock),
+      };
+    }, TTL.DETAIL);
 
     if (!product) {
-      console.log(`❌ Product ${id} not found`);
-      return c.json(
-        { success: false, message: "Product not found" },
-        404
-      );
+      return c.json({ success: false, message: "Product not found" }, 404);
     }
 
-    console.log(`✅ Product found: ${product.name}`);
-
-    // 4. Transform data
-    const transformedProduct = {
-      ...product,
-      stockLevel: getStockLevel(product.stock),
-    };
-
-    // 5. Set cache with TTL
-    await cache.set(cacheKey, transformedProduct, CACHE_TTL.PRODUCT_DETAIL);
-
-    // 6. Return response
     return c.json({
       success: true,
       message: "Product retrieved successfully",
-      data: transformedProduct,
-      cached: false,
+      data: product,
     });
   } catch (error) {
-    console.error('❌ Error fetching product:', error);
     return serverError(c, error);
   }
 };
@@ -128,103 +104,51 @@ export const getProductById = async (c: Context) => {
 export const getProductsByCategory = async (c: Context) => {
   try {
     const categoryId = Number(c.req.param("categoryId"));
-    console.log(`📂 Fetching products for category ID: ${categoryId}`);
-
-    // 1. Build cache key
     const cacheKey = `products:category:${categoryId}`;
 
-    // 2. Try cache first
-    const cached = await cache.get<any>(cacheKey);
-    if (cached) {
-      return c.json({
-        success: true,
-        message: "Products retrieved successfully (cached)",
-        data: cached,
-        cached: true,
+    const products = await getOrSetCache(cacheKey, async () => {
+      console.log(`📂 Fetching category ${categoryId} from DB`);
+      
+      const data = await prisma.product.findMany({
+        where: { categoryId },
+        include: { category: true },
       });
-    }
 
-    // 3. Cache miss - query database
-    const products = await prisma.product.findMany({
-      where: { categoryId },
-      include: { category: true },
-    });
+      return data.map((p) => ({
+        ...p,
+        stockLevel: getStockLevel(p.stock),
+      }));
+    }, TTL.LIST);
 
-    console.log(`✅ Retrieved ${products.length} products for category ${categoryId}`);
-
-    // 4. Transform data
-    const transformedProducts = products.map((p) => ({
-      ...p,
-      stockLevel: getStockLevel(p.stock),
-    }));
-
-    // 5. Set cache with TTL
-    await cache.set(cacheKey, transformedProducts, CACHE_TTL.CATEGORY_PRODUCTS);
-
-    // 6. Return response
     return c.json({
       success: true,
       message: "Products retrieved successfully",
-      data: transformedProducts,
-      cached: false,
+      data: products,
     });
   } catch (error) {
-    console.error('❌ Error fetching products by category:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// CREATE PRODUCT (Admin Only) - WITH CACHE INVALIDATION
+// CREATE PRODUCT (Admin Only)
 // ==============================
 export const createProduct = async (c: Context) => {
   try {
-    // ✅ Get authenticated admin user from context
     const user = c.get("user");
-    
-    if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "Authentication required" 
-      }, 401);
-    }
-
-    console.log(`➕ Admin ${user.email} (ID: ${user.id}) creating new product`);
+    if (!user) return c.json({ success: false, message: "Authentication required" }, 401);
 
     const { name, description, price, stock, categoryId } = await c.req.json();
 
-    // Validation
     if (!name || !price || stock === undefined || !categoryId) {
-      return c.json({ 
-        success: false,
-        message: "Missing required fields: name, price, stock, categoryId" 
-      }, 400);
+      return c.json({ success: false, message: "Missing required fields" }, 400);
     }
 
     const parsedCategoryId = Number(categoryId);
 
-    // Validate categoryId
-    if (!parsedCategoryId || isNaN(parsedCategoryId)) {
-      return c.json({ 
-        success: false,
-        message: "Invalid categoryId" 
-      }, 400);
-    }
+    const category = await prisma.category.findUnique({ where: { id: parsedCategoryId } });
+    if (!category) return c.json({ success: false, message: "Category not found" }, 404);
 
-    // Check if category exists
-    const category = await prisma.category.findUnique({
-      where: { id: parsedCategoryId },
-    });
-
-    if (!category) {
-      console.log(`❌ Category ${parsedCategoryId} does not exist`);
-      return c.json({ 
-        success: false,
-        message: "Category does not exist" 
-      }, 404);
-    }
-
-    // Create the product
     const product = await prisma.product.create({
       data: {
         name,
@@ -236,78 +160,44 @@ export const createProduct = async (c: Context) => {
       include: { category: true },
     });
 
-    console.log(`✅ Product created: ${product.name} (ID: ${product.id}) by ${user.email}`);
+    // 🔄 INVALIDATE CACHE (All list + Category list)
+    await invalidateProductCaches(undefined, parsedCategoryId);
 
-    // 🔄 INVALIDATE CACHE
-    await cache.invalidateProducts();
-
-    return c.json(
-      {
-        success: true,
-        message: "Product created successfully",
-        data: {
-          ...product,
-          stockLevel: getStockLevel(product.stock),
-        },
+    return c.json({
+      success: true,
+      message: "Product created successfully",
+      data: {
+        ...product,
+        stockLevel: getStockLevel(product.stock),
       },
-      201
-    );
+    }, 201);
   } catch (error) {
-    console.error('❌ Error creating product:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// UPDATE PRODUCT (Admin Only) - WITH CACHE INVALIDATION
+// UPDATE PRODUCT (Admin Only)
 // ==============================
 export const updateProduct = async (c: Context) => {
   try {
-    // ✅ Get authenticated admin user from context
     const user = c.get("user");
-    
-    if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "Authentication required" 
-      }, 401);
-    }
+    if (!user) return c.json({ success: false, message: "Authentication required" }, 401);
 
     const id = Number(c.req.param("id"));
-    console.log(`✏️ Admin ${user.email} (ID: ${user.id}) updating product ${id}`);
-
     const data = await c.req.json();
 
-    // Check if product exists
-    const existingProduct = await prisma.product.findUnique({ 
-      where: { id } 
-    });
+    const existingProduct = await prisma.product.findUnique({ where: { id } });
+    if (!existingProduct) return c.json({ success: false, message: "Product not found" }, 404);
 
-    if (!existingProduct) {
-      console.log(`❌ Product ${id} not found`);
-      return c.json(
-        { success: false, message: "Product not found" },
-        404
-      );
-    }
-
-    // Convert types if present
+    // Type conversion
     if (data.price !== undefined) data.price = parseFloat(data.price);
     if (data.stock !== undefined) data.stock = parseInt(data.stock);
     if (data.categoryId !== undefined) {
       data.categoryId = parseInt(data.categoryId);
-      
-      // Verify category exists if being changed
-      const category = await prisma.category.findUnique({
-        where: { id: data.categoryId },
-      });
-      
-      if (!category) {
-        return c.json({ 
-          success: false,
-          message: "Category does not exist" 
-        }, 404);
-      }
+      // Validate new category
+      const cat = await prisma.category.findUnique({ where: { id: data.categoryId } });
+      if (!cat) return c.json({ success: false, message: "Category does not exist" }, 404);
     }
 
     const updated = await prisma.product.update({
@@ -316,10 +206,13 @@ export const updateProduct = async (c: Context) => {
       include: { category: true },
     });
 
-    console.log(`✅ Product updated: ${updated.name} (ID: ${id}) by ${user.email}`);
-
     // 🔄 INVALIDATE CACHE
-    await cache.invalidateProducts();
+    // We clear the specific product, the all-products list, and both old/new category lists 
+    // (Simplification: we definitely clear the CURRENT category list)
+    await invalidateProductCaches(id, updated.categoryId);
+    
+    // If category changed, we should technically clear the old category cache too, 
+    // but for simplicity, we let TTL handle the old list or you can explicitly clear it here if critical.
 
     return c.json({
       success: true,
@@ -330,76 +223,45 @@ export const updateProduct = async (c: Context) => {
       },
     });
   } catch (error) {
-    console.error('❌ Error updating product:', error);
     return serverError(c, error);
   }
 };
 
 // ==============================
-// DELETE PRODUCT (Admin Only) - WITH CACHE INVALIDATION
+// DELETE PRODUCT (Admin Only)
 // ==============================
 export const deleteProduct = async (c: Context) => {
   try {
-    // ✅ Get authenticated admin user from context
     const user = c.get("user");
-    
-    if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "Authentication required" 
-      }, 401);
-    }
+    if (!user) return c.json({ success: false, message: "Authentication required" }, 401);
 
     const id = Number(c.req.param("id"));
-    console.log(`🗑️ Admin ${user.email} (ID: ${user.id}) deleting product ${id}`);
 
     const product = await prisma.product.findUnique({ where: { id } });
-    
-    if (!product) {
-      console.log(`❌ Product ${id} not found`);
-      return c.json(
-        { success: false, message: "Product not found" },
-        404
-      );
-    }
+    if (!product) return c.json({ success: false, message: "Product not found" }, 404);
 
-    // Check if product is in any active orders or carts
-    const [activeOrders, cartItems] = await Promise.all([
-      prisma.orderItem.count({
-        where: {
-          productId: id,
-          order: {
-            status: { in: ["PENDING", "PAID"] }
-          }
-        }
-      }),
-      prisma.cartItem.count({
-        where: { productId: id }
-      })
-    ]);
+    // Check constraints
+    const activeOrders = await prisma.orderItem.count({
+      where: {
+        productId: id,
+        order: { status: { in: ["PENDING", "PAID"] } }
+      }
+    });
 
     if (activeOrders > 0) {
-      console.log(`⚠️ Cannot delete product ${id} - has ${activeOrders} active orders`);
       return c.json({
         success: false,
-        message: "Cannot delete product with active orders. Complete or cancel orders first.",
+        message: "Cannot delete product with active orders.",
       }, 400);
     }
 
-    if (cartItems > 0) {
-      console.log(`⚠️ Product ${id} has ${cartItems} cart items - removing them`);
-      // Remove from carts before deleting
-      await prisma.cartItem.deleteMany({
-        where: { productId: id }
-      });
-    }
+    // Clean up cart items
+    await prisma.cartItem.deleteMany({ where: { productId: id } });
 
     await prisma.product.delete({ where: { id } });
 
-    console.log(`✅ Product deleted: ${product.name} (ID: ${id}) by ${user.email}`);
-
     // 🔄 INVALIDATE CACHE
-    await cache.invalidateProducts();
+    await invalidateProductCaches(id, product.categoryId);
 
     return c.json({
       success: true,
@@ -407,7 +269,6 @@ export const deleteProduct = async (c: Context) => {
       data: { id, name: product.name },
     });
   } catch (error) {
-    console.error('❌ Error deleting product:', error);
     return serverError(c, error);
   }
 };

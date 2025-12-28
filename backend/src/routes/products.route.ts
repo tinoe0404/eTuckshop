@@ -1,6 +1,4 @@
-// src/routes/products.route.ts
-// NEXTAUTH IMPLEMENTATION (PUBLIC + ADMIN)
-
+// src/routes/product.route.ts
 import { Hono } from "hono";
 import {
   getAllProducts,
