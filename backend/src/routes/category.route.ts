@@ -1,6 +1,4 @@
 // src/routes/category.route.ts
-// NEXTAUTH IMPLEMENTATION (PUBLIC + ADMIN)
-
 import { Hono } from "hono";
 import {
   getAllCategories,
@@ -18,64 +16,18 @@ import {
 
 const router = new Hono();
 
-/**
- * ======================================================
- * PUBLIC ROUTES
- * ======================================================
- */
-
-// Anyone can view categories
+// Public
 router.get("/", getAllCategories);
 
-/**
- * ======================================================
- * ADMIN ROUTES (NextAuth)
- * IMPORTANT: specific routes BEFORE dynamic routes
- * ======================================================
- */
+// Admin Stats (must be before :id)
+router.get("/admin/stats", requireAuth, requireAdmin, getCategoryStats);
 
-// Admin-only stats route (must come BEFORE /:id)
-router.get(
-  "/admin/stats",
-  requireAuth,
-  requireAdmin,
-  getCategoryStats
-);
-
-/**
- * ======================================================
- * PUBLIC DYNAMIC ROUTE
- * ======================================================
- */
-
-// Get category by ID
+// Public Dynamic
 router.get("/:id", getCategoryById);
 
-/**
- * ======================================================
- * ADMIN CRUD ROUTES (NextAuth)
- * ======================================================
- */
-
-router.post(
-  "/",
-  requireAuth,
-  requireAdmin,
-  createCategory
-);
-
-router.put(
-  "/:id",
-  requireAuth,
-  requireAdmin,
-  updateCategory
-);
-
-router.delete(
-  "/:id",
-  requireAuth,
-  requireAdmin,
-  deleteCategory
-);
+// Admin CRUD
+router.post("/", requireAuth, requireAdmin, createCategory);
+router.put("/:id", requireAuth, requireAdmin, updateCategory);
+router.delete("/:id", requireAuth, requireAdmin, deleteCategory);
 
 export default router;
