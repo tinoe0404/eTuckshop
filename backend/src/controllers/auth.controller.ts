@@ -7,6 +7,7 @@ import { prisma } from "../utils/prisma";
 import { redis } from "../utils/redis";
 import { generateTokens, verifyRefreshToken } from "../utils/tokens";
 import { serverError } from "../utils/serverError";
+import { deleteCache } from "../utils/cache";
 
 // ============================================
 // NEXTAUTH ENDPOINTS (Public - No Auth Required)
@@ -20,81 +21,28 @@ import { serverError } from "../utils/serverError";
  */
 export const register = async (c: Context) => {
   try {
-    console.log("📝 Registration attempt started");
     const body = await c.req.json();
-    console.log("📦 Request body:", { ...body, password: "[HIDDEN]" });
     const { name, email, password, role } = body;
     
     if (!name || !email || !password) {
-      console.log("❌ Validation failed: Missing fields");
-      return c.json({ 
-        success: false, 
-        message: "All fields are required" 
-      }, 400);
+      return c.json({ success: false, message: "All fields are required" }, 400);
     }
-    
-    console.log("✅ Validation passed");
-    console.log("🔍 Checking if user exists...");
     
     const exists = await prisma.user.findUnique({ where: { email } });
-    
     if (exists) {
-      console.log("❌ User already exists");
-      return c.json({ 
-        success: false, 
-        message: "User already exists" 
-      }, 400);
+      return c.json({ success: false, message: "User already exists" }, 400);
     }
     
-    console.log("✅ User doesn't exist, proceeding with creation");
-    console.log("🔐 Hashing password...");
-    
-    const hashed = await Bun.password.hash(password, {
-      algorithm: "bcrypt",
-      cost: 10,
-    });
-    
-    console.log("✅ Password hashed");
-    
+    const hashed = await Bun.password.hash(password, { algorithm: "bcrypt", cost: 10 });
     const userRole = role === "ADMIN" ? "ADMIN" : "CUSTOMER";
-    console.log("👤 Creating user with role:", userRole);
     
     const user = await prisma.user.create({
-      data: { 
-        name, 
-        email, 
-        password: hashed, 
-        role: userRole 
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        image: true,
-        emailVerified: true,
-        createdAt: true,
-      }
+      data: { name, email, password: hashed, role: userRole },
+      select: { id: true, name: true, email: true, role: true, createdAt: true }
     });
     
-    console.log("✅ User created successfully:", user.id);
-    
-    return c.json({
-      success: true,
-      message: "User registered successfully",
-      data: { user },
-    }, 201);
+    return c.json({ success: true, message: "User registered successfully", data: { user } }, 201);
   } catch (error) {
-    console.error("💥 REGISTRATION ERROR:");
-    
-    if (error instanceof Error) {
-      console.error("Error name:", error.name);
-      console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
-    } else {
-      console.error("Unknown error:", error);
-    }
-    
     return serverError(c, error);
   }
 };
@@ -107,20 +55,13 @@ export const register = async (c: Context) => {
 // Location: Your backend controller
 export const verifyCredentials = async (c: Context) => {
   try {
-    const body = await c.req.json();
-    // 1. Destructure the role sent from the frontend
-    const { email, password, role: requestedRole } = body; 
+    const { email, password, role: requestedRole } = await c.req.json();
 
     if (!email || !password || !requestedRole) {
-      return c.json({ 
-        success: false, 
-        message: "Email, password, and role are required" 
-      }, 400);
+      return c.json({ success: false, message: "Email, password, and role are required" }, 400);
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
-
-    // 2. Validate user existence and password
     if (!user || !user.password) {
       return c.json({ success: false, message: "Invalid credentials" }, 401);
     }
@@ -130,108 +71,48 @@ export const verifyCredentials = async (c: Context) => {
       return c.json({ success: false, message: "Invalid credentials" }, 401);
     }
 
-    // 3. STRICT ROLE CHECK
-    // This ensures an Admin email can only login if "ADMIN" role was chosen
     if (user.role !== requestedRole) {
-      return c.json({ 
-        success: false, 
-        message: `This account is not registered as a ${requestedRole.toLowerCase()}.` 
-      }, 403);
+      return c.json({ success: false, message: `Account is not registered as ${requestedRole}` }, 403);
     }
 
     const { password: _, ...safeUser } = user;
     return c.json({ success: true, user: safeUser });
   } catch (error) {
-    console.error('💥 Verify credentials error:', error);
     return serverError(c, error);
   }
 };
 
-/**
- * Get user by email
- * Called BY NextAuth if needed
- * No authentication required
- */
 export const getUserByEmail = async (c: Context) => {
   try {
     const { email } = await c.req.json();
-
-    if (!email) {
-      return c.json({ 
-        success: false, 
-        message: "Email is required" 
-      }, 400);
-    }
+    if (!email) return c.json({ success: false, message: "Email required" }, 400);
 
     const user = await prisma.user.findUnique({
       where: { email },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        image: true,
-        emailVerified: true,
-        createdAt: true,
-      }
+      select: { id: true, name: true, email: true, role: true, image: true, emailVerified: true }
     });
 
-    if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "User not found" 
-      }, 404);
-    }
-
-    return c.json({
-      success: true,
-      user,
-    });
+    if (!user) return c.json({ success: false, message: "User not found" }, 404);
+    return c.json({ success: true, user });
   } catch (error) {
     return serverError(c, error);
   }
 };
 
-/**
- * Get user by ID
- * Called BY NextAuth or frontend with userId from session
- * No authentication required - used for fetching public user data
- */
 export const getUserById = async (c: Context) => {
   try {
     const id = c.req.param("id");
+    if (!id) return c.json({ success: false, message: "ID required" }, 400);
 
-    if (!id) {
-      return c.json({ 
-        success: false, 
-        message: "User ID is required" 
-      }, 400);
-    }
-
+    // This is public data, so we don't cache deeply here to keep it simple,
+    // or you could use getOrSetCache(`public_user:${id}`, ...) if this is hit often.
     const user = await prisma.user.findUnique({
       where: { id: parseInt(id) },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        image: true,
-        emailVerified: true,
-        createdAt: true,
-      }
+      select: { id: true, name: true, email: true, role: true, image: true }
     });
 
-    if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "User not found" 
-      }, 404);
-    }
-
-    return c.json({
-      success: true,
-      data: user,
-    });
+    if (!user) return c.json({ success: false, message: "User not found" }, 404);
+    return c.json({ success: true, data: user });
   } catch (error) {
     return serverError(c, error);
   }
@@ -248,111 +129,52 @@ export const getUserById = async (c: Context) => {
  */
 export const getProfileById = async (c: Context) => {
   try {
-    // ✅ Get user from context (set by requireAuth middleware)
     const user = c.get('user');
     
     if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "Authentication required" 
-      }, 401);
+      return c.json({ success: false, message: "Authentication required" }, 401);
     }
 
-    console.log(`👤 User ${user.email} (ID: ${user.id}) fetching their profile`);
-
-    // Fetch fresh user data from database
-    const userData = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        image: true,
-        emailVerified: true,
-        createdAt: true,
-        updatedAt: true,
-      }
-    });
-
-    if (!userData) {
-      return c.json({ 
-        success: false, 
-        message: "User not found" 
-      }, 404);
-    }
-
-    console.log(`✅ Profile retrieved for ${user.email}`);
-
+    // Since we added createdAt/updatedAt to the middleware selection,
+    // we can return the user object directly without another DB call.
     return c.json({ 
       success: true, 
-      data: userData 
+      data: user 
     });
   } catch (error) {
-    console.error('❌ Error fetching profile:', error);
     return serverError(c, error);
   }
 };
 
-/**
- * ✅ FIXED: Update user profile
- * Uses requireAuth middleware - user comes from c.get('user')
- */
 export const updateUserProfile = async (c: Context) => {
   try {
-    // ✅ Get user from context (set by requireAuth middleware)
     const user = c.get('user');
-    
-    if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "Authentication required" 
-      }, 401);
-    }
-
-    console.log(`✏️ User ${user.email} (ID: ${user.id}) updating profile`);
+    if (!user) return c.json({ success: false, message: "Authentication required" }, 401);
 
     const { name, email, image } = await c.req.json();
 
     if (!name || !email) {
-      return c.json({ 
-        success: false, 
-        message: "Name and email are required" 
-      }, 400);
+      return c.json({ success: false, message: "Name and email are required" }, 400);
     }
 
-    // Check if email is being changed and if it's already taken
     if (email !== user.email) {
       const existingUser = await prisma.user.findUnique({ where: { email } });
       if (existingUser && existingUser.id !== user.id) {
-        return c.json({ 
-          success: false, 
-          message: "Email already in use" 
-        }, 400);
+        return c.json({ success: false, message: "Email already in use" }, 400);
       }
     }
 
-    // Update user profile
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: { 
-        name, 
-        email, 
-        ...(image !== undefined && { image }) 
-      },
+      data: { name, email, ...(image !== undefined && { image }) },
       select: {
-        id: true, 
-        name: true, 
-        email: true, 
-        role: true,
-        image: true, 
-        emailVerified: true, 
-        createdAt: true, 
-        updatedAt: true,
+        id: true, name: true, email: true, role: true,
+        image: true, emailVerified: true, createdAt: true, updatedAt: true,
       },
     });
 
-    console.log(`✅ Profile updated for ${user.email}`);
+    // 🗑️ INVALIDATE CACHE
+    await deleteCache(`session_user:${user.id}`);
 
     return c.json({
       success: true,
@@ -360,100 +182,53 @@ export const updateUserProfile = async (c: Context) => {
       data: updatedUser,
     });
   } catch (error) {
-    console.error('❌ Error updating profile:', error);
     return serverError(c, error);
   }
 };
 
-/**
- * ✅ FIXED: Change password
- * Uses requireAuth middleware - user comes from c.get('user')
- */
 export const changePassword = async (c: Context) => {
   try {
-    // ✅ Get user from context (set by requireAuth middleware)
     const user = c.get('user');
-    
-    if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "Authentication required" 
-      }, 401);
-    }
-
-    console.log(`🔐 User ${user.email} (ID: ${user.id}) changing password`);
+    if (!user) return c.json({ success: false, message: "Authentication required" }, 401);
 
     const { currentPassword, newPassword } = await c.req.json();
 
-    // Validation
     if (!currentPassword || !newPassword) {
-      return c.json({ 
-        success: false, 
-        message: "Current password and new password are required" 
-      }, 400);
+      return c.json({ success: false, message: "Current/New password required" }, 400);
     }
-
     if (newPassword.length < 6) {
-      return c.json({ 
-        success: false, 
-        message: "New password must be at least 6 characters" 
-      }, 400);
+      return c.json({ success: false, message: "Password too short" }, 400);
     }
 
-    // Get user with password from database
-    const dbUser = await prisma.user.findUnique({ 
-      where: { id: user.id } 
-    });
+    // Must fetch password hash from DB (it's not in the session cache for security)
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
 
     if (!dbUser || !dbUser.password) {
-      return c.json({ 
-        success: false, 
-        message: "User not found" 
-      }, 404);
+      return c.json({ success: false, message: "User not found" }, 404);
     }
 
-    // Verify current password
     const isValid = await Bun.password.verify(currentPassword, dbUser.password);
     if (!isValid) {
-      console.log(`❌ Invalid current password for ${user.email}`);
-      return c.json({ 
-        success: false, 
-        message: "Current password is incorrect" 
-      }, 401);
+      return c.json({ success: false, message: "Current password incorrect" }, 401);
     }
 
-    // Check if new password is same as current
-    const isSamePassword = await Bun.password.verify(newPassword, dbUser.password);
-    if (isSamePassword) {
-      return c.json({ 
-        success: false, 
-        message: "New password must be different from current password" 
-      }, 400);
+    const isSame = await Bun.password.verify(newPassword, dbUser.password);
+    if (isSame) {
+      return c.json({ success: false, message: "New password must be different" }, 400);
     }
 
-    // Hash new password
-    const hashedPassword = await Bun.password.hash(newPassword, {
-      algorithm: "bcrypt",
-      cost: 10,
-    });
+    const hashedPassword = await Bun.password.hash(newPassword, { algorithm: "bcrypt", cost: 10 });
 
-    // Update password
     await prisma.user.update({
       where: { id: user.id },
       data: { password: hashedPassword },
     });
 
-    console.log(`✅ Password changed successfully for ${user.email}`);
+    // 🗑️ INVALIDATE CACHE
+    await deleteCache(`session_user:${user.id}`);
 
-    // Optional: Invalidate all existing JWT sessions
-    // await redis.del(`refresh_token:${user.id}`);
-
-    return c.json({
-      success: true,
-      message: "Password changed successfully",
-    });
+    return c.json({ success: true, message: "Password changed successfully" });
   } catch (error) {
-    console.error('❌ Error changing password:', error);
     return serverError(c, error);
   }
 };

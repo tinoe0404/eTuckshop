@@ -23,6 +23,15 @@ import { requireAuth, protectRoute } from "../middlewares/auth.middleware";
 
 const router = new Hono();
 
+// Add this middleware at the top of your router definition
+router.use('*', async (c, next) => {
+  await next();
+  // FORCE no caching for all auth endpoints
+  c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  c.header('Pragma', 'no-cache');
+  c.header('Expires', '0');
+});
+
 // ========== PUBLIC ENDPOINTS ==========
 // No authentication required
 
