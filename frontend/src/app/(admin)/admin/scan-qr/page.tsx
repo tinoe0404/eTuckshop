@@ -40,10 +40,11 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
+// Updated Interface to be more flexible
 interface ScannedOrder {
   paymentMethod: {
     type: string;
-    label: string;
+    label?: string; // Made optional
     status: string;
   };
   customer: {
@@ -67,7 +68,7 @@ interface ScannedOrder {
     createdAt: string;
     paidAt: string | null;
   };
-  instructions: string;
+  instructions?: string; // Made optional
   action?: {
     complete: string;
   };
@@ -92,7 +93,8 @@ export default function AdminQRScannerPage() {
     mutationFn: (qrData: string) => orderService.scanQRCode(qrData),
     onSuccess: (response) => {
       if (response.success) {
-        setScannedOrder(response.data);
+        // FIX: Cast response.data to ScannedOrder to satisfy TypeScript
+        setScannedOrder(response.data as ScannedOrder);
         toast.success(response.message || 'QR scanned successfully');
         stopCamera();
       }
@@ -499,7 +501,7 @@ export default function AdminQRScannerPage() {
           /* Scanned Order Details */
           <div className="space-y-6">
             {/* Success Header */}
-            <Card className="bg-linear-to-r from-green-900/20 to-blue-900/20 border-green-800">
+            <Card className="bg-gradient-to-r from-green-900/20 to-blue-900/20 border-green-800">
               <CardContent className="p-6">
                 <div className="flex items-center space-x-4">
                   <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center">
@@ -539,7 +541,9 @@ export default function AdminQRScannerPage() {
                   <div className="flex items-center justify-between p-4 bg-[#0f1419] rounded-lg">
                     <div>
                       <p className="text-sm text-gray-400">Payment Method</p>
-                      <p className="text-lg font-semibold text-white">{scannedOrder.paymentMethod.label}</p>
+                      <p className="text-lg font-semibold text-white">
+                        {scannedOrder.paymentMethod.label || scannedOrder.paymentMethod.type}
+                      </p>
                     </div>
                     <Badge variant="outline" className="border-gray-700 text-gray-300">
                       {scannedOrder.paymentMethod.type}
@@ -549,7 +553,9 @@ export default function AdminQRScannerPage() {
                   <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
                     <div className="flex items-start space-x-3">
                       <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
-                      <p className="text-sm text-blue-300">{scannedOrder.instructions}</p>
+                      <p className="text-sm text-blue-300">
+                        {scannedOrder.instructions || 'No special instructions.'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -585,47 +591,51 @@ export default function AdminQRScannerPage() {
             </Card>
 
             {/* Order Summary */}
-            <Card className="bg-[#1a2332] border-gray-800">
-              <CardHeader className="border-b border-gray-800">
-                <CardTitle className="flex items-center justify-between text-white">
-                  <span className="flex items-center space-x-2">
-                    <ShoppingBag className="w-5 h-5 text-orange-400" />
-                    <span>Order Summary</span>
-                  </span>
-                  <Badge variant="outline" className="border-gray-700 text-gray-300">
-                    {scannedOrder.orderSummary.totalItems} items
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="space-y-3">
-                  {scannedOrder.orderSummary.items.map((item, index) => (
-                    <div
-                      key={index}
-                      className="flex justify-between items-center p-4 bg-[#0f1419] rounded-lg"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-white">{item.name}</p>
-                        <p className="text-sm text-gray-400">
-                          {item.quantity} × {formatCurrency(item.price)}
-                        </p>
+            {scannedOrder.orderSummary && (
+              <Card className="bg-[#1a2332] border-gray-800">
+                <CardHeader className="border-b border-gray-800">
+                  <CardTitle className="flex items-center justify-between text-white">
+                    <span className="flex items-center space-x-2">
+                      <ShoppingBag className="w-5 h-5 text-orange-400" />
+                      <span>Order Summary</span>
+                    </span>
+                    <Badge variant="outline" className="border-gray-700 text-gray-300">
+                      {scannedOrder.orderSummary.totalItems} items
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="space-y-3">
+                    {scannedOrder.orderSummary.items.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex justify-between items-center p-4 bg-[#0f1419] rounded-lg"
+                      >
+                        <div className="flex-1">
+                          <p className="font-medium text-white">{item.name}</p>
+                          <p className="text-sm text-gray-400">
+                            {item.quantity} × {formatCurrency(item.price)}
+                          </p>
+                        </div>
+                        <p className="text-blue-400 font-semibold">{formatCurrency(item.subtotal)}</p>
                       </div>
-                      <p className="text-blue-400 font-semibold">{formatCurrency(item.subtotal)}</p>
-                    </div>
-                  ))}
+                    ))}
 
-                  <Separator className="bg-gray-700" />
+                    <Separator className="bg-gray-700" />
 
-                  <div className="flex justify-between items-center p-4 bg-linear-to-r from-blue-900/20 to-purple-900/20 rounded-lg">
-                    <div className="flex items-center space-x-2">
-                      <DollarSign className="w-5 h-5 text-blue-400" />
-                      <span className="text-lg font-bold text-white">Total Amount</span>
+                    <div className="flex justify-between items-center p-4 bg-gradient-to-r from-blue-900/20 to-purple-900/20 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <DollarSign className="w-5 h-5 text-blue-400" />
+                        <span className="text-lg font-bold text-white">Total Amount</span>
+                      </div>
+                      <span className="text-3xl font-bold text-blue-400">
+                        {formatCurrency(scannedOrder.orderSummary.totalAmount)}
+                      </span>
                     </div>
-                    <span className="text-3xl font-bold text-blue-400">{formatCurrency(scannedOrder.orderSummary.totalAmount)}</span>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Order Metadata */}
             <Card className="bg-[#1a2332] border-gray-800">
@@ -643,12 +653,16 @@ export default function AdminQRScannerPage() {
                   </div>
                   <div>
                     <p className="text-gray-400">Created</p>
-                    <p className="text-white">{new Date(scannedOrder.orderInfo.createdAt).toLocaleString()}</p>
+                    <p className="text-white">
+                      {new Date(scannedOrder.orderInfo.createdAt).toLocaleString()}
+                    </p>
                   </div>
                   {scannedOrder.orderInfo.paidAt && (
                     <div>
                       <p className="text-gray-400">Paid At</p>
-                      <p className="text-white">{new Date(scannedOrder.orderInfo.paidAt).toLocaleString()}</p>
+                      <p className="text-white">
+                        {new Date(scannedOrder.orderInfo.paidAt).toLocaleString()}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -693,11 +707,15 @@ export default function AdminQRScannerPage() {
                 <div className="text-gray-400 space-y-2">
                   <p>Confirm that you have:</p>
                   <ul className="list-disc list-inside space-y-1 ml-2">
-                    {scannedOrder?.paymentMethod.type === 'CASH' && (
-                      <li>Collected ${scannedOrder?.orderSummary.totalAmount.toFixed(2)} in cash</li>
+                    {scannedOrder?.paymentMethod.type === 'CASH' && scannedOrder?.orderSummary && (
+                      <li>
+                        Collected ${scannedOrder.orderSummary.totalAmount.toFixed(2)} in cash
+                      </li>
                     )}
                     {scannedOrder?.paymentMethod.type === 'PAYNOW' && <li>Verified payment confirmation</li>}
-                    <li>Handed over all {scannedOrder?.orderSummary.totalItems} items</li>
+                    {scannedOrder?.orderSummary && (
+                      <li>Handed over all {scannedOrder.orderSummary.totalItems} items</li>
+                    )}
                   </ul>
                   <p className="text-yellow-400 mt-3">
                     ⚠️ This action cannot be undone. The QR code will be expired.
@@ -706,7 +724,9 @@ export default function AdminQRScannerPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel className="border-gray-700 text-gray-300 hover:bg-gray-800">Go Back</AlertDialogCancel>
+              <AlertDialogCancel className="border-gray-700 text-gray-300 hover:bg-gray-800">
+                Go Back
+              </AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleCompleteOrder}
                 disabled={completeOrderMutation.isPending}

@@ -1,20 +1,13 @@
 // ============================================
-// FILE: src/lib/api/services/cart.service.ts (FIXED)
+// FILE: src/lib/api/services/cart.service.ts
 // ============================================
 
-import apiClient from '@/lib/api/client';
+import apiClient from '@/lib/api/client'; // ✅ Restored to your correct path
 import { ApiResponse, Cart } from '@/types';
-
-/**
- * ✅ FIXED: Removed getSession() calls
- * - Session is handled by apiClient interceptor (X-User-Id header)
- * - No need to pass userId manually
- */
 
 export const cartService = {
   /**
    * ✅ Get full cart details
-   * FIXED: Uses GET instead of POST
    */
   getCart: async () => {
     const response = await apiClient.get<ApiResponse<Cart>>('/cart');
@@ -23,14 +16,10 @@ export const cartService = {
 
   /**
    * ✅ Get cart summary (lightweight)
-   * Returns only { totalItems, totalAmount }
    */
   getCartSummary: async () => {
     const response = await apiClient.get<
-      ApiResponse<{
-        totalItems: number;
-        totalAmount: number;
-      }>
+      ApiResponse<{ totalItems: number; totalAmount: number }>
     >('/cart/summary');
     return response.data;
   },

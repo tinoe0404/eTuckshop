@@ -1,6 +1,7 @@
 // ============================================
-// FILE: src/lib/hooks/useOrders.ts (REFACTORED)
+// FILE: src/lib/hooks/useOrders.ts
 // ============================================
+'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { orderService } from '@/lib/api/services/order.service';
@@ -13,40 +14,40 @@ import { toast } from 'sonner';
 // ========================
 
 /**
- * ✅ ADMIN: Fetch all orders with filters (real-time)
- * - Auto-refreshes every 30s
- * - Critical for order management
- * - Server-side filtering (NOT client-side)
+ * ✅ ADMIN: Fetch all orders (Real-time)
  */
-export function useAdminOrders(params: {
-  status?: string;
-  paymentType?: string;
-  page?: number;
-  limit?: number;
-}) {
+export function useAdminOrders(params: { status?: string; paymentType?: string; page?: number; limit?: number }) {
   return useQuery({
     queryKey: queryKeys.orders.list(params),
     queryFn: () => orderService.getAllOrders(params),
-    ...REALTIME_QUERY_DEFAULTS, // ✅ Auto-refresh for admin
+    ...REALTIME_QUERY_DEFAULTS,
   });
 }
 
 /**
- * ✅ ADMIN: Fetch order stats (real-time)
- * - Dashboard metrics
- * - Auto-refreshes every 30s
+ * ✅ ADMIN: Dashboard Stats (Real-time)
  */
 export function useOrderStats() {
   return useQuery({
     queryKey: queryKeys.orders.stats(),
     queryFn: orderService.getOrderStats,
-    ...REALTIME_QUERY_DEFAULTS, // ✅ Always fresh stats
+    ...REALTIME_QUERY_DEFAULTS,
   });
 }
 
 /**
- * ✅ Fetch single order by ID
- * - Used in order detail pages
+ * ✅ CUSTOMER: Fetch My Orders
+ */
+export function useUserOrders() {
+  return useQuery({
+    queryKey: queryKeys.orders.userOrders(),
+    queryFn: orderService.getUserOrders,
+    ...QUERY_DEFAULTS,
+  });
+}
+
+/**
+ * ✅ SHARED: Fetch Single Order
  */
 export function useOrder(id: number | null | undefined) {
   return useQuery({
@@ -58,27 +59,14 @@ export function useOrder(id: number | null | undefined) {
 }
 
 /**
- * ✅ CUSTOMER: Fetch user's orders
- * - Standard caching (5min staleTime)
- */
-export function useUserOrders() {
-  return useQuery({
-    queryKey: queryKeys.orders.userOrders(),
-    queryFn: orderService.getUserOrders,
-    ...QUERY_DEFAULTS,
-  });
-}
-
-/**
- * ✅ Fetch order QR code
- * - Real-time to check expiry status
+ * ✅ SHARED: Poll QR Code Status
  */
 export function useOrderQR(orderId: number | null) {
   return useQuery({
     queryKey: orderId ? queryKeys.orders.qr(orderId) : ['orders', 'qr', 'null'],
     queryFn: () => orderService.getOrderQR(orderId!),
     enabled: !!orderId,
-    ...REALTIME_QUERY_DEFAULTS, // ✅ Check QR expiry in real-time
+    refetchInterval: 3000, // Poll every 3s to check if payment is complete
   });
 }
 
@@ -87,163 +75,69 @@ export function useOrderQR(orderId: number | null) {
 // ========================
 
 /**
- * ✅ Checkout mutation
- * - Clears cart after success
- * - Invalidates order queries
+ * ✅ Checkout
  */
 export function useCheckout() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (data: { paymentType: 'CASH' | 'PAYNOW' }) =>
-      orderService.checkout(data),
-    
+    mutationFn: orderService.checkout,
     onSuccess: () => {
-      // Invalidate cart (it's now empty)
+      // Clear cart and refresh orders list
       queryClient.invalidateQueries({ queryKey: ['cart'] });
-      
-      // Invalidate user orders (new order created)
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.userOrders() });
-      
-      // Don't show toast here - let the page handle routing
+      queryClient.invalidateQueries({ queryKey: ['cart-summary'] });
     },
-    
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to checkout');
+      toast.error(error.response?.data?.message || 'Checkout failed');
     },
   });
 }
 
 /**
- * ✅ ADMIN: Complete order mutation
- * - Optimistic updates for instant UI
- * - Rollback on error
+ * ✅ Generate Cash QR
  */
-export function useCompleteOrder() {
+export function useGenerateCashQR() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (orderId: number) => orderService.completeOrder(orderId),
-    
-    // ✅ Optimistic update
-    onMutate: async (orderId) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.orders.lists() });
-      
-      // Snapshot previous state
-      const previousOrders = queryClient.getQueryData(queryKeys.orders.lists());
-      
-      // Optimistically update order status
-      queryClient.setQueriesData(
-        { queryKey: queryKeys.orders.lists() },
-        (old: any) => {
-          if (!old?.data?.orders) return old;
-          
-          return {
-            ...old,
-            data: {
-              ...old.data,
-              orders: old.data.orders.map((order: any) =>
-                order.id === orderId
-                  ? { ...order, status: 'COMPLETED', completedAt: new Date().toISOString() }
-                  : order
-              ),
-            },
-          };
-        }
-      );
-      
-      return { previousOrders };
+    mutationFn: orderService.generateCashQR,
+    onSuccess: (_, orderId) => {
+      toast.success('QR Code generated');
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.qr(orderId) });
     },
-    
-    // ✅ Rollback on error
-    onError: (err, orderId, context) => {
-      if (context?.previousOrders) {
-        queryClient.setQueryData(queryKeys.orders.lists(), context.previousOrders);
-      }
-      toast.error((err as any).response?.data?.message || 'Failed to complete order');
-    },
-    
-    onSuccess: () => {
-      toast.success('Order completed successfully');
-      
-      // Invalidate to sync with server
-      invalidateOrderQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.stats() });
-      queryClient.invalidateQueries({ queryKey: ['products'] }); // ✅ Stock changed
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to generate QR');
     },
   });
 }
 
 /**
- * ✅ ADMIN: Reject order mutation
+ * ✅ Initiate PayNow
  */
-export function useRejectOrder() {
-  const queryClient = useQueryClient();
-  
+export function useInitiatePayNow() {
   return useMutation({
-    mutationFn: ({ orderId, reason }: { orderId: number; reason?: string }) =>
-      orderService.rejectOrder(orderId, reason),
-    
-    // ✅ Optimistic update
-    onMutate: async ({ orderId }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.orders.lists() });
-      
-      const previousOrders = queryClient.getQueryData(queryKeys.orders.lists());
-      
-      queryClient.setQueriesData(
-        { queryKey: queryKeys.orders.lists() },
-        (old: any) => {
-          if (!old?.data?.orders) return old;
-          
-          return {
-            ...old,
-            data: {
-              ...old.data,
-              orders: old.data.orders.map((order: any) =>
-                order.id === orderId
-                  ? { ...order, status: 'CANCELLED' }
-                  : order
-              ),
-            },
-          };
-        }
-      );
-      
-      return { previousOrders };
-    },
-    
-    onError: (err, { orderId }, context) => {
-      if (context?.previousOrders) {
-        queryClient.setQueryData(queryKeys.orders.lists(), context.previousOrders);
-      }
-      toast.error((err as any).response?.data?.message || 'Failed to reject order');
-    },
-    
-    onSuccess: () => {
-      toast.success('Order rejected successfully');
-      invalidateOrderQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.stats() });
-      queryClient.invalidateQueries({ queryKey: ['products'] }); // ✅ Stock restored
+    mutationFn: orderService.initiatePayNow,
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'PayNow initiation failed');
     },
   });
 }
 
 /**
- * ✅ Cancel order mutation (customer)
+ * ✅ Cancel Order
  */
 export function useCancelOrder() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (orderId: number) => orderService.cancelOrder(orderId),
-    
+    mutationFn: orderService.cancelOrder,
     onSuccess: () => {
-      toast.success('Order cancelled successfully');
+      toast.success('Order cancelled');
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.userOrders() });
-      queryClient.invalidateQueries({ queryKey: ['products'] }); // ✅ Stock restored
+      queryClient.invalidateQueries({ queryKey: ['products'] }); // Stock released
     },
-    
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Failed to cancel order');
     },
@@ -251,50 +145,101 @@ export function useCancelOrder() {
 }
 
 /**
- * ✅ Generate cash QR mutation
- * - Immediately shows QR after generation
- * - Invalidates order and QR queries
+ * ✅ ADMIN: Complete Order (Optimistic)
  */
-export function useGenerateCashQR() {
+export function useCompleteOrder() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (orderId: number) => orderService.generateCashQR(orderId),
+    mutationFn: orderService.completeOrder,
     
-    onSuccess: (response, orderId) => {
-      toast.success('QR code generated successfully!');
-      
-      // Invalidate to fetch updated order with QR
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.qr(orderId) });
+    onMutate: async (orderId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.orders.lists() });
+      const previousOrders = queryClient.getQueryData(queryKeys.orders.lists());
+
+      queryClient.setQueriesData({ queryKey: queryKeys.orders.lists() }, (old: any) => {
+        if (!old?.data?.orders) return old;
+        return {
+          ...old,
+          data: {
+            ...old.data,
+            orders: old.data.orders.map((o: any) => 
+              o.id === orderId ? { ...o, status: 'COMPLETED', completedAt: new Date().toISOString() } : o
+            ),
+          },
+        };
+      });
+
+      return { previousOrders };
     },
     
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to generate QR code');
+    onError: (err, _, context) => {
+      if (context?.previousOrders) {
+        queryClient.setQueriesData({ queryKey: queryKeys.orders.lists() }, context.previousOrders);
+      }
+      toast.error((err as any).response?.data?.message || 'Failed to complete order');
+    },
+    
+    onSuccess: () => {
+      toast.success('Order completed');
+      invalidateOrderQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.stats() });
     },
   });
 }
 
 /**
- * ✅ Initiate PayNow mutation
+ * ✅ ADMIN: Reject Order (Optimistic)
  */
-export function useInitiatePayNow() {
+export function useRejectOrder() {
+  const queryClient = useQueryClient();
+  
   return useMutation({
-    mutationFn: (orderId: number) => orderService.initiatePayNow(orderId),
+    mutationFn: ({ orderId, reason }: { orderId: number; reason?: string }) => 
+      orderService.rejectOrder(orderId, reason),
     
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to initiate payment');
+    onMutate: async ({ orderId }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.orders.lists() });
+      const previousOrders = queryClient.getQueryData(queryKeys.orders.lists());
+
+      queryClient.setQueriesData({ queryKey: queryKeys.orders.lists() }, (old: any) => {
+        if (!old?.data?.orders) return old;
+        return {
+          ...old,
+          data: {
+            ...old.data,
+            orders: old.data.orders.map((o: any) => 
+              o.id === orderId ? { ...o, status: 'CANCELLED' } : o
+            ),
+          },
+        };
+      });
+
+      return { previousOrders };
+    },
+    
+    onError: (err, _, context) => {
+      if (context?.previousOrders) {
+        queryClient.setQueriesData({ queryKey: queryKeys.orders.lists() }, context.previousOrders);
+      }
+      toast.error((err as any).response?.data?.message || 'Failed to reject order');
+    },
+    
+    onSuccess: () => {
+      toast.success('Order rejected');
+      invalidateOrderQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.stats() });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
     },
   });
 }
 
 /**
- * ✅ ADMIN: Scan QR code mutation
+ * ✅ ADMIN: Scan QR
  */
 export function useScanQRCode() {
   return useMutation({
-    mutationFn: (qrData: string) => orderService.scanQRCode(qrData),
-    
+    mutationFn: orderService.scanQRCode,
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Invalid QR code');
     },

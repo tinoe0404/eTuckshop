@@ -1,6 +1,3 @@
-// ============================================
-// FILE: src/app/cart/page.tsx (REFACTORED)
-// ============================================
 'use client';
 
 import { useCallback, useState } from 'react';
@@ -28,7 +25,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { toast } from 'sonner'; // ✅ ADDED
+import { toast } from 'sonner';
 import {
   ShoppingCart,
   Trash2,
@@ -50,14 +47,18 @@ export default function CartPage() {
   const router = useRouter();
   const [quantityInputs, setQuantityInputs] = useState<Record<number, string>>({});
 
-  // ✅ React Query hooks (no manual invalidation needed!)
   const { data: cartData, isLoading, error, refetch } = useCart();
   const updateMutation = useUpdateCartItem();
   const removeMutation = useRemoveFromCart();
   const clearMutation = useClearCart();
 
-  // Derived state
-  const cart = cartData?.data;
+  // ---------------------------------------------------------
+  // 🔧 FIX: Handle 404 (No Cart Found) as Empty Cart
+  // ---------------------------------------------------------
+  const is404Error = error && (error as any)?.response?.status === 404;
+
+  // If 404, we assume empty cart. Otherwise, use real data.
+  const cart = is404Error ? null : cartData?.data;
   const items = cart?.items || [];
   const totalItems = cart?.totalItems || 0;
   const totalAmount = cart?.totalAmount || 0;
@@ -151,10 +152,11 @@ export default function CartPage() {
   }
 
   // ========================
-  // ERROR STATE
+  // ERROR STATE (Ignoring 404s)
   // ========================
 
-  if (error) {
+  // Only show error screen if it is NOT a 404
+  if (error && !is404Error) {
     return (
       <div className="w-full h-full p-3 overflow-auto">
         <Card className="bg-[#1a2332] border-gray-800">
@@ -165,11 +167,11 @@ export default function CartPage() {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white mb-1">Failed to load cart</h2>
-                <p className="text-sm text-gray-400">Please try again</p>
+                <p className="text-sm text-gray-400">{(error as any).message || 'Unknown error'}</p>
               </div>
               <div className="flex flex-col gap-2">
                 <Button
-                  onClick={() => refetch()} // ✅ FIXED: Use refetch from useCart()
+                  onClick={() => refetch()}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   <RefreshCw className="w-4 h-4 mr-2" />

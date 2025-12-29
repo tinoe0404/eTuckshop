@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 export function useProducts() {
   return useQuery({
     queryKey: queryKeys.products.lists(),
-    queryFn: productService.getAll,
+    queryFn: () => productService.getAll({ limit: 6, sort: 'desc' }),
     ...QUERY_DEFAULTS,
   });
 }
@@ -33,7 +33,7 @@ export function useProducts() {
 export function useAdminProducts() {
   return useQuery({
     queryKey: queryKeys.products.lists(),
-    queryFn: productService.getAll,
+    queryFn: () => productService.getAll({ limit: 6, sort: 'desc' }),
     ...REALTIME_QUERY_DEFAULTS,
   });
 }

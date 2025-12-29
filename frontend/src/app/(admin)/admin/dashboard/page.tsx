@@ -82,7 +82,7 @@ export default function AdminDashboard() {
   const { data: productsResponse, isLoading: productsLoading, refetch: refetchProducts } =
     useQuery({
       queryKey: ['admin-products-summary'],
-      queryFn: productService.getAll,
+      queryFn: () => productService.getAll({ limit: 6, sort: 'desc' }),
       staleTime: 30000,
       refetchInterval: 60000,
       enabled: status === 'authenticated' && session?.user?.role === 'ADMIN',

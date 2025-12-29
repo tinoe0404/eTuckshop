@@ -38,121 +38,111 @@ const buildQRPayload = (order: any, expiresAt?: Date): QRPayload => {
     createdAt: new Date().toISOString(),
   };
 };
-
+  
 // ==========================================
-// CHECKOUT - CREATE ORDER
+// CREATE ORDER (Checkout)
 // ==========================================
 export const checkout = async (c: Context) => {
   try {
-    const user = c.get('user');
-    const { paymentType = "CASH" } = await c.req.json();
-
+    const user = c.get("user");
     if (!user) return c.json({ success: false, message: "Authentication required" }, 401);
 
-    if (!["CASH", "PAYNOW"].includes(paymentType)) {
-      return c.json({ success: false, message: "Invalid payment type" }, 400);
-    }
+    // 1. Get Payment Type from body (default to CASH)
+    const body = await c.req.json().catch(() => ({}));
+    const paymentType = body.paymentType || "CASH";
 
-    // 1. Get cart
+    // 2. Fetch User's Cart with Products
     const cart = await prisma.cart.findUnique({
       where: { userId: user.id },
-      include: { items: { include: { product: true } } },
+      include: {
+        items: {
+          include: { product: true },
+        },
+      },
     });
 
     if (!cart || cart.items.length === 0) {
       return c.json({ success: false, message: "Cart is empty" }, 400);
     }
 
-    // 2. Validate stock
-    for (const item of cart.items) {
+    // 3. CHECK STOCK & PREPARE ORDER ITEMS
+    // We snapshot the price here so future price changes don't affect this order history.
+    let calculatedTotal = 0;
+
+    const orderItemsData = cart.items.map((item) => {
+      // Safety: Ensure we treat price as a Number for math
+      const price = Number(item.product.price);
+      const subtotal = price * item.quantity;
+      
+      calculatedTotal += subtotal;
+
+      // Check stock
       if (item.product.stock < item.quantity) {
-        return c.json({
-          success: false,
-          message: `Insufficient stock for ${item.product.name}`,
-        }, 400);
+        throw new Error(`Product ${item.product.name} is out of stock (Requested: ${item.quantity}, Available: ${item.product.stock})`);
       }
-    }
 
-    // 3. Prep Data
-    const totalAmount = cart.items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-    const orderNumber = generateOrderNumber();
-    const orderItemsData = cart.items.map((item) => ({
-      productId: item.productId,
-      quantity: item.quantity,
-      subtotal: parseFloat((item.product.price * item.quantity).toFixed(2)),
-    }));
-
-    const stockUpdates = cart.items.map((item) => ({
-      id: item.productId,
-      quantity: item.quantity,
-    }));
-
-    // 4. Transaction (Write Only)
-    const order = await prisma.$transaction(async (tx) => {
-      const newOrder = await tx.order.create({
-        data: {
-          orderNumber,
-          userId: user.id,
-          totalAmount: parseFloat(totalAmount.toFixed(2)),
-          paymentType,
-          status: "PENDING",
-          orderItems: { create: orderItemsData },
-        },
-        include: { orderItems: { include: { product: true } } },
-      });
-
-      // Update Stock
-      await Promise.all(
-        stockUpdates.map((update) =>
-          tx.product.update({
-            where: { id: update.id },
-            data: { stock: { decrement: update.quantity } },
-          })
-        )
-      );
-
-      // Clear Cart
-      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-
-      return newOrder;
+      return {
+        productId: item.productId,
+        quantity: item.quantity,
+        priceAtPurchase: price, // 👈 FIXED: Snapshot the price at this moment
+        subtotal: subtotal,
+      };
     });
 
-    // 🔄 INVALIDATE CACHES
-    // 1. Invalidate User's order list and Stats
-    await cache.invalidateOrders(undefined, user.id);
-    // 2. Invalidate Products (Stock changed!)
-    await cache.invalidateProducts();
+    // 4. DATABASE TRANSACTION
+    // Execute all operations together: Create Order -> Update Stock -> Clear Cart
+    const newOrder = await prisma.$transaction(async (tx) => {
+      
+      // A. Create the Order
+      const order = await tx.order.create({
+        data: {
+          userId: user.id,
+          totalAmount: calculatedTotal,
+          status: "PENDING",
+          paymentType: paymentType,
+          orderItems: {
+            create: orderItemsData, // Includes the required priceAtPurchase field
+          },
+        },
+        include: {
+          orderItems: true,
+        },
+      });
 
-    // 5. Response
-    const response: any = {
+      // B. Update Product Stock (Decrement)
+      for (const item of cart.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { decrement: item.quantity } },
+        });
+      }
+
+      // C. Clear the Cart
+      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      // Optional: Delete the cart itself if you prefer, usually just clearing items is enough
+      // await tx.cart.delete({ where: { id: cart.id } });
+
+      return order;
+    });
+
+    console.log(`✅ Order created: ${newOrder.orderNumber} by ${user.email}`);
+
+    return c.json({
       success: true,
       message: "Order created successfully",
-      data: {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        totalAmount: order.totalAmount,
-        paymentType: order.paymentType,
-        status: order.status,
-      },
-    };
+      data: newOrder,
+    });
 
-    if (paymentType === "CASH") {
-      response.data.nextStep = {
-        action: "Generate QR Code",
-        url: `/api/orders/generate-qr/${order.id}`,
-      };
-    } else {
-      response.data.nextStep = {
-        action: "Complete PayNow Payment",
-        url: `/api/orders/pay/paynow/${order.id}`,
-      };
+  } catch (error: any) {
+    // Handle specific stock errors gracefully
+    if (error.message.includes("out of stock")) {
+      return c.json({ success: false, message: error.message }, 400);
     }
-
-    return c.json(response, 201);
-  } catch (error) {
+    console.error("❌ Create Order Error:", error);
     return serverError(c, error);
   }
 };
+
 
 // ==========================================
 // GENERATE CASH QR

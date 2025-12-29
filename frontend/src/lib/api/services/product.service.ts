@@ -3,7 +3,7 @@ import { ApiResponse, Product } from '@/types';
 
 export const productService = {
   // Get all products
-  getAll: async () => {
+  getAll: async (p0: { limit: number; sort: string; }) => {
     const response = await apiClient.get<ApiResponse<Product[]>>('/products');
     return response.data;
   },

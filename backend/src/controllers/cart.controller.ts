@@ -37,28 +37,26 @@ const getOrCreateCartDB = async (userId: number) => {
   return cart;
 };
 
-// ==============================
-// HELPER: CALCULATE TOTALS
-// ==============================
+
+// Helper function (Put this in utils or same file)
 const calculateCartTotals = (cart: any) => {
-  const items = cart.items.map((item: any) => ({
-    id: item.id,
-    productId: item.productId,
-    name: item.product.name,
-    description: item.product.description,
-    price: item.product.price,
-    quantity: item.quantity,
-    subtotal: parseFloat((item.product.price * item.quantity).toFixed(2)),
-    stock: item.product.stock,
-    stockLevel: getStockLevel(item.product.stock),
-    category: item.product.category,
-    image: item.product.image || null,
-  }));
+  if (!cart) return { items: [], totalItems: 0, totalAmount: 0 };
+
+  const items = cart.items.map((item: any) => {
+    return {
+      id: item.id,
+      productId: item.productId,
+      quantity: item.quantity,
+      price: Number(item.product.price), // Ensure number
+      stock: item.product.stock,
+      stockLevel: item.product.stock > 10 ? 'High' : item.product.stock > 0 ? 'Low' : 'Out',
+      subtotal: item.quantity * Number(item.product.price),
+      product: item.product, // Pass the full product details to frontend
+    };
+  });
 
   const totalItems = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
-  const totalAmount = parseFloat(
-    items.reduce((sum: number, item: any) => sum + item.subtotal, 0).toFixed(2)
-  );
+  const totalAmount = items.reduce((sum: number, item: any) => sum + item.subtotal, 0);
 
   return {
     id: cart.id,
@@ -66,8 +64,6 @@ const calculateCartTotals = (cart: any) => {
     items,
     totalItems,
     totalAmount,
-    createdAt: cart.createdAt,
-    updatedAt: cart.updatedAt,
   };
 };
 
@@ -110,46 +106,108 @@ export const getCart = async (c: Context) => {
 export const addToCart = async (c: Context) => {
   try {
     const user = c.get('user');
-    const { productId, quantity = 1 } = await c.req.json();
+    const { productId: pidRaw, quantity: qtyRaw } = await c.req.json();
 
-    if (!productId || quantity < 1) return c.json({ success: false, message: "Invalid input" }, 400);
+    // specific parsing to ensure numbers
+    const productId = parseInt(pidRaw);
+    const quantity = parseInt(qtyRaw || 1);
 
-    const product = await prisma.product.findUnique({ where: { id: parseInt(productId) } });
+    if (!productId || quantity < 1) {
+      return c.json({ success: false, message: "Invalid input" }, 400);
+    }
+
+    // 🚀 OPTIMIZATION 1: Run independent queries in parallel
+    // We fetch the Product (to check stock) and the User's Cart (to check existing items) simultaneously.
+    const [product, existingCart] = await Promise.all([
+      prisma.product.findUnique({ where: { id: productId } }),
+      prisma.cart.findFirst({
+        where: { userId: user.id },
+        include: { items: true } // Fetch items now to avoid a separate DB call later
+      })
+    ]);
+
+    // --- Validation Checks ---
     if (!product) return c.json({ success: false, message: "Product not found" }, 404);
 
     if (product.stock < quantity) {
-        return c.json({ success: false, message: `Insufficient stock. Only ${product.stock} available` }, 400);
+      return c.json({ success: false, message: `Insufficient stock. Only ${product.stock} available` }, 400);
     }
 
-    const cart = await getOrCreateCartDB(user.id);
-    const existingItem = await prisma.cartItem.findFirst({
-        where: { cartId: cart.id, productId: parseInt(productId) }
+    // --- Handle Cart Logic ---
+    let cartId = existingCart?.id;
+
+    // If no cart exists, create one
+    if (!existingCart) {
+      const newCart = await prisma.cart.create({
+        data: { userId: user.id }
+      });
+      cartId = newCart.id;
+    }
+
+    // 🚀 OPTIMIZATION 2: Check for existing item in memory
+    // We already fetched 'existingCart.items', so we don't need 'prisma.cartItem.findFirst'
+    const currentItem = existingCart?.items.find((item) => item.productId === productId);
+
+    if (currentItem) {
+      // Check total stock requirement
+      if (product.stock < currentItem.quantity + quantity) {
+        return c.json({ success: false, message: "Insufficient stock for total quantity" }, 400);
+      }
+
+      // Update existing item
+      await prisma.cartItem.update({
+        where: { id: currentItem.id },
+        data: { quantity: currentItem.quantity + quantity },
+      });
+    } else {
+      // Create new item
+      await prisma.cartItem.create({
+        data: {
+          cartId: cartId!,
+          productId: productId,
+          quantity: quantity,
+        },
+      });
+    }
+
+    // 🔄 Invalidate Cache (Fire and forget - don't await if you want max speed, 
+    // or keep await if consistency is critical. Usually safe to not await for cache del)
+    invalidateCartCache(user.id); 
+
+    // 🚀 OPTIMIZATION 3: Single Efficient Fetch for Response
+    // We fetch everything needed for the frontend in ONE query using 'include'.
+    // This replaces 'getOrCreateCartDB' which was likely causing the slowdowns.
+    const finalCart = await prisma.cart.findUnique({
+      where: { id: cartId },
+      include: {
+        items: {
+          orderBy: { createdAt: 'desc' }, // Keep order consistent
+          include: {
+            product: {
+                select: {
+                    id: true,
+                    name: true,
+                    price: true,
+                    stock: true,
+                    category: { select: { name: true } } // Fetch category name if needed
+                }
+            }
+          },
+        },
+      },
     });
 
-    if (existingItem) {
-        if (product.stock < existingItem.quantity + quantity) {
-            return c.json({ success: false, message: "Insufficient stock for total quantity" }, 400);
-        }
-        await prisma.cartItem.update({
-            where: { id: existingItem.id },
-            data: { quantity: existingItem.quantity + quantity }
-        });
-    } else {
-        await prisma.cartItem.create({
-            data: { cartId: cart.id, productId: parseInt(productId), quantity: parseInt(quantity) }
-        });
-    }
+    if (!finalCart) throw new Error("Cart creation failed");
 
-    // 🔄 Invalidate Cache
-    await invalidateCartCache(user.id);
+    // Recalculate totals based on the fresh data
+    const responseData = calculateCartTotals(finalCart);
 
-    // Return fresh data (skipping cache for the response)
-    const updatedCart = await getOrCreateCartDB(user.id);
     return c.json({
       success: true,
       message: "Product added to cart",
-      data: calculateCartTotals(updatedCart),
+      data: responseData,
     });
+
   } catch (error) {
     return serverError(c, error);
   }

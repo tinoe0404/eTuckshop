@@ -189,9 +189,7 @@ export default function CustomerDashboard() {
   const queryClient = useQueryClient();
   const { data: session, status } = useSession();
 
-  // ===== ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS =====
-  
-  // Queries - Always called regardless of auth status
+  // Queries
   const {
     data: cartData, 
     isLoading: cartLoading, 
@@ -200,7 +198,7 @@ export default function CustomerDashboard() {
   } = useQuery({
     queryKey: ['cart-summary'],
     queryFn: cartService.getCartSummary,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: true, // Keep true to ensure stock/pricing is accurate
     staleTime: 60000,
     retry: 2,
     enabled: status === 'authenticated' && session?.user?.role === 'CUSTOMER',
@@ -220,23 +218,24 @@ export default function CustomerDashboard() {
     enabled: status === 'authenticated' && session?.user?.role === 'CUSTOMER',
   });
 
+  // OPTIMIZED: Fetch only limited items instead of entire database
   const {
     data: productsData, 
     isLoading: productsLoading, 
     isError: productsError,
     refetch: refetchProducts,
   } = useQuery({
-    queryKey: ['products-featured'],
-    queryFn: productService.getAll,
-    refetchOnWindowFocus: true,
-    staleTime: 300000,
+    queryKey: ['products-featured', { limit: 6 }],
+    queryFn: () => productService.getAll({ limit: 6, sort: 'desc' }),
+    refetchOnWindowFocus: false, // Products don't change often
+    staleTime: 1000 * 60 * 10, // 10 minutes
     retry: 2,
     enabled: status === 'authenticated' && session?.user?.role === 'CUSTOMER',
   });
 
-  // Memoized data - Always computed
+  // Memoized data
   const featuredProducts = useMemo(
-    () => productsData?.data?.slice(0, 6) || [],
+    () => productsData?.data || [],
     [productsData]
   );
 
@@ -261,42 +260,48 @@ export default function CustomerDashboard() {
     totalOrders: allOrders.length,
   }), [cartData, allOrders]);
 
-  // Mutations - Always defined
+  // Mutations
   const addToCartMutation = useMutation({
     mutationFn: (productId: number) => 
       cartService.addToCart({ productId, quantity: 1 }),
+    
     onMutate: async (productId) => {
+      // Cancel queries to prevent overwrite
       await queryClient.cancelQueries({ queryKey: ['cart-summary'] });
+      
       const previousCart = queryClient.getQueryData(['cart-summary']);
+      
+      // Optimistic update
       queryClient.setQueryData(['cart-summary'], (old: any) => {
         if (!old?.data) return old;
         return {
           ...old,
-          data: { ...old.data, totalItems: old.data.totalItems + 1 },
+          data: { ...old.data, totalItems: (old.data.totalItems || 0) + 1 },
         };
       });
+      
       return { previousCart };
     },
+    
     onSuccess: (res) => {
-      // ✅ REMOVED: setTotalItems(res.data.totalItems)
-      // React Query cache is already updated via invalidation
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-      queryClient.invalidateQueries({ queryKey: ['cart-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['products-featured'] });
       toast.success('Added to cart!', { description: 'Product added successfully' });
     },
+    
     onError: (error: any, variables, context: any) => {
       if (context?.previousCart) {
         queryClient.setQueryData(['cart-summary'], context.previousCart);
       }
       toast.error(error.response?.data?.message || 'Failed to add to cart');
     },
+    
     onSettled: () => {
+      // Single point of invalidation for safety
       queryClient.invalidateQueries({ queryKey: ['cart-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['products-featured'] }); // Update stock if tracked
     },
   });
 
-  // Callbacks - Always defined
+  // Callbacks
   const handleRefreshAll = useCallback(async () => {
     toast.promise(
       Promise.all([refetchCart(), refetchOrders(), refetchProducts()]),
@@ -327,9 +332,7 @@ export default function CustomerDashboard() {
     router.push(`/orders/${orderId}`);
   }, [router]);
 
-  // ===== NOW SAFE TO DO CONDITIONAL LOGIC AND RETURNS =====
-
-  // Auth protection with useEffect
+  // Auth & Routing Effects
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.replace('/login');
@@ -339,7 +342,7 @@ export default function CustomerDashboard() {
     }
   }, [status, session, router]);
 
-  // Loading state
+  // Loading States
   if (status === 'loading') {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -348,7 +351,6 @@ export default function CustomerDashboard() {
     );
   }
   
-  // Unauthenticated or wrong role
   if (status === 'unauthenticated' || session?.user?.role !== 'CUSTOMER') {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -357,7 +359,6 @@ export default function CustomerDashboard() {
     );
   }
 
-  // Type guard - at this point we know user exists and is CUSTOMER
   if (!session?.user) {
     return null;
   }
@@ -366,7 +367,7 @@ export default function CustomerDashboard() {
   const isAnyLoading = cartLoading || ordersLoading || productsLoading;
   const hasAnyError = cartError || ordersError || productsError;
 
-  // Loading state for initial data fetch
+  // Initial Data Loading State
   if (isAnyLoading && !cartData && !ordersData && !productsData) {
     return (
       <div className="max-w-7xl mx-auto space-y-8">

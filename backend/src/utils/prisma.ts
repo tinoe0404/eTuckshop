@@ -3,16 +3,60 @@
 import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+  prisma: undefined | ReturnType<typeof createPrismaClient>;
 };
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  log: ['query', 'error', 'warn'], // Add this for debugging
+// 1. Create the base client with logging
+const basePrisma = new PrismaClient({
+  log: ['query', 'error', 'warn'],
 });
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+// 2. Define the extension to convert Decimals to Numbers
+const createPrismaClient = () => {
+  return basePrisma.$extends({
+    result: {
+      product: {
+        price: {
+          needs: { price: true },
+          compute(product) {
+            return Number(product.price);
+          },
+        },
+      },
+      order: {
+        totalAmount: {
+          needs: { totalAmount: true },
+          compute(order) {
+            return Number(order.totalAmount);
+          },
+        },
+      },
+      orderItem: {
+        subtotal: {
+          needs: { subtotal: true },
+          compute(item) {
+            return Number(item.subtotal);
+          },
+        },
+        priceAtPurchase: {
+          needs: { priceAtPurchase: true },
+          compute(item) {
+            return Number(item.priceAtPurchase);
+          },
+        },
+      },
+    },
+  });
+};
 
-// Test connection on startup
-prisma.$connect()
+// 3. Export the extended client (Singleton pattern)
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
+
+// 4. Test connection on startup (Using the base client for raw connection test)
+basePrisma.$connect()
   .then(() => console.log('✅ Database connected successfully'))
   .catch((error) => console.error('❌ Database connection failed:', error));

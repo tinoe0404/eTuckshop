@@ -5,7 +5,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 
 import SessionProvider from "@/components/providers/SessionProvider";
-import { ReactQueryProvider } from "@/components/providers/ReactQueryProvider";
+import ReactQueryProvider from "@/components/providers/ReactQueryProvider";
 import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
