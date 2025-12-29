@@ -96,6 +96,8 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
   const products = productsData?.data || [];
   const categories = categoriesData?.data || [];
 
+  
+
   // 4. Filtering Logic
   const filteredProducts = useMemo(() => {
     let result = [...products];

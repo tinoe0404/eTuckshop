@@ -90,14 +90,13 @@ export default function AdminDashboard() {
       retryDelay: 1000,
     });
 
+
   /* =========================
      DERIVED DATA
   ========================= */
   const stats = statsResponse?.data;
   const recentOrders: Order[] = ordersResponse?.data?.orders ?? [];
   const orderStats = orderStatsResponse?.data;
-  const lowStockProducts =
-    productsResponse?.data?.filter((p) => p.stockLevel === 'LOW') ?? [];
 
   /* =========================
      MUTATIONS
