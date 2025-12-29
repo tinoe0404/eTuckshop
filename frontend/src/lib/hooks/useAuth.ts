@@ -1,5 +1,5 @@
 // ============================================
-// File: src/lib/hooks/useAuth.ts (FINAL CORRECTED VERSION)
+// File: src/lib/hooks/useAuth.ts
 // ============================================
 
 import { useSession, signOut } from 'next-auth/react';
@@ -7,31 +7,24 @@ import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { profileService } from '@/lib/api/services/profile.service';
+import { useEffect } from 'react';
 
 /**
  * Helper to safely convert user.id to number
- * NextAuth can return user.id as string or number
  */
 function getUserIdAsNumber(userId: any): number {
-  if (!userId) {
-    throw new Error('User ID not found');
-  }
-  
+  if (!userId) throw new Error('User ID not found');
   const id = typeof userId === 'string' ? parseInt(userId, 10) : userId;
-  
-  if (isNaN(id)) {
-    throw new Error('Invalid user ID');
-  }
-  
+  if (isNaN(id)) throw new Error('Invalid user ID');
   return id;
 }
 
 /**
- * Custom hook for authentication with NextAuth
- * Provides user, loading, and authenticated state
+ * Custom hook for authentication
+ * ✅ SAFE: { required: false } prevents automatic redirects
  */
 export function useAuth() {
-  const { data: session, status, update } = useSession();
+  const { data: session, status, update } = useSession({ required: false });
   
   return {
     user: session?.user,
@@ -56,7 +49,7 @@ export function useLogout() {
     },
     onSuccess: () => {
       toast.success('Logged out successfully');
-      router.replace('/login');
+      router.push('/login');
     },
     onError: (error: any) => {
       console.error('Logout error:', error);
@@ -67,30 +60,22 @@ export function useLogout() {
 
 /**
  * Hook for updating user profile
- * ✅ FIXED: Properly converts user.id to number
  */
 export function useUpdateProfile() {
   const { user, updateSession } = useAuth();
   
   return useMutation({
     mutationFn: async (data: { name: string; email: string; image?: string }) => {
-      if (!user?.id) {
-        throw new Error('User not authenticated');
-      }
-      
-      // 👇 FIX: Convert user.id to number
+      if (!user?.id) throw new Error('User not authenticated');
       const userId = getUserIdAsNumber(user.id);
-      
       return profileService.updateProfile(userId, data);
     },
     onSuccess: async (response) => {
-      // Update NextAuth session with new data
       await updateSession({
         name: response.data.name,
         email: response.data.email,
         image: response.data.image,
       });
-      
       toast.success('Profile updated successfully');
       return response.data;
     },
@@ -102,33 +87,31 @@ export function useUpdateProfile() {
 }
 
 /**
- * Hook to check if user has specific role
+ * ⚠️ DANGER: Do NOT use this on Login or Register pages.
+ * Only use inside protected Dashboard pages.
  */
 export function useRequireRole(requiredRole: 'ADMIN' | 'CUSTOMER') {
   const { user, isLoading, isAuthenticated } = useAuth();
   const router = useRouter();
   
-  if (isLoading) {
-    return { hasAccess: false, isLoading: true };
-  }
-  
-  if (!isAuthenticated) {
-    router.replace('/login');
-    return { hasAccess: false, isLoading: false };
-  }
-  
-  if (user?.role !== requiredRole) {
-    const redirectTo = user?.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard';
-    router.replace(redirectTo);
-    toast.error('Access denied');
-    return { hasAccess: false, isLoading: false };
-  }
-  
-  return { hasAccess: true, isLoading: false };
+  useEffect(() => {
+    // Only redirect if loading is finished
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        router.replace('/login');
+      } else if (user?.role !== requiredRole) {
+        const redirectTo = user?.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard';
+        router.replace(redirectTo);
+        toast.error('Access denied');
+      }
+    }
+  }, [isLoading, isAuthenticated, user, requiredRole, router]);
+
+  return { hasAccess: isAuthenticated && user?.role === requiredRole, isLoading };
 }
 
 /**
- * Hook to check if user is admin
+ * ✅ SAFE: Use this in Navbar/Sidebar to conditionally render links
  */
 export function useIsAdmin() {
   const { user } = useAuth();
@@ -136,7 +119,7 @@ export function useIsAdmin() {
 }
 
 /**
- * Hook to check if user is customer
+ * ✅ SAFE: Use this in Navbar/Sidebar to conditionally render links
  */
 export function useIsCustomer() {
   const { user } = useAuth();
@@ -144,14 +127,15 @@ export function useIsCustomer() {
 }
 
 /**
- * Hook for user registration (signup)
+ * Hook for user registration
  */
 export function useSignup() {
   const router = useRouter();
   
   return useMutation({
     mutationFn: async (data: { name: string; email: string; password: string; role?: string }) => {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/register`, {
+      // Ensure this URL matches your backend route
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -162,7 +146,6 @@ export function useSignup() {
       if (!response.ok || !result.success) {
         throw new Error(result.message || 'Registration failed');
       }
-      
       return result;
     },
     onSuccess: () => {

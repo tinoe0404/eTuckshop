@@ -1,13 +1,14 @@
-// File: src/app/(auth)/register/RegisterPageContent.tsx (UPDATED FOR NEXTAUTH)
-
+// File: src/app/(auth)/register/RegisterPageContent.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+// removed useSession to prevent client-side redirect loops
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import Link from "next/link";
+// import { toast } from "sonner"; // Uncomment if you use toast inside this file
 
 import { User, ShieldCheck, Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,10 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 
-import { toast } from "sonner";
-import Link from "next/link";
-
-import { useSignup } from "@/lib/hooks/useAuth";
+// Ensure this path matches where you saved the hook
+import { useSignup } from "@/lib/hooks/useAuth"; 
 
 // Validation Schema
 const registerSchema = z
@@ -38,7 +37,6 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPageContent() {
   const router = useRouter();
-  const { data: session, status } = useSession();
   const signupMutation = useSignup();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -52,20 +50,10 @@ export default function RegisterPageContent() {
 
   const selectedRole = watch("role");
 
+  // Prevent Hydration Mismatch
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (status === "authenticated" && session?.user) {
-      if (session.user.role === "ADMIN") {
-        router.replace("/admin/dashboard");
-      } else {
-        router.replace("/dashboard");
-      }
-    }
-  }, [status, session, router]);
 
   const onSubmit = async (data: RegisterFormData) => {
     signupMutation.mutate({
@@ -76,25 +64,8 @@ export default function RegisterPageContent() {
     });
   };
 
+  // Don't render until client-side hydration is complete
   if (!mounted) return null;
-
-  // Show loading while checking session
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
-      </div>
-    );
-  }
-
-  // If authenticated, show loading while redirecting
-  if (status === "authenticated") {
-    return (
-      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f1419] p-4">
@@ -151,7 +122,6 @@ export default function RegisterPageContent() {
 
         {/* Register Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Name */}
           <div className="space-y-2">
             <Label htmlFor="name" className="text-gray-300">Name</Label>
             <Input 
@@ -164,7 +134,6 @@ export default function RegisterPageContent() {
             {errors.name && <p className="text-sm text-red-400">{errors.name.message}</p>}
           </div>
 
-          {/* Email */}
           <div className="space-y-2">
             <Label htmlFor="email" className="text-gray-300">Email</Label>
             <div className="relative">
@@ -181,7 +150,6 @@ export default function RegisterPageContent() {
             {errors.email && <p className="text-sm text-red-400">{errors.email.message}</p>}
           </div>
 
-          {/* Password */}
           <div className="space-y-2">
             <Label htmlFor="password" className="text-gray-300">Password</Label>
             <div className="relative">
@@ -206,7 +174,6 @@ export default function RegisterPageContent() {
             {errors.password && <p className="text-sm text-red-400">{errors.password.message}</p>}
           </div>
 
-          {/* Confirm Password */}
           <div className="space-y-2">
             <Label htmlFor="confirmPassword" className="text-gray-300">Confirm Password</Label>
             <div className="relative">
@@ -231,7 +198,6 @@ export default function RegisterPageContent() {
             {errors.confirmPassword && <p className="text-sm text-red-400">{errors.confirmPassword.message}</p>}
           </div>
 
-          {/* Submit */}
           <Button 
             type="submit" 
             className="w-full bg-blue-600 hover:bg-blue-700 text-white" 
@@ -242,7 +208,6 @@ export default function RegisterPageContent() {
           </Button>
         </form>
 
-        {/* Sign In */}
         <div className="text-center">
           <p className="text-sm text-gray-400">
             Already have an account?{" "}

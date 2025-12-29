@@ -104,9 +104,10 @@ model Category {
 model Product {
   id          Int         @id @default(autoincrement())
   name        String
-  price       Decimal     @db.Decimal(10, 2) // Fixed: Use Decimal for currency
+  price       Decimal     @db.Decimal(10, 2)
   stock       Int         @default(0)
   description String?
+  image       String?     // 👈 Added: For product photos
   categoryId  Int
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -139,16 +140,19 @@ model Order {
   @@index([status])
 }
 
+
+
 model OrderItem {
-  id              Int     @id @default(autoincrement())
-  orderId         Int
-  productId       Int
-  quantity        Int
-  priceAtPurchase Decimal @default(0.00) @db.Decimal(10, 2)
-  subtotal        Decimal @db.Decimal(10, 2)
+  id               Int     @id @default(autoincrement())
+  orderId          Int
+  productId        Int?    // 👈 Changed: Optional, so we don't lose the record if product is deleted
+  productName      String  // 👈 Added: Snapshots the name at time of purchase
+  quantity         Int
+  priceAtPurchase  Decimal @db.Decimal(10, 2)
+  subtotal         Decimal @db.Decimal(10, 2)
   
-  order           Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product         Product @relation(fields: [productId], references: [id])
+  order            Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product          Product? @relation(fields: [productId], references: [id], onDelete: SetNull) // 👈 Safe deletion
 
   @@index([orderId])
   @@index([productId])

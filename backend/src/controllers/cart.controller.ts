@@ -7,64 +7,25 @@ import { cache, getOrSetCache } from "../utils/redis";
 
 const CART_TTL = 60 * 60; // 1 Hour
 
-// ==============================
-// HELPER: GET OR CREATE CART (DB)
-// ==============================
-const getOrCreateCartDB = async (userId: number) => {
-  let cart = await prisma.cart.findUnique({
-    where: { userId },
-    include: {
-      items: {
-        include: {
-          product: { include: { category: true } },
-        },
-      },
-    },
-  });
-
-  if (!cart) {
-    cart = await prisma.cart.create({
-      data: { userId },
-      include: {
-        items: {
-          include: {
-            product: { include: { category: true } },
-          },
-        },
-      },
-    });
-  }
-  return cart;
-};
-
-
 // Helper function (Put this in utils or same file)
 const calculateCartTotals = (cart: any) => {
-  if (!cart) return { items: [], totalItems: 0, totalAmount: 0 };
+  if (!cart?.items) return { items: [], totalItems: 0, totalAmount: 0 };
 
-  const items = cart.items.map((item: any) => {
-    return {
-      id: item.id,
-      productId: item.productId,
-      quantity: item.quantity,
-      price: Number(item.product.price), // Ensure number
-      stock: item.product.stock,
-      stockLevel: item.product.stock > 10 ? 'High' : item.product.stock > 0 ? 'Low' : 'Out',
-      subtotal: item.quantity * Number(item.product.price),
-      product: item.product, // Pass the full product details to frontend
-    };
-  });
+  const items = cart.items.map((item: any) => ({
+    id: item.id,
+    productId: item.productId,
+    quantity: item.quantity,
+    price: item.product.price,
+    subtotal: item.quantity * item.product.price,
+    product: item.product, // Contains nested category from the include above
+    stock: item.product.stock,
+    stockLevel: item.product.stock > 10 ? 'In Stock' : 'Low Stock'
+  }));
 
-  const totalItems = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
-  const totalAmount = items.reduce((sum: number, item: any) => sum + item.subtotal, 0);
+  const totalItems = items.reduce((sum: number, i: any) => sum + i.quantity, 0);
+  const totalAmount = items.reduce((sum: number, i: any) => sum + i.subtotal, 0);
 
-  return {
-    id: cart.id,
-    userId: cart.userId,
-    items,
-    totalItems,
-    totalAmount,
-  };
+  return { items, totalItems, totalAmount };
 };
 
 // ==============================
@@ -77,23 +38,43 @@ const invalidateCartCache = async (userId: number) => {
   ]);
 };
 
-// ==============================
-// GET CART (Cached)
-// ==============================
+// Helper: Fetch Cart with all relations in ONE query
+const getOrCreateCartDB = async (userId: number) => {
+  return await prisma.cart.upsert({
+    where: { userId },
+    update: {},
+    create: { userId },
+    include: {
+      items: {
+        include: {
+          product: {
+            include: {
+              category: true // Only keep this if you display category name in the cart
+            }
+          }
+        }
+      }
+    }
+  });
+};
+
+// Optimized getCart
 export const getCart = async (c: Context) => {
   try {
     const user = c.get('user');
     
-    // Cache Key: cart:123
     const cartData = await getOrSetCache(`cart:${user.id}`, async () => {
+        // This now executes as one optimized batch query
         const cart = await getOrCreateCartDB(user.id);
+        
+        // Ensure calculateCartTotals doesn't perform ANY extra DB queries
         return calculateCartTotals(cart);
     }, CART_TTL);
 
     return c.json({
       success: true,
       message: "Cart retrieved successfully",
-      data: cartData,
+      data: cartData || { items: [], totalItems: 0, totalAmount: 0 },
     });
   } catch (error) {
     return serverError(c, error);
@@ -311,24 +292,25 @@ export const clearCart = async (c: Context) => {
 // GET CART SUMMARY (Cached)
 // ==============================
 export const getCartSummaryGet = async (c: Context) => {
-  try {
-    const user = c.get('user');
+  const user = c.get('user');
 
-    // Cache Key: cart:summary:123
-    // Smaller payload, faster to fetch than full cart
-    const summary = await getOrSetCache(`cart:summary:${user.id}`, async () => {
-        const cart = await getOrCreateCartDB(user.id);
-        const cartWithTotals = calculateCartTotals(cart);
-        return {
-            totalItems: cartWithTotals.totalItems,
-            totalAmount: cartWithTotals.totalAmount
-        };
-    }, CART_TTL);
+  // Fast query: Only get the counts and sums
+  const summary = await prisma.cart.findUnique({
+    where: { userId: user.id },
+    select: {
+      items: {
+        select: {
+          quantity: true,
+          product: { select: { price: true } }
+        }
+      }
+    }
+  });
 
-    return c.json({ success: true, data: summary });
-  } catch (error) {
-    return serverError(c, error);
-  }
+  const totalItems = summary?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const totalAmount = summary?.items.reduce((sum, item) => sum + (item.quantity * item.product.price), 0) || 0;
+
+  return c.json({ success: true, data: { totalItems, totalAmount } });
 };
 
 // Legacy Post Method

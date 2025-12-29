@@ -1,5 +1,4 @@
-// File: src/components/providers/AuthProvider.tsx (COMPLETE REWRITE)
-
+// File: src/components/providers/AuthProvider.tsx
 'use client';
 
 import { useEffect } from 'react';
@@ -12,21 +11,29 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const { data: session, status } = useSession();
 
   useEffect(() => {
-    // Public routes that don't require authentication
-    const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/'];
-    const isPublicPath = publicPaths.some((p) => pathname === p || pathname.startsWith(p));
+    // Define auth pages that should be skipped by AuthProvider
+    const authPages = ['/login', '/register', '/forgot-password', '/reset-password'];
+    const isAuthPage = authPages.some(page => pathname === page || pathname.startsWith(page));
 
     // Still loading session
     if (status === 'loading') {
       return;
     }
 
+    // ✅ FIX: Skip all redirect logic on auth pages
+    // Let the server-side checks in those pages handle redirects
+    if (isAuthPage) {
+      return;
+    }
 
-    // Inside AuthProvider.tsx useEffect
-    if (status === 'authenticated' && (pathname === '/login' || pathname === '/register')) {
-      // Use session role directly from NextAuth
-      const target = session?.user?.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard';
-      router.replace(target);
+    // Homepage - redirect based on auth status
+    if (pathname === '/') {
+      if (status === 'authenticated' && session?.user) {
+        const target = session.user.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard';
+        router.replace(target);
+      } else if (status === 'unauthenticated') {
+        router.replace('/login');
+      }
       return;
     }
 
@@ -36,7 +43,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       return;
     }
 
-    // Role-based redirects
+    // Role-based redirects for authenticated users
     if (status === 'authenticated' && session?.user) {
       const userRole = session.user.role;
       
