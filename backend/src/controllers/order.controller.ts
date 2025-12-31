@@ -47,11 +47,10 @@ export const checkout = async (c: Context) => {
     const user = c.get("user");
     if (!user) return c.json({ success: false, message: "Authentication required" }, 401);
 
-    // 1. Get Payment Type from body (default to CASH)
     const body = await c.req.json().catch(() => ({}));
     const paymentType = body.paymentType || "CASH";
 
-    // 2. Fetch User's Cart with Products
+    // Fetch User's Cart with Products
     const cart = await prisma.cart.findUnique({
       where: { userId: user.id },
       include: {
@@ -65,35 +64,36 @@ export const checkout = async (c: Context) => {
       return c.json({ success: false, message: "Cart is empty" }, 400);
     }
 
-    // 3. CHECK STOCK & PREPARE ORDER ITEMS
-    // We snapshot the price here so future price changes don't affect this order history.
+    // CHECK STOCK & PREPARE ORDER ITEMS
     let calculatedTotal = 0;
 
     const orderItemsData = cart.items.map((item) => {
-      // Safety: Ensure we treat price as a Number for math
       const price = Number(item.product.price);
       const subtotal = price * item.quantity;
       
       calculatedTotal += subtotal;
 
-      // Check stock
       if (item.product.stock < item.quantity) {
         throw new Error(`Product ${item.product.name} is out of stock (Requested: ${item.quantity}, Available: ${item.product.stock})`);
       }
 
       return {
         productId: item.productId,
+        productName: item.product.name,
         quantity: item.quantity,
-        priceAtPurchase: price, // 👈 FIXED: Snapshot the price at this moment
+        priceAtPurchase: price,
         subtotal: subtotal,
       };
     });
 
-    // 4. DATABASE TRANSACTION
-    // Execute all operations together: Create Order -> Update Stock -> Clear Cart
+    const stockUpdates = cart.items.map(item => ({
+      id: item.productId,
+      quantity: item.quantity,
+    }));
+
+    // DATABASE TRANSACTION
     const newOrder = await prisma.$transaction(async (tx) => {
       
-      // A. Create the Order
       const order = await tx.order.create({
         data: {
           userId: user.id,
@@ -101,40 +101,63 @@ export const checkout = async (c: Context) => {
           status: "PENDING",
           paymentType: paymentType,
           orderItems: {
-            create: orderItemsData, // Includes the required priceAtPurchase field
+            create: orderItemsData,
           },
-        },
-        include: {
-          orderItems: true,
         },
       });
 
-      // B. Update Product Stock (Decrement)
-      for (const item of cart.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: item.quantity } },
-        });
-      }
+      await Promise.all(
+        stockUpdates.map(item =>
+          tx.product.update({
+            where: { id: item.id },
+            data: { stock: { decrement: item.quantity } },
+          })
+        )
+      );
 
-      // C. Clear the Cart
       await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-      // Optional: Delete the cart itself if you prefer, usually just clearing items is enough
-      // await tx.cart.delete({ where: { id: cart.id } });
 
       return order;
+    }, {
+      maxWait: 5000,
+      timeout: 10000,
     });
 
-    console.log(`✅ Order created: ${newOrder.orderNumber} by ${user.email}`);
+    // ✅ CRITICAL FIX: Fetch complete order after transaction
+    const completeOrder = await prisma.order.findUnique({
+      where: { id: newOrder.id },
+      include: {
+        orderItems: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
 
+    console.log(`✅ Order created: ${completeOrder?.orderNumber} (ID: ${completeOrder?.id}) by ${user.email}`);
+
+    // ✅ FIX: Return structure that matches your frontend expectations
     return c.json({
       success: true,
       message: "Order created successfully",
-      data: newOrder,
+      data: {
+        orderId: completeOrder!.id,              // ✅ Frontend expects this
+        orderNumber: completeOrder!.orderNumber,
+        totalAmount: completeOrder!.totalAmount,
+        paymentType: completeOrder!.paymentType,
+        status: completeOrder!.status,
+        nextStep: {
+          action: paymentType === 'PAYNOW' ? 'COMPLETE_PAYMENT' : 'GENERATE_QR',
+          url: `/orders/${completeOrder!.id}`,
+          note: paymentType === 'PAYNOW' 
+            ? 'Complete your payment to receive QR code'
+            : 'Generate your QR code for pickup'
+        }
+      },
     });
 
   } catch (error: any) {
-    // Handle specific stock errors gracefully
     if (error.message.includes("out of stock")) {
       return c.json({ success: false, message: error.message }, 400);
     }
@@ -349,7 +372,14 @@ export const getOrderById = async (c: Context) => {
             where: { id: orderId, userId: parseInt(userId) },
             include: {
                 orderItems: { include: { product: true } },
-                paymentQR: { select: { expiresAt: true, isUsed: true, paymentType: true } },
+                paymentQR: { 
+                  select: { 
+                    qrCode: true,      // ✅ ADDED: Include QR code
+                    expiresAt: true, 
+                    isUsed: true, 
+                    paymentType: true 
+                  } 
+                },
             },
         });
     }, TTL.ORDER_DETAIL);
@@ -413,11 +443,14 @@ export const cancelOrder = async (c: Context) => {
     if (order.status !== "PENDING") return c.json({ success: false, message: "Cannot cancel" }, 400);
 
     await prisma.$transaction(async (tx) => {
+      // Restore stock only for items where product still exists
       for (const item of order.orderItems) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { increment: item.quantity } },
-        });
+        if (item.productId !== null) { // 👈 FIXED: Check for null before updating
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
       }
       await tx.order.update({ where: { id: orderId }, data: { status: "CANCELLED" } });
     });
@@ -427,6 +460,53 @@ export const cancelOrder = async (c: Context) => {
     await cache.invalidateProducts();
 
     return c.json({ success: true, message: "Order cancelled" });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};
+
+// ==========================================
+// ADMIN: REJECT ORDER
+// ==========================================
+export const rejectOrder = async (c: Context) => {
+  try {
+    const orderId = Number(c.req.param("orderId"));
+    const { reason } = await c.req.json();
+
+    const order = await prisma.order.findUnique({ 
+      where: { id: orderId }, 
+      include: { orderItems: true } 
+    });
+    
+    if (!order) return c.json({ success: false, message: "Order not found" }, 404);
+
+    await prisma.$transaction(async (tx) => {
+      // Restore stock only if order wasn't already cancelled
+      if (order.status !== "CANCELLED") {
+        for (const item of order.orderItems) {
+          if (item.productId !== null) { // 👈 FIXED: Check for null before updating
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { increment: item.quantity } },
+            });
+          }
+        }
+      }
+      await tx.order.update({ 
+        where: { id: orderId }, 
+        data: { status: "CANCELLED" } 
+      });
+      await tx.paymentQR.update({ 
+        where: { orderId }, 
+        data: { isUsed: true } 
+      });
+    });
+
+    // 🔄 Invalidate Caches
+    await cache.invalidateOrders(orderId, order.userId);
+    await cache.invalidateProducts();
+
+    return c.json({ success: true, message: "Order rejected", data: { reason } });
   } catch (error) {
     return serverError(c, error);
   }
@@ -584,37 +664,3 @@ export const completeOrder = async (c: Context) => {
   }
 };
 
-// ==========================================
-// ADMIN: REJECT ORDER
-// ==========================================
-export const rejectOrder = async (c: Context) => {
-  try {
-    const orderId = Number(c.req.param("orderId"));
-    const { reason } = await c.req.json();
-
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { orderItems: true } });
-    if (!order) return c.json({ success: false, message: "Order not found" }, 404);
-
-    await prisma.$transaction(async (tx) => {
-      // Restore stock
-      if (order.status !== "CANCELLED") {
-        for (const item of order.orderItems) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { increment: item.quantity } },
-          });
-        }
-      }
-      await tx.order.update({ where: { id: orderId }, data: { status: "CANCELLED" } });
-      await tx.paymentQR.update({ where: { orderId }, data: { isUsed: true } });
-    });
-
-    // 🔄 Invalidate Caches
-    await cache.invalidateOrders(orderId, order.userId);
-    await cache.invalidateProducts();
-
-    return c.json({ success: true, message: "Order rejected", data: { reason } });
-  } catch (error) {
-    return serverError(c, error);
-  }
-};

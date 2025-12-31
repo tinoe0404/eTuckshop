@@ -86,17 +86,26 @@ export default function CheckoutPage() {
 
   const confirmOrder = () => {
     if (!selectedPayment) return;
-
+  
     checkoutMutation.mutate(
       { paymentType: selectedPayment }, 
       {
-        onSuccess: (data) => {
-          // ✅ Navigation happens here in the component
+        onSuccess: (response) => {
           setShowConfirmDialog(false);
-          const { orderId, paymentType } = data.data;
           
-          // Redirect based on payment type (logic preserved from your original code)
+          // ✅ FIX: Extract orderId from the correct path
+          const orderId = response.data.orderId;
+          
+          console.log('✅ Checkout successful, redirecting to:', orderId);
+          
+          // ✅ Redirect to order detail page
           router.push(`/orders/${orderId}`);
+          
+          toast.success('Order placed successfully!');
+        },
+        onError: (error: any) => {
+          console.error('❌ Checkout failed:', error);
+          toast.error(error.response?.data?.message || 'Failed to place order');
         }
       }
     );
