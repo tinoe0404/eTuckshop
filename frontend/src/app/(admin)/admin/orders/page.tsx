@@ -438,7 +438,7 @@ export default function AdminOrdersPage() {
                   <div className="space-y-1 sm:space-y-2">
                     <p className="text-gray-400 text-xs sm:text-sm font-medium">Revenue</p>
                     <p className="text-xl sm:text-2xl md:text-3xl font-bold text-white">
-                      ${(stats.revenue || 0).toFixed(2)}
+                    ${typeof stats.revenue === 'number' ? stats.revenue.toFixed(2) : '0.00'}
                     </p>
                   </div>
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-500/20 rounded-xl flex items-center justify-center">

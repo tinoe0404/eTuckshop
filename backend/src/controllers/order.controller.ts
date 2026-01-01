@@ -585,81 +585,256 @@ export const getOrderStats = async (c: Context) => {
 };
 
 // ==========================================
-// ADMIN: SCAN QR
+// ADMIN: SCAN QR CODE
 // ==========================================
 export const scanQRCode = async (c: Context) => {
   try {
     const { qrData } = await c.req.json();
-    if (!qrData) return c.json({ success: false, message: "QR data required" }, 400);
+    
+    // Validate input
+    if (!qrData) {
+      return c.json({ 
+        success: false, 
+        message: "QR data required" 
+      }, 400);
+    }
 
+    // Decode QR data
     const decoded = decodeQRData(qrData);
-    if (!decoded) return c.json({ success: false, message: "Invalid QR" }, 400);
+    if (!decoded) {
+      return c.json({ 
+        success: false, 
+        message: "Invalid QR code format" 
+      }, 400);
+    }
 
+    // Fetch order with all necessary relations
     const order = await prisma.order.findUnique({
       where: { id: decoded.orderId },
       include: {
-        user: { select: { id: true, name: true, email: true } },
-        orderItems: { include: { product: true } },
+        user: { 
+          select: { 
+            id: true, 
+            name: true, 
+            email: true 
+          } 
+        },
+        orderItems: { 
+          include: { 
+            product: true 
+          } 
+        },
         paymentQR: true,
       },
     });
 
-    if (!order) return c.json({ success: false, message: "Order not found" }, 404);
-    if (order.orderNumber !== decoded.orderNumber) return c.json({ success: false, message: "Mismatch" }, 400);
-    if (order.status === "COMPLETED") return c.json({ success: false, message: "Order already completed" }, 400);
-    if (order.paymentQR?.isUsed) return c.json({ success: false, message: "QR already used" }, 400);
-
-    // Expired Check
-    if (decoded.paymentType === "CASH" && decoded.expiresAt) {
-        if (new Date() > new Date(decoded.expiresAt)) {
-             await prisma.paymentQR.update({ where: { orderId: order.id }, data: { isUsed: true } });
-             return c.json({ success: false, message: "QR Expired" }, 400);
-        }
+    // Validation checks
+    if (!order) {
+      return c.json({ 
+        success: false, 
+        message: "Order not found" 
+      }, 404);
     }
 
+    if (order.orderNumber !== decoded.orderNumber) {
+      return c.json({ 
+        success: false, 
+        message: "QR code does not match order" 
+      }, 400);
+    }
+
+    if (order.status === "COMPLETED") {
+      return c.json({ 
+        success: false, 
+        message: "Order already completed" 
+      }, 400);
+    }
+
+    if (order.status === "CANCELLED") {
+      return c.json({ 
+        success: false, 
+        message: "Order has been cancelled" 
+      }, 400);
+    }
+
+    if (order.paymentQR?.isUsed) {
+      return c.json({ 
+        success: false, 
+        message: "QR code already used" 
+      }, 400);
+    }
+
+    // Check expiration for CASH orders
+    if (decoded.paymentType === "CASH" && decoded.expiresAt) {
+      const expiryDate = new Date(decoded.expiresAt);
+      const now = new Date();
+      
+      if (now > expiryDate) {
+        // Mark as expired
+        await prisma.paymentQR.update({ 
+          where: { orderId: order.id }, 
+          data: { isUsed: true } 
+        });
+        
+        return c.json({ 
+          success: false, 
+          message: "QR code has expired. Customer needs to generate a new one." 
+        }, 400);
+      }
+    }
+
+    // For PayNow orders, verify payment status
+    if (decoded.paymentType === "PAYNOW" && order.status !== "PAID") {
+      return c.json({ 
+        success: false, 
+        message: "Payment not completed. Customer must complete payment first." 
+      }, 400);
+    }
+
+    // Format currency helper
+    const formatCurrency = (amount: number) => `$${amount.toFixed(2)}`;
+
+    // Build comprehensive response
     return c.json({
-        success: true,
-        message: "QR Scanned",
-        data: {
-            // ... (keep your existing response structure here)
-            paymentMethod: { type: decoded.paymentType, status: decoded.paymentStatus },
-            customer: decoded.customer,
-            orderSummary: decoded.orderSummary,
-            orderInfo: { id: order.id, status: order.status },
+      success: true,
+      message: "QR code verified successfully",
+      data: {
+        paymentMethod: { 
+          type: decoded.paymentType,
+          label: decoded.paymentType === 'CASH' ? 'Cash Payment' : 'PayNow (Online)',
+          status: decoded.paymentStatus
+        },
+        customer: {
+          name: decoded.customer.name,
+          email: decoded.customer.email
+        },
+        orderSummary: {
+          items: decoded.orderSummary.items,
+          totalItems: decoded.orderSummary.totalItems,
+          totalAmount: decoded.orderSummary.totalAmount
+        },
+        orderInfo: {
+          orderId: order.id,           // ✅ CRITICAL: This must be 'orderId', not 'id'
+          orderNumber: order.orderNumber,
+          status: order.status,
+          createdAt: order.createdAt.toISOString(),
+          paidAt: order.paidAt?.toISOString() || null
+        },
+        instructions: decoded.paymentType === 'CASH' 
+          ? `Collect ${formatCurrency(decoded.orderSummary.totalAmount)} in cash before handing over items.`
+          : `Payment already completed online (${formatCurrency(decoded.orderSummary.totalAmount)}). Verify payment confirmation before handing over items.`,
+        action: {
+          complete: `/api/orders/admin/complete/${order.id}`
         }
+      }
     });
+
   } catch (error) {
+    console.error("❌ Scan QR Error:", error);
     return serverError(c, error);
   }
 };
 
-// ==========================================
-// ADMIN: COMPLETE ORDER
-// ==========================================
+// In your backend order controller/handler
 export const completeOrder = async (c: Context) => {
   try {
     const orderId = Number(c.req.param("orderId"));
 
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
-    if (!order) return c.json({ success: false, message: "Order not found" }, 404);
-    if (order.paymentType === "PAYNOW" && order.status !== "PAID") return c.json({ success: false, message: "Must be PAID" }, 400);
+    if (isNaN(orderId) || orderId <= 0) {
+      return c.json({ 
+        success: false, 
+        message: "Invalid order ID" 
+      }, 400);
+    }
 
-    await prisma.$transaction([
-      prisma.order.update({
+    const order = await prisma.order.findUnique({ 
+      where: { id: orderId },
+      include: { paymentQR: true }
+    });
+
+    if (!order) {
+      return c.json({ 
+        success: false, 
+        message: "Order not found" 
+      }, 404);
+    }
+
+    // ✅ CRITICAL FIX: Return success if already completed (idempotency)
+    if (order.status === "COMPLETED") {
+      console.log(`⚠️ Order ${orderId} already completed - returning success`);
+      return c.json({ 
+        success: true, // ✅ Changed from false to true
+        message: "Order already completed",
+        data: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          completedAt: order.completedAt?.toISOString()
+        }
+      }, 200); // ✅ Return 200, not 400
+    }
+
+    if (order.status === "CANCELLED") {
+      return c.json({ 
+        success: false, 
+        message: "Cannot complete a cancelled order" 
+      }, 400);
+    }
+
+    if (order.paymentType === "PAYNOW" && order.status !== "PAID") {
+      return c.json({ 
+        success: false, 
+        message: "Payment not completed. Order must be PAID before completion." 
+      }, 400);
+    }
+
+    if (!order.paymentQR) {
+      return c.json({ 
+        success: false, 
+        message: "No QR code found for this order" 
+      }, 404);
+    }
+
+    // ✅ Transaction: Mark order as completed
+    const completedOrder = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.update({
         where: { id: orderId },
-        data: { status: "COMPLETED", completedAt: new Date(), paidAt: order.paidAt || new Date() },
-      }),
-      prisma.paymentQR.update({
-        where: { orderId },
-        data: { isUsed: true, expiresAt: new Date() },
-      }),
-    ]);
+        data: { 
+          status: "COMPLETED", 
+          completedAt: new Date(),
+          paidAt: order.paidAt || new Date()
+        },
+      });
 
-    // 🔄 Invalidate Cache
+      await tx.paymentQR.update({
+        where: { orderId },
+        data: { 
+          isUsed: true, 
+          expiresAt: new Date()
+        },
+      });
+
+      return updated;
+    });
+
+    // Invalidate caches
     await cache.invalidateOrders(orderId, order.userId);
 
-    return c.json({ success: true, message: "Order completed" });
+    console.log(`✅ Order completed: ${order.orderNumber} (ID: ${orderId})`);
+
+    return c.json({ 
+      success: true, 
+      message: "Order completed successfully",
+      data: {
+        orderId: completedOrder.id,
+        orderNumber: completedOrder.orderNumber,
+        status: completedOrder.status,
+        completedAt: completedOrder.completedAt?.toISOString()
+      }
+    });
+
   } catch (error) {
+    console.error("❌ Complete Order Error:", error);
     return serverError(c, error);
   }
 };

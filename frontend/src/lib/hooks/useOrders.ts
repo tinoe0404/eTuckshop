@@ -144,19 +144,30 @@ export function useCancelOrder() {
   });
 }
 
-/**
- * ✅ ADMIN: Complete Order (Optimistic)
- */
 export function useCompleteOrder() {
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: orderService.completeOrder,
     
+    // ✅ Don't retry 400 errors (validation failures)
+    retry: (failureCount, error: any) => {
+      const status = error?.response?.status;
+      
+      // Don't retry client errors
+      if (status >= 400 && status < 500) {
+        return false;
+      }
+      
+      // Retry server errors once
+      return failureCount < 1;
+    },
+    
     onMutate: async (orderId) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.orders.lists() });
       const previousOrders = queryClient.getQueryData(queryKeys.orders.lists());
 
+      // Optimistic update
       queryClient.setQueriesData({ queryKey: queryKeys.orders.lists() }, (old: any) => {
         if (!old?.data?.orders) return old;
         return {
@@ -173,17 +184,43 @@ export function useCompleteOrder() {
       return { previousOrders };
     },
     
-    onError: (err, _, context) => {
+    onError: (err, orderId, context) => {
+      // Rollback optimistic update
       if (context?.previousOrders) {
         queryClient.setQueriesData({ queryKey: queryKeys.orders.lists() }, context.previousOrders);
       }
-      toast.error((err as any).response?.data?.message || 'Failed to complete order');
+      
+      const errorMessage = (err as any).response?.data?.message || 'Failed to complete order';
+      
+      // ✅ Don't show error toast for "already completed" (it's actually success)
+      if (errorMessage.includes('already completed')) {
+        console.log('ℹ️ Order was already completed');
+        toast.success('Order already completed');
+        
+        // Treat as success - invalidate queries
+        invalidateOrderQueries(queryClient);
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders.stats() });
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+      } else {
+        // Real error - show toast
+        toast.error(errorMessage);
+      }
     },
     
-    onSuccess: () => {
-      toast.success('Order completed');
+    onSuccess: (data) => {
+      const message = data?.message || 'Order completed successfully';
+      
+      // ✅ Show appropriate toast
+      if (message.includes('already completed')) {
+        toast.success('Order already completed');
+      } else {
+        toast.success('Order completed successfully');
+      }
+      
+      // Invalidate all order-related queries
       invalidateOrderQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.stats() });
+      queryClient.invalidateQueries({ queryKey: ['products'] }); // ✅ Updates stock
     },
   });
 }

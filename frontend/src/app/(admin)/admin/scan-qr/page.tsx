@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { orderService } from '@/lib/api/services/order.service';
+import { useCompleteOrder, useScanQRCode } from '@/lib/hooks/useOrders';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -44,7 +43,7 @@ import { formatCurrency } from '@/lib/utils';
 interface ScannedOrder {
   paymentMethod: {
     type: string;
-    label?: string; // Made optional
+    label?: string;
     status: string;
   };
   customer: {
@@ -68,7 +67,7 @@ interface ScannedOrder {
     createdAt: string;
     paidAt: string | null;
   };
-  instructions?: string; // Made optional
+  instructions?: string;
   action?: {
     complete: string;
   };
@@ -88,34 +87,23 @@ export default function AdminQRScannerPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Scan QR mutation
-  const scanQRMutation = useMutation({
-    mutationFn: (qrData: string) => orderService.scanQRCode(qrData),
-    onSuccess: (response) => {
-      if (response.success) {
-        // FIX: Cast response.data to ScannedOrder to satisfy TypeScript
-        setScannedOrder(response.data as ScannedOrder);
-        toast.success(response.message || 'QR scanned successfully');
-        stopCamera();
-      }
-    },
-    onError: (error: any) => {
-      const message = error.response?.data?.message || 'Failed to scan QR code';
-      const suggestion = error.response?.data?.data?.suggestion;
+  // ✅ Use the hook from useOrders
+  const scanQRMutation = useScanQRCode();
+  
+  // ✅ Use the hook with proper success handling
+  const completeOrderMutation = useCompleteOrder();
 
-      if (suggestion) {
-        toast.error(`${message}\n${suggestion}`);
-      } else {
-        toast.error(message);
-      }
-    },
-  });
+  // ✅ Handle scan success separately
+  useEffect(() => {
+    if (scanQRMutation.isSuccess && scanQRMutation.data) {
+      setScannedOrder(scanQRMutation.data.data as ScannedOrder);
+      stopCamera();
+    }
+  }, [scanQRMutation.isSuccess, scanQRMutation.data]);
 
-  // Complete order mutation
-  const completeOrderMutation = useMutation({
-    mutationFn: (orderId: number) => orderService.completeOrder(orderId),
-    onSuccess: (response) => {
-      toast.success(response.message || 'Order completed successfully');
+  // ✅ Handle complete order success
+  useEffect(() => {
+    if (completeOrderMutation.isSuccess) {
       setShowCompleteDialog(false);
       setTimeout(() => {
         setScannedOrder(null);
@@ -124,13 +112,10 @@ export default function AdminQRScannerPage() {
           startCamera();
         }
       }, 2000);
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to complete order');
-    },
-  });
+    }
+  }, [completeOrderMutation.isSuccess, scanMode]);
 
-  // Start camera (supports optionally passing facing directly)
+  // Start camera
   const startCamera = async (facing?: 'user' | 'environment') => {
     const useFacing = facing || facingMode;
     try {
@@ -149,14 +134,12 @@ export default function AdminQRScannerPage() {
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // ensure we await the play promise and catch Abort/DOM exceptions
         try {
           const playResult = videoRef.current.play();
           if (playResult instanceof Promise) {
             await playResult;
           }
         } catch (err: any) {
-          // play() can be interrupted by other load/play calls — ignore these
           console.warn('Video play interrupted or blocked:', err?.name || err);
         }
 
@@ -178,22 +161,18 @@ export default function AdminQRScannerPage() {
 
   // Stop camera
   const stopCamera = () => {
-    // Clear scan interval
     if (scanIntervalRef.current) {
       clearInterval(scanIntervalRef.current);
       scanIntervalRef.current = null;
     }
 
-    // Stop any tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
 
-    // Remove video srcObject
     if (videoRef.current) {
       try {
-        // Pause video safely
         videoRef.current.pause();
       } catch (e) {
         // ignore
@@ -208,20 +187,15 @@ export default function AdminQRScannerPage() {
     setIsCameraActive(false);
   };
 
-  // Switch camera (front/back)
+  // Switch camera
   const switchCamera = async () => {
-    // compute new facing
     const newFacing = facingMode === 'user' ? 'environment' : 'user';
-    // stop current stream first
     stopCamera();
-    // update state so UI shows correct mode
     setFacingMode(newFacing);
-    // then start camera with new facing explicitly
-    // small delay sometimes helps devices reset — but keep minimal
     await startCamera(newFacing);
   };
 
-  // Start scanning QR codes from video
+  // Start scanning QR codes
   const startScanning = () => {
     if (scanIntervalRef.current) return;
 
@@ -234,30 +208,24 @@ export default function AdminQRScannerPage() {
 
       if (!context || video.readyState !== video.HAVE_ENOUGH_DATA) return;
 
-      // Set canvas size to video size
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-
-      // Draw video frame to canvas
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Get image data
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 
-      // Try to decode QR code using jsQR
       try {
         const code = (window as any).jsQR?.(imageData.data, imageData.width, imageData.height, {
           inversionAttempts: 'dontInvert',
         });
 
         if (code && code.data) {
-          // Successfully decoded QR code
           scanQRMutation.mutate(code.data);
         }
       } catch (error) {
         console.error('QR decode error:', error);
       }
-    }, 300); // Check every 300ms
+    }, 300);
   };
 
   // Load jsQR library
@@ -274,7 +242,7 @@ export default function AdminQRScannerPage() {
     };
   }, []);
 
-  // Start camera on mount if in camera mode
+  // Start camera on mount
   useEffect(() => {
     if (scanMode === 'camera' && !scannedOrder) {
       startCamera();
@@ -284,7 +252,7 @@ export default function AdminQRScannerPage() {
       stopCamera();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scanMode, scannedOrder]); // facingMode not here because we'll pass explicit facing on switch
+  }, [scanMode, scannedOrder]);
 
   const handleManualScan = () => {
     const trimmedData = qrInput.trim();
@@ -298,14 +266,38 @@ export default function AdminQRScannerPage() {
   };
 
   const handleCompleteOrder = () => {
-    if (scannedOrder?.orderInfo?.orderId) {
-      completeOrderMutation.mutate(scannedOrder.orderInfo.orderId);
+    if (!scannedOrder?.orderInfo?.orderId) {
+      toast.error('No order to complete');
+      return;
     }
+    
+    console.log('🔄 Completing order:', scannedOrder.orderInfo.orderId);
+    
+    completeOrderMutation.mutate(scannedOrder.orderInfo.orderId, {
+      onSuccess: () => {
+        // ✅ Close the complete dialog
+        setShowCompleteDialog(false);
+        
+        // ✅ Clear scanned order (go back to scanner)
+        setScannedOrder(null);
+        setShowDetails(false);
+        
+        // ✅ Success toast already shown by useCompleteOrder hook
+        console.log('✅ Order completed successfully');
+      },
+      onError: (error: any) => {
+        // ✅ Keep dialog open on error so user can retry
+        console.error('❌ Failed to complete order:', error);
+        // Error toast already shown by useCompleteOrder hook
+      }
+    });
   };
 
   const handleReset = () => {
     setScannedOrder(null);
     setQrInput('');
+    scanQRMutation.reset();
+    completeOrderMutation.reset();
     if (scanMode === 'camera') {
       startCamera();
     }
@@ -365,7 +357,6 @@ export default function AdminQRScannerPage() {
               {/* Camera Mode */}
               {scanMode === 'camera' ? (
                 <div className="space-y-4">
-                  {/* Camera Preview */}
                   <div className="relative bg-black rounded-2xl overflow-hidden aspect-video">
                     {cameraError ? (
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -388,48 +379,40 @@ export default function AdminQRScannerPage() {
 
                     <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
 
-                    {/* Scanning Overlay */}
                     {isCameraActive && (
                       <div className="absolute inset-0 pointer-events-none">
-                        {/* Corner Markers */}
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64">
                           <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-blue-400" />
                           <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-blue-400" />
                           <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-blue-400" />
                           <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-blue-400" />
                         </div>
-
-                        {/* Scanning Line */}
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 w-64 h-0.5 bg-blue-400 animate-pulse" />
                       </div>
                     )}
 
-                    {/* Status Badge */}
                     {isCameraActive && (
-                      <div className="absolute top-4 left-4">
-                        <Badge className="bg-red-500 text-white gap-2">
-                          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                          {scanQRMutation.isPending ? 'Processing...' : 'Scanning...'}
-                        </Badge>
-                      </div>
-                    )}
-
-                    {/* Camera Switch Button */}
-                    {isCameraActive && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={switchCamera}
-                        className="absolute top-4 right-4"
-                      >
-                        <SwitchCamera className="w-4 h-4" />
-                      </Button>
+                      <>
+                        <div className="absolute top-4 left-4">
+                          <Badge className="bg-red-500 text-white gap-2">
+                            <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                            {scanQRMutation.isPending ? 'Processing...' : 'Scanning...'}
+                          </Badge>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={switchCamera}
+                          className="absolute top-4 right-4"
+                        >
+                          <SwitchCamera className="w-4 h-4" />
+                        </Button>
+                      </>
                     )}
                   </div>
 
                   <canvas ref={canvasRef} className="hidden" />
 
-                  {/* Instructions */}
                   <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
                     <div className="flex items-start space-x-3">
                       <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
@@ -445,9 +428,7 @@ export default function AdminQRScannerPage() {
                   </div>
                 </div>
               ) : (
-                /* Manual Entry Mode */
                 <div className="space-y-4">
-                  {/* Instructions */}
                   <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
                     <div className="flex items-start space-x-3">
                       <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
@@ -462,7 +443,6 @@ export default function AdminQRScannerPage() {
                     </div>
                   </div>
 
-                  {/* QR Input */}
                   <div className="space-y-3">
                     <label className="text-sm font-medium text-gray-300">QR Code Data</label>
                     <Textarea
@@ -474,7 +454,6 @@ export default function AdminQRScannerPage() {
                     />
                   </div>
 
-                  {/* Scan Button */}
                   <Button
                     size="lg"
                     className="w-full bg-blue-600 hover:bg-blue-700"
@@ -498,7 +477,7 @@ export default function AdminQRScannerPage() {
             </CardContent>
           </Card>
         ) : (
-          /* Scanned Order Details */
+          /* Scanned Order Details - Keep your existing JSX here */
           <div className="space-y-6">
             {/* Success Header */}
             <Card className="bg-gradient-to-r from-green-900/20 to-blue-900/20 border-green-800">
@@ -675,6 +654,7 @@ export default function AdminQRScannerPage() {
                 size="lg"
                 className="flex-1 bg-green-600 hover:bg-green-700"
                 onClick={() => setShowCompleteDialog(true)}
+                disabled={completeOrderMutation.isPending}
               >
                 <CheckCircle className="w-5 h-5 mr-2" />
                 Complete Pickup
@@ -701,8 +681,6 @@ export default function AdminQRScannerPage() {
                 <span>Complete Order Pickup?</span>
               </AlertDialogTitle>
 
-              {/* IMPORTANT: Use asChild to avoid Radix auto-wrapping your content in a <p>.
-                  Then wrap your own <p> and <ul> inside a <div>. */}
               <AlertDialogDescription asChild>
                 <div className="text-gray-400 space-y-2">
                   <p>Confirm that you have:</p>
@@ -724,7 +702,10 @@ export default function AdminQRScannerPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel className="border-gray-700 text-gray-300 hover:bg-gray-800">
+              <AlertDialogCancel 
+                className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                disabled={completeOrderMutation.isPending}
+              >
                 Go Back
               </AlertDialogCancel>
               <AlertDialogAction
@@ -747,4 +728,8 @@ export default function AdminQRScannerPage() {
       </div>
     </div>
   );
+}
+
+function setShowDetails(arg0: boolean) {
+  throw new Error('Function not implemented.');
 }

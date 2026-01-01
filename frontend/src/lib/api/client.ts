@@ -1,185 +1,146 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, {
+  AxiosError,
+  AxiosRequestConfig,
+  AxiosResponse,
+  InternalAxiosRequestConfig,
+} from 'axios';
 import { getSession, signOut } from 'next-auth/react';
 
-// ✅ Determine API URL based on environment
+// ============================================
+// API URL CONFIG
+// ============================================
+
 const getBaseURL = () => {
-  // If explicitly set, use it
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
-  
-  // In production on Vercel, must use deployed backend
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (process.env.NODE_ENV === 'production')
     return 'https://etuckshop-backend.onrender.com/api';
-  }
-  
-  // Development default
   return 'http://localhost:5000/api';
 };
 
 const BASE_URL = getBaseURL();
 
-console.log('🔧 API Configuration:');
-console.log('   Base URL:', BASE_URL);
-console.log('   Environment:', process.env.NODE_ENV);
-console.log('   Next Public API:', process.env.NEXT_PUBLIC_API_URL);
+// ============================================
+// HEALTH CHECK (DEV ONLY)
+// ============================================
 
-// ✅ Test connection on startup (development only)
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   const healthUrl = BASE_URL.replace('/api', '') + '/health';
-  
-  fetch(healthUrl, { 
-    method: 'GET',
-    mode: 'cors',
-  })
-    .then(async (res) => {
-      if (res.ok) {
-        const data = await res.json();
-        console.log('✅ Backend connection successful');
-        console.log('   Status:', data.status);
-        console.log('   Database:', data.database);
-        console.log('   Environment:', data.environment);
-      } else {
-        console.warn('⚠️ Backend responded but not healthy:', res.status);
-      }
-    })
-    .catch((err) => {
-      console.error('❌ Backend not reachable at', BASE_URL);
-      console.error('   Make sure your backend server is running!');
-      console.error('   Error:', err.message);
-      console.error('');
-      console.error('   To start backend: cd backend && bun run dev');
-    });
+
+  fetch(healthUrl)
+    .then(res => res.ok && res.json())
+    .then(data => console.log('✅ Backend OK:', data))
+    .catch(() =>
+      console.error('❌ Backend not reachable – start backend with bun run dev')
+    );
 }
 
-// ✅ Create axios instance with proper configuration
+// ============================================
+// REQUEST DEDUPLICATION
+// ============================================
+
+interface PendingRequest {
+  promise: Promise<any>;
+  timestamp: number;
+}
+
+const pendingRequests = new Map<string, PendingRequest>();
+
+const getRequestKey = (config: InternalAxiosRequestConfig) => {
+  const method = config.method?.toUpperCase() || 'GET';
+  const url = config.url || '';
+
+  let payload = '';
+  if (config.data) payload = JSON.stringify(config.data);
+  else if (config.params) payload = JSON.stringify(config.params);
+
+  return `${method}:${url}:${payload}`;
+};
+
+// ============================================
+// AXIOS INSTANCE
+// ============================================
+
 const apiClient = axios.create({
   baseURL: BASE_URL,
+  withCredentials: true,
+  timeout: 30000,
   headers: {
-    "Content-Type": "application/json",
-    "Accept": "application/json",
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 seconds (increased for slow connections)
-  withCredentials: true, // CRITICAL: Send cookies with every request
 });
 
+// ============================================
+// REQUEST INTERCEPTOR
+// ============================================
 
-// ✅ Request interceptor - add auth info
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
-    try {
-      // Get NextAuth session
-      const session = await getSession();
-      
-      // Add user ID to headers if available
-      if (session?.user) {
-        const userId = session.user.id || (session.user as any).userId;
-        if (userId) {
-          config.headers['X-User-Id'] = userId;  // ✅ FIXED: 'Id' not 'ID'
-          
-          // Log in development
-          if (process.env.NODE_ENV === 'development') {
-            console.log(`📤 ${config.method?.toUpperCase()} ${config.url}`);
-            console.log(`   👤 User: ${session.user.email} (ID: ${userId}, Role: ${session.user.role})`);
-          }
-        } else {
-          console.warn('⚠️ Session exists but no user ID found:', session.user);
-        }
-      } else if (process.env.NODE_ENV === 'development') {
-        console.log(`📤 ${config.method?.toUpperCase()} ${config.url} (No session)`);
-      }
-      
-      return config;
-    } catch (error) {
-      console.error('❌ Error in request interceptor:', error);
-      return config;
+    const key = getRequestKey(config);
+    const existing = pendingRequests.get(key);
+
+    if (existing) {
+      throw { isDuplicate: true, originalPromise: existing.promise };
     }
+
+    const session = await getSession();
+    if (session?.user?.id) {
+      config.headers['X-User-Id'] = session.user.id;
+    }
+
+    return config;
   },
-  (error) => {
-    console.error('❌ Request Setup Error:', error);
-    return Promise.reject(error);
-  }
+  error => Promise.reject(error)
 );
 
-// ✅ Response interceptor - handle errors intelligently
+// ============================================
+// RESPONSE INTERCEPTOR
+// ============================================
+
 apiClient.interceptors.response.use(
-  (response) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
-    }
-    return response;
+  res => {
+    const key = getRequestKey(res.config as InternalAxiosRequestConfig);
+    pendingRequests.delete(key);
+    return res;
   },
-  async (error: AxiosError) => {
-    const config = error.config;
-    
-    // Enhanced error logging
-    if (error.code === 'ECONNABORTED') {
-      console.error('⏱️ Request timeout');
-      console.error('   URL:', config?.url);
-      console.error('   The backend took too long to respond (>30s)');
-    } 
-    else if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-      console.error('🌐 Network Error - Cannot connect to backend');
-      console.error('   URL:', BASE_URL);
-      console.error('   Possible causes:');
-      console.error('   1. Backend server is not running');
-      console.error('   2. Wrong backend URL in .env');
-      console.error('   3. CORS is blocking the request');
-      console.error('   4. Network/firewall issues');
-      console.error('');
-      console.error('   💡 Solution:');
-      console.error('   • For LOCAL testing: Start backend with "bun run dev"');
-      console.error('   • For PRODUCTION: Deploy backend and update NEXT_PUBLIC_API_URL');
-    } 
-    else if (error.code === 'ECONNREFUSED') {
-      console.error('🔌 Connection Refused');
-      console.error('   Backend is not accepting connections at:', BASE_URL);
-      console.error('   Start backend server: cd backend && bun run dev');
-    } 
-    else if (error.response) {
-      // Server responded with error status
-      const status = error.response.status;
-      const method = config?.method?.toUpperCase();
-      const url = config?.url;
-      
-      console.error(`❌ ${method} ${url} - ${status}`);
-      
-      if (status === 401) {
-        console.log('🔒 Unauthorized - Session expired or invalid');
-        
-        // Sign out user (only in browser)
-        if (typeof window !== 'undefined') {
-          console.log('   Redirecting to login...');
-          await signOut({ redirect: true, callbackUrl: '/login' });
-        }
-      }
-      else if (status === 403) {
-        console.error('🚫 Forbidden - Insufficient permissions');
-        console.error('   Data:', error.response.data);
-      }
-      else if (status === 404) {
-        console.error('🔍 Not Found');
-        console.error('   Data:', error.response.data);
-      }
-      else if (status === 500) {
-        console.error('💥 Internal Server Error');
-        console.error('   Data:', error.response.data);
-      }
-      else {
-        console.error('   Data:', error.response.data);
-      }
-    } 
-    else if (error.request) {
-      console.error('❌ No response received from server');
-      console.error('   Request was sent but server did not respond');
-      console.error('   This usually means the backend is down or unreachable');
-    } 
-    else {
-      console.error('❌ Request Setup Error:', error.message);
+  async error => {
+    if (error.isDuplicate) return error.originalPromise;
+
+    const config = error.config as InternalAxiosRequestConfig | undefined;
+    if (config) pendingRequests.delete(getRequestKey(config));
+
+    if (error.response?.status === 401 && typeof window !== 'undefined') {
+      await signOut({ redirect: true, callbackUrl: '/login' });
     }
 
     return Promise.reject(error);
   }
 );
+
+// ============================================
+// TYPESAFE REQUEST OVERRIDE
+// ============================================
+
+const originalRequest = apiClient.request.bind(apiClient);
+
+apiClient.request = function <
+  T = any,
+  R = AxiosResponse<T>,
+  D = any
+>(config: AxiosRequestConfig<D>): Promise<R> {
+  const key = getRequestKey(config as InternalAxiosRequestConfig);
+
+  const promise = originalRequest<T, R, D>(config);
+
+  pendingRequests.set(key, { promise, timestamp: Date.now() });
+
+  promise.finally(() => pendingRequests.delete(key));
+
+  return promise;
+};
+
+// ============================================
+// EXPORT
+// ============================================
 
 export default apiClient;
