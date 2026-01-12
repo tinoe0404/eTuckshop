@@ -23,24 +23,24 @@ export const register = async (c: Context) => {
   try {
     const body = await c.req.json();
     const { name, email, password, role } = body;
-    
+
     if (!name || !email || !password) {
       return c.json({ success: false, message: "All fields are required" }, 400);
     }
-    
+
     const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) {
       return c.json({ success: false, message: "User already exists" }, 400);
     }
-    
+
     const hashed = await Bun.password.hash(password, { algorithm: "bcrypt", cost: 10 });
     const userRole = role === "ADMIN" ? "ADMIN" : "CUSTOMER";
-    
+
     const user = await prisma.user.create({
       data: { name, email, password: hashed, role: userRole },
       select: { id: true, name: true, email: true, role: true, createdAt: true }
     });
-    
+
     return c.json({ success: true, message: "User registered successfully", data: { user } }, 201);
   } catch (error) {
     return serverError(c, error);
@@ -130,16 +130,16 @@ export const getUserById = async (c: Context) => {
 export const getProfileById = async (c: Context) => {
   try {
     const user = c.get('user');
-    
+
     if (!user) {
       return c.json({ success: false, message: "Authentication required" }, 401);
     }
 
     // Since we added createdAt/updatedAt to the middleware selection,
     // we can return the user object directly without another DB call.
-    return c.json({ 
-      success: true, 
-      data: user 
+    return c.json({
+      success: true,
+      data: user
     });
   } catch (error) {
     return serverError(c, error);
@@ -246,9 +246,9 @@ export const forgotPassword = async (c: Context) => {
     const { email } = await c.req.json();
 
     if (!email) {
-      return c.json({ 
-        success: false, 
-        message: "Email is required" 
+      return c.json({
+        success: false,
+        message: "Email is required"
       }, 400);
     }
 
@@ -276,7 +276,7 @@ export const forgotPassword = async (c: Context) => {
 
     // For development, log the token
     console.log(`🔑 Password reset token for ${email}: ${resetToken}`);
-    console.log(`🔗 Reset URL: ${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`);
+    console.log(`🔗 Reset URL: ${process.env.CLIENT_URL}/reset-password?token=${resetToken}`);
 
     return c.json({
       success: true,
@@ -296,16 +296,16 @@ export const resetPassword = async (c: Context) => {
     const { token, newPassword } = await c.req.json();
 
     if (!token || !newPassword) {
-      return c.json({ 
-        success: false, 
-        message: "Token and new password are required" 
+      return c.json({
+        success: false,
+        message: "Token and new password are required"
       }, 400);
     }
 
     if (newPassword.length < 6) {
-      return c.json({ 
-        success: false, 
-        message: "Password must be at least 6 characters" 
+      return c.json({
+        success: false,
+        message: "Password must be at least 6 characters"
       }, 400);
     }
 
@@ -319,9 +319,9 @@ export const resetPassword = async (c: Context) => {
     });
 
     if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "Invalid or expired reset token" 
+      return c.json({
+        success: false,
+        message: "Invalid or expired reset token"
       }, 400);
     }
 
@@ -354,7 +354,7 @@ export const resetPassword = async (c: Context) => {
 
 const setAuthCookies = (c: Context, accessToken: string, refreshToken: string) => {
   const isProd = process.env.NODE_ENV === "production";
-  
+
   setCookie(c, "accessToken", accessToken, {
     httpOnly: true,
     secure: isProd,
@@ -443,7 +443,7 @@ export const refreshToken = async (c: Context) => {
     }
 
     const decoded = await verifyRefreshToken(refreshToken);
-    
+
     if (!decoded?.userId) {
       clearAuthCookies(c);
       return c.json({ success: false, message: "Invalid refresh token" }, 401);
@@ -480,9 +480,9 @@ export const getProfile = async (c: Context) => {
   try {
     const user = c.get("user");
     if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "Unauthorized" 
+      return c.json({
+        success: false,
+        message: "Unauthorized"
       }, 401);
     }
 
@@ -499,27 +499,27 @@ export const updateUser = async (c: Context) => {
   try {
     const user = c.get("user");
     if (!user) {
-      return c.json({ 
-        success: false, 
-        message: "Unauthorized" 
+      return c.json({
+        success: false,
+        message: "Unauthorized"
       }, 401);
     }
 
     const { name, email, image } = await c.req.json();
 
     if (!name || !email) {
-      return c.json({ 
-        success: false, 
-        message: "Name and email are required" 
+      return c.json({
+        success: false,
+        message: "Name and email are required"
       }, 400);
     }
 
     if (email !== user.email) {
       const exists = await prisma.user.findUnique({ where: { email } });
       if (exists && exists.id !== user.id) {
-        return c.json({ 
-          success: false, 
-          message: "Email already taken" 
+        return c.json({
+          success: false,
+          message: "Email already taken"
         }, 400);
       }
     }

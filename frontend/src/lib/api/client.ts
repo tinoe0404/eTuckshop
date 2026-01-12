@@ -86,6 +86,10 @@ apiClient.interceptors.request.use(
     const session = await getSession();
     if (session?.user?.id) {
       config.headers['X-User-Id'] = session.user.id;
+      // ✅ Add HMAC Signature if available
+      if (session.user.signature) {
+        config.headers['X-User-Signature'] = session.user.signature;
+      }
     }
 
     return config;

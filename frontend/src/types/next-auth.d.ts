@@ -11,6 +11,7 @@ declare module "next-auth" {
       email: string;
       name: string;
       image?: string | null;
+      signature?: string; // ✅ HMAC Signature
     } & DefaultSession["user"];
   }
 

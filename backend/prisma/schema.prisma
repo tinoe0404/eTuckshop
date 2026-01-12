@@ -5,52 +5,60 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  relationMode = "prisma"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
+// ==============================
+// USER & AUTH (NextAuth + WhatsApp)
+// ==============================
 model User {
-  id               Int       @id @default(autoincrement())
-  name             String
-  email            String    @unique
-  password         String?
-  role             Role      @default(CUSTOMER)
-  image            String?
-  emailVerified    DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id            Int       @id @default(autoincrement())
+  name          String?
+  email         String?   @unique
+  phoneNumber   String?   @unique // 👈 Identity for WhatsApp users
+  password      String?
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(CUSTOMER)
+
   resetToken       String?
   resetTokenExpiry DateTime?
 
-  accounts Account[]
-  sessions Session[]
-  carts    Cart[]
-  orders   Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  accounts   Account[]
+  sessions   Session[]
+  cart       Cart?       // 1:1 Relation is better for Carts
+  orders     Order[]
+  botSession BotSession? // 👈 WhatsApp State
 }
 
+// Required for NextAuth
 model Account {
-  id                Int      @id @default(autoincrement())
+  id                Int     @id @default(autoincrement())
   userId            Int
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@index([userId])
 }
 
+// Required for NextAuth
 model Session {
   id           Int      @id @default(autoincrement())
   sessionToken String   @unique
@@ -61,6 +69,7 @@ model Session {
   @@index([userId])
 }
 
+// Required for NextAuth
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -69,13 +78,62 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+// ==============================
+// WHATSAPP BOT STATE
+// ==============================
+model BotSession {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  step       String   @default("MAIN_MENU") // e.g. "BROWSING", "CHECKOUT_CONFIRM"
+  tempData   Json?    // Stores selections like { "selectedProductId": 5 }
+  lastActive DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ==============================
+// E-COMMERCE CORE
+// ==============================
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  categoryId  Int
+  name        String
+  description String
+  price       Decimal  @db.Decimal(10, 2)
+  stock       Int      @default(0)
+  image       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category   Category    @relation(fields: [categoryId], references: [id])
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+}
+
+// ==============================
+// CART SYSTEM
+// ==============================
 model Cart {
-  id        Int        @id @default(autoincrement())
-  userId    Int        @unique
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items     CartItem[]
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
 }
 
 model CartItem {
@@ -85,75 +143,51 @@ model CartItem {
   quantity  Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([cartId, productId])
-  @@index([cartId])
-  @@index([productId])
+  @@index([cartId]) // ✅ CRITICAL: Speed up cart item lookups
+  @@index([productId]) // ✅ CRITICAL: Speed up product joins
+  @@index([cartId, productId]) // ✅ NEW: Speed up cart+product queries
 }
 
-model Category {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique
-  description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  products    Product[]
-}
-
-model Product {
-  id          Int         @id @default(autoincrement())
-  name        String
-  price       Decimal     @db.Decimal(10, 2)
-  stock       Int         @default(0)
-  description String?
-  image       String?     // 👈 Added: For product photos
-  categoryId  Int
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  
-  category    Category    @relation(fields: [categoryId], references: [id])
-  cartItems   CartItem[]
-  orderItems  OrderItem[]
-
-  @@index([categoryId])
-}
-
+// ==============================
+// ORDER SYSTEM
+// ==============================
 model Order {
   id          Int         @id @default(autoincrement())
   userId      Int
-  totalAmount Decimal     @db.Decimal(10, 2) // Fixed: Use Decimal for currency
-  paymentType PaymentType @default(CASH)
-  status      OrderStatus @default(PENDING)
   orderNumber String      @unique @default(cuid())
-  
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  totalAmount Decimal     @db.Decimal(10, 2)
+  status      OrderStatus @default(PENDING)
+  paymentType PaymentType @default(CASH)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   paidAt      DateTime?
   completedAt DateTime?
 
-  user        User        @relation(fields: [userId], references: [id])
-  orderItems  OrderItem[]
-  paymentQR   PaymentQR?
+  user       User        @relation(fields: [userId], references: [id])
+  orderItems OrderItem[]
+  paymentQR  PaymentQR?
 
   @@index([userId])
   @@index([status])
 }
 
-
-
 model OrderItem {
-  id               Int     @id @default(autoincrement())
-  orderId          Int
-  productId        Int?    // 👈 Changed: Optional, so we don't lose the record if product is deleted
-  productName      String  // 👈 Added: Snapshots the name at time of purchase
-  quantity         Int
-  priceAtPurchase  Decimal @db.Decimal(10, 2)
-  subtotal         Decimal @db.Decimal(10, 2)
-  
-  order            Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product          Product? @relation(fields: [productId], references: [id], onDelete: SetNull) // 👈 Safe deletion
+  id              Int     @id @default(autoincrement())
+  orderId         Int
+  productId       Int? // Nullable if product deleted
+  productName     String // Snapshot of name
+  quantity        Int
+  priceAtPurchase Decimal @db.Decimal(10, 2)
+  subtotal        Decimal @db.Decimal(10, 2)
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([productId])
@@ -162,15 +196,21 @@ model OrderItem {
 model PaymentQR {
   id          Int         @id @default(autoincrement())
   orderId     Int         @unique
-  qrCode      String
-  qrData      String
+  
+  qrCode      String?     // 👈 OPTIONAL: Base64 QR Image (generated later)
+  qrData      String      // 👈 REQUIRED: The URL/Link sent to the user
+  
   paymentType PaymentType
   expiresAt   DateTime?
   isUsed      Boolean     @default(false)
   createdAt   DateTime    @default(now())
-  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
+// ==============================
+// ENUMS
+// ==============================
 enum Role {
   ADMIN
   CUSTOMER

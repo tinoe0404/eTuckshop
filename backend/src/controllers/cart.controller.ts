@@ -62,13 +62,13 @@ const getOrCreateCartDB = async (userId: number) => {
 export const getCart = async (c: Context) => {
   try {
     const user = c.get('user');
-    
+
     const cartData = await getOrSetCache(`cart:${user.id}`, async () => {
-        // This now executes as one optimized batch query
-        const cart = await getOrCreateCartDB(user.id);
-        
-        // Ensure calculateCartTotals doesn't perform ANY extra DB queries
-        return calculateCartTotals(cart);
+      // This now executes as one optimized batch query
+      const cart = await getOrCreateCartDB(user.id);
+
+      // Ensure calculateCartTotals doesn't perform ANY extra DB queries
+      return calculateCartTotals(cart);
     }, CART_TTL);
 
     return c.json({
@@ -84,12 +84,14 @@ export const getCart = async (c: Context) => {
 // ==============================
 // ADD TO CART
 // ==============================
+// ==============================
+// ADD TO CART
+// ==============================
 export const addToCart = async (c: Context) => {
   try {
     const user = c.get('user');
     const { productId: pidRaw, quantity: qtyRaw } = await c.req.json();
 
-    // specific parsing to ensure numbers
     const productId = parseInt(pidRaw);
     const quantity = parseInt(qtyRaw || 1);
 
@@ -97,96 +99,70 @@ export const addToCart = async (c: Context) => {
       return c.json({ success: false, message: "Invalid input" }, 400);
     }
 
-    // 🚀 OPTIMIZATION 1: Run independent queries in parallel
-    // We fetch the Product (to check stock) and the User's Cart (to check existing items) simultaneously.
+    // 1. Fetch Product & Cart in parallel
     const [product, existingCart] = await Promise.all([
       prisma.product.findUnique({ where: { id: productId } }),
       prisma.cart.findFirst({
         where: { userId: user.id },
-        include: { items: true } // Fetch items now to avoid a separate DB call later
+        include: { items: true }
       })
     ]);
 
-    // --- Validation Checks ---
     if (!product) return c.json({ success: false, message: "Product not found" }, 404);
-
     if (product.stock < quantity) {
-      return c.json({ success: false, message: `Insufficient stock. Only ${product.stock} available` }, 400);
+      return c.json({ success: false, message: `Insufficient stock.` }, 400);
     }
 
-    // --- Handle Cart Logic ---
     let cartId = existingCart?.id;
 
-    // If no cart exists, create one
+    // 2. Create Cart if needed
     if (!existingCart) {
-      const newCart = await prisma.cart.create({
-        data: { userId: user.id }
-      });
+      const newCart = await prisma.cart.create({ data: { userId: user.id } });
       cartId = newCart.id;
     }
 
-    // 🚀 OPTIMIZATION 2: Check for existing item in memory
-    // We already fetched 'existingCart.items', so we don't need 'prisma.cartItem.findFirst'
+    // 3. Upsert Logic
     const currentItem = existingCart?.items.find((item) => item.productId === productId);
 
     if (currentItem) {
-      // Check total stock requirement
       if (product.stock < currentItem.quantity + quantity) {
-        return c.json({ success: false, message: "Insufficient stock for total quantity" }, 400);
+        return c.json({ success: false, message: "Insufficient stock" }, 400);
       }
-
-      // Update existing item
       await prisma.cartItem.update({
         where: { id: currentItem.id },
         data: { quantity: currentItem.quantity + quantity },
       });
     } else {
-      // Create new item
       await prisma.cartItem.create({
         data: {
           cartId: cartId!,
-          productId: productId,
-          quantity: quantity,
+          productId,
+          quantity,
         },
       });
     }
 
-    // 🔄 Invalidate Cache (Fire and forget - don't await if you want max speed, 
-    // or keep await if consistency is critical. Usually safe to not await for cache del)
-    invalidateCartCache(user.id); 
+    // 4. Invalidate Cache
+    invalidateCartCache(user.id);
 
-    // 🚀 OPTIMIZATION 3: Single Efficient Fetch for Response
-    // We fetch everything needed for the frontend in ONE query using 'include'.
-    // This replaces 'getOrCreateCartDB' which was likely causing the slowdowns.
+    // 5. Optimized Response Fetch
+    // We only need to fetch the Updated Cart items to calculate totals
     const finalCart = await prisma.cart.findUnique({
       where: { id: cartId },
       include: {
         items: {
-          orderBy: { createdAt: 'desc' }, // Keep order consistent
+          orderBy: { createdAt: 'desc' },
           include: {
-            product: {
-                select: {
-                    id: true,
-                    name: true,
-                    price: true,
-                    stock: true,
-                    category: { select: { name: true } } // Fetch category name if needed
-                }
-            }
-          },
-        },
-      },
+            product: { include: { category: true } } // needed for UI
+          }
+        }
+      }
     });
-
-    if (!finalCart) throw new Error("Cart creation failed");
-
-    // Recalculate totals based on the fresh data
-    const responseData = calculateCartTotals(finalCart);
 
     return c.json({
       success: true,
-      message: "Product added to cart",
-      data: responseData,
+      message: "Added to cart",
+      data: calculateCartTotals(finalCart),
     });
 
   } catch (error) {
@@ -206,18 +182,18 @@ export const updateCartItem = async (c: Context) => {
 
     const cart = await getOrCreateCartDB(user.id);
     const cartItem = await prisma.cartItem.findFirst({
-        where: { cartId: cart.id, productId: parseInt(productId) },
-        include: { product: true }
+      where: { cartId: cart.id, productId: parseInt(productId) },
+      include: { product: true }
     });
 
     if (!cartItem) return c.json({ success: false, message: "Item not found in cart" }, 404);
     if (cartItem.product.stock < quantity) {
-        return c.json({ success: false, message: `Insufficient stock. Only ${cartItem.product.stock} available` }, 400);
+      return c.json({ success: false, message: `Insufficient stock. Only ${cartItem.product.stock} available` }, 400);
     }
 
     await prisma.cartItem.update({
-        where: { id: cartItem.id },
-        data: { quantity: parseInt(quantity) }
+      where: { id: cartItem.id },
+      data: { quantity: parseInt(quantity) }
     });
 
     // 🔄 Invalidate Cache
@@ -244,7 +220,7 @@ export const removeFromCart = async (c: Context) => {
 
     const cart = await getOrCreateCartDB(user.id);
     const cartItem = await prisma.cartItem.findFirst({
-        where: { cartId: cart.id, productId }
+      where: { cartId: cart.id, productId }
     });
 
     if (!cartItem) return c.json({ success: false, message: "Item not found" }, 404);
@@ -289,28 +265,45 @@ export const clearCart = async (c: Context) => {
 };
 
 // ==============================
-// GET CART SUMMARY (Cached)
+// GET CART SUMMARY (Super Fast - Cached)
 // ==============================
 export const getCartSummaryGet = async (c: Context) => {
-  const user = c.get('user');
+  try {
+    const user = c.get('user');
 
-  // Fast query: Only get the counts and sums
-  const summary = await prisma.cart.findUnique({
-    where: { userId: user.id },
-    select: {
-      items: {
+    // ✅ CACHE FIRST with 5-minute TTL
+    const summary = await getOrSetCache(`cart:summary:${user.id}`, async () => {
+      // Ultra-minimal query - only get counts and prices
+      const cart = await prisma.cart.findUnique({
+        where: { userId: user.id },
         select: {
-          quantity: true,
-          product: { select: { price: true } }
+          items: {
+            select: {
+              quantity: true,
+              productId: true,
+              product: { select: { price: true } }
+            }
+          }
         }
+      });
+
+      if (!cart || !cart.items.length) {
+        return { totalItems: 0, totalAmount: 0 };
       }
-    }
-  });
 
-  const totalItems = summary?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
-  const totalAmount = summary?.items.reduce((sum, item) => sum + (item.quantity * item.product.price), 0) || 0;
+      const totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+      const totalAmount = cart.items.reduce((sum, item) => {
+        return sum + (item.quantity * Number(item.product.price));
+      }, 0);
 
-  return c.json({ success: true, data: { totalItems, totalAmount } });
+      return { totalItems, totalAmount };
+    }, 300); // 5-minute cache
+
+    return c.json({ success: true, data: summary });
+  } catch (error) {
+    // Fallback to empty cart on error
+    return c.json({ success: true, data: { totalItems: 0, totalAmount: 0 } });
+  }
 };
 
 // Legacy Post Method

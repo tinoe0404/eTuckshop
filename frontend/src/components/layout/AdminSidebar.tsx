@@ -7,14 +7,11 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
   ShoppingBag,
-  FolderOpen,
   Package,
-  Box,
   QrCode,
   Users,
   ChevronLeft,
   ChevronRight,
-  BarChart3,
   UserCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,29 +30,14 @@ const navItems: NavItem[] = [
     icon: <LayoutDashboard className="w-5 h-5" />,
   },
   {
-    title: 'Analytics',
-    href: '/admin/analytics',
-    icon: <BarChart3 className="w-5 h-5" />,
-  },
-  {
     title: 'Products',
     href: '/admin/products',
     icon: <ShoppingBag className="w-5 h-5" />,
   },
   {
-    title: 'Categories',
-    href: '/admin/categories',
-    icon: <FolderOpen className="w-5 h-5" />,
-  },
-  {
     title: 'Orders',
     href: '/admin/orders',
     icon: <Package className="w-5 h-5" />,
-  },
-  {
-    title: 'Inventory',
-    href: '/admin/inventory',
-    icon: <Box className="w-5 h-5" />,
   },
   {
     title: 'Scan QR',

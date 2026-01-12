@@ -96,7 +96,7 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
   const products = productsData?.data || [];
   const categories = categoriesData?.data || [];
 
-  
+
 
   // 4. Filtering Logic
   const filteredProducts = useMemo(() => {
@@ -122,7 +122,7 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
       const [minStr, maxStr] = priceRange.split('-');
       const min = Number(minStr);
       const max = maxStr ? Number(maxStr) : Infinity;
-      
+
       result = result.filter((p) => p.price >= min && p.price <= max);
     }
 
@@ -160,8 +160,8 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
   }, []);
 
   const handleAddToCart = useCallback(
-    (productId: number) => {
-      addToCartMutation.mutate({ productId, quantity: 1 });
+    (product: Product) => {
+      addToCartMutation.mutate({ productId: product.id, quantity: 1, product });
     },
     [addToCartMutation]
   );
@@ -176,7 +176,7 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
   return (
     <div className="min-h-screen bg-[#0f1419] text-gray-100">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
-        
+
         {/* === HEADER === */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -347,7 +347,7 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
                 key={product.id}
                 className="group overflow-hidden bg-[#1a2332] border-gray-800 shadow-md hover:shadow-2xl transition-all duration-300"
               >
-                <div 
+                <div
                   className="relative h-56 bg-gradient-to-br from-gray-800 to-gray-900 overflow-hidden cursor-pointer"
                   onClick={() => handleViewProduct(product.id)}
                 >
@@ -370,7 +370,7 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
                     </Badge>
                   </div>
                 </div>
-                
+
                 <CardContent className="p-5 space-y-4">
                   <div>
                     <h3
@@ -381,13 +381,13 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
                     </h3>
                     <p className="text-sm text-gray-400 line-clamp-1">{product.category?.name}</p>
                   </div>
-                  
+
                   {product.description && (
                     <p className="text-sm text-gray-400 line-clamp-2 h-10">
                       {product.description}
                     </p>
                   )}
-                  
+
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-2xl font-bold text-blue-400">{formatPrice(product.price)}</p>
@@ -398,11 +398,11 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
                       <span className="text-sm font-medium">4.8</span>
                     </div>
                   </div>
-                  
+
                   <div className="flex space-x-2">
                     <Button
                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => handleAddToCart(product.id)}
+                      onClick={() => handleAddToCart(product)}
                       disabled={product.stock === 0 || addToCartMutation.isPending}
                     >
                       <Plus className="w-4 h-4 mr-1" />
@@ -432,17 +432,17 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
                 <CardContent className="p-0">
                   <div className="flex flex-col md:flex-row">
                     {/* Image */}
-                    <div 
+                    <div
                       className="relative w-full md:w-48 h-48 bg-gradient-to-br from-gray-800 to-gray-900 shrink-0 cursor-pointer"
                       onClick={() => handleViewProduct(product.id)}
                     >
                       {product.image ? (
-                        <Image 
-                          src={product.image} 
-                          alt={product.name} 
-                          fill 
+                        <Image
+                          src={product.image}
+                          alt={product.name}
+                          fill
                           unoptimized
-                          className="object-cover" 
+                          className="object-cover"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -480,7 +480,7 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
                         </div>
                         <div className="flex items-center space-x-3">
                           <Button
-                            onClick={() => handleAddToCart(product.id)}
+                            onClick={() => handleAddToCart(product)}
                             disabled={product.stock === 0 || addToCartMutation.isPending}
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                           >

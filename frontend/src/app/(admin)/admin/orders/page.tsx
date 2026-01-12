@@ -183,15 +183,34 @@ export default function AdminOrdersPage() {
     openCompleteDialog(orderId);
   };
 
+  function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+
   const confirmComplete = () => {
     if (completingOrderId) {
-      completeOrderMutation.mutate(completingOrderId, {
-        onSuccess: () => {
-          closeCompleteDialog();
+      // ✅ Generate idempotency key
+      const idempotencyKey = generateUUID();
+      
+      // ✅ Pass object with both orderId and idempotencyKey
+      completeOrderMutation.mutate(
+        { 
+          orderId: completingOrderId, 
+          idempotencyKey
         },
-      });
+        {
+          onSuccess: () => {
+            closeCompleteDialog();
+          },
+        }
+      );
     }
   };
+  
 
   const handleRejectOrder = (orderId: number) => {
     openRejectDialog(orderId);
@@ -881,4 +900,8 @@ export default function AdminOrdersPage() {
       </div>
     </div>
   );
+}
+
+function generateUUID() {
+  throw new Error('Function not implemented.');
 }

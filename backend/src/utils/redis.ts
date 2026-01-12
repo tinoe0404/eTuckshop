@@ -1,4 +1,4 @@
-// src/utils/redis.ts
+// src/utils/redis.ts (UPDATED WITH IDEMPOTENCY FUNCTIONS)
 import { Redis } from "@upstash/redis";
 
 export const redis = new Redis({
@@ -44,6 +44,40 @@ export const getOrSetCache = async <T>(
     console.error(`⚠️ Redis Error (${key}):`, error);
     // Fallback: If Redis fails, just return fresh data without crashing
     return await callback();
+  }
+};
+
+// ============================================
+// ✅ NEW: IDEMPOTENCY HELPERS
+// ============================================
+/**
+ * Set an idempotency key in Redis with TTL
+ * Used to prevent duplicate order completions
+ */
+export const setIdempotencyKey = async (key: string, value: any, ttlSeconds: number = 60) => {
+  try {
+    await redis.setex(key, ttlSeconds, JSON.stringify(value));
+    console.log(`🔑 Idempotency key set: ${key} (TTL: ${ttlSeconds}s)`);
+  } catch (error) {
+    console.error(`⚠️ Redis setIdempotencyKey error (${key}):`, error);
+  }
+};
+
+/**
+ * Get an idempotency key from Redis
+ * Returns null if key doesn't exist or is expired
+ */
+export const getIdempotencyKey = async (key: string) => {
+  try {
+    const value = await redis.get<string>(key);
+    if (value) {
+      console.log(`🎯 Idempotency key HIT: ${key}`);
+      return JSON.parse(value);
+    }
+    return null;
+  } catch (error) {
+    console.error(`⚠️ Redis getIdempotencyKey error (${key}):`, error);
+    return null;
   }
 };
 

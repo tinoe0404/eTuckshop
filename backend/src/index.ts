@@ -16,6 +16,7 @@ import cartRoutes from "./routes/cart.route";
 import orderRoutes from "./routes/orders.route";
 import analyticsRoutes from "./routes/analytics.route";
 import customerRoutes from "./routes/customer.route";
+import { webhook } from "./chatbot/bot.controller";
 
 const app = new Hono();
 
@@ -30,7 +31,7 @@ app.use(logger());
 app.use(compress());
 
 // 3. Security Headers
-app.use(secureHeaders()); 
+app.use(secureHeaders());
 // Add custom no-cache headers for API data
 app.use("*", async (c, next) => {
   await next();
@@ -63,14 +64,14 @@ app.use(
       // Production fallback: Reject unknown origins
       if (process.env.NODE_ENV === "production") {
         console.warn("⚠️ Blocked CORS origin:", origin);
-        return allowedOrigins[0]; 
+        return allowedOrigins[0];
       }
 
       return origin;
     },
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization", "Cookie", "X-User-ID"],
+    allowHeaders: ["Content-Type", "Authorization", "Cookie", "X-User-ID", "X-User-Signature", "X-User-Role"],
     exposeHeaders: ["Set-Cookie"],
     maxAge: 86400,
   })
@@ -92,10 +93,10 @@ app.get("/health", async (c) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    return c.json({ 
-      success: false, 
-      status: "unhealthy", 
-      database: "disconnected" 
+    return c.json({
+      success: false,
+      status: "unhealthy",
+      database: "disconnected"
     }, 503);
   }
 });
@@ -105,7 +106,7 @@ app.get("/", (c) => c.json({
   success: true,
   message: "eTuckshop API v1.0",
   status: "online",
-  docs: "/api/docs" 
+  docs: "/api/docs"
 }));
 
 // API Routes
@@ -117,6 +118,11 @@ api.route("/cart", cartRoutes);
 api.route("/orders", orderRoutes);
 api.route("/analytics", analyticsRoutes);
 api.route("/customers", customerRoutes);
+app.post("/api/whatsapp/webhook", webhook);
+
+// ✅ NEW: SSE Route for real-time updates
+import sseRoutes from './routes/sse.route';
+api.route("/sse", sseRoutes);
 
 app.route("/api", api);
 
@@ -129,7 +135,7 @@ app.notFound((c) => c.json({ success: false, message: "Endpoint not found" }, 40
 app.onError((err, c) => {
   console.error("🔥 Server Error:", err);
   const isDev = process.env.NODE_ENV !== "production";
-  
+
   return c.json({
     success: false,
     message: isDev ? err.message : "Internal server error",
@@ -149,11 +155,11 @@ async function startServer() {
 
     // 2. Start Server
     const port = Number(process.env.PORT) || 5000;
-    
+
     serve({
       port,
       fetch: app.fetch,
-      hostname: "0.0.0.0" 
+      hostname: "0.0.0.0"
     });
 
     console.log(`🚀 Server running on http://localhost:${port}`);

@@ -85,6 +85,7 @@ export type ProductList = Product[];
 export interface CartItem {
   product: any;
   id: number;
+  cartId: number;
   productId: number;
   name: string;
   description: string | null;
@@ -95,6 +96,8 @@ export interface CartItem {
   stockLevel: 'LOW' | 'MEDIUM' | 'HIGH';
   category: Category;
   image: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Cart {

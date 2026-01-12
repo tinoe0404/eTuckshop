@@ -1,5 +1,6 @@
 import CustomerHeader from '@/components/layout/CustomerHeader';
 import CustomerSidebar from '@/components/layout/CustomerSidebar';
+import StockUpdater from '@/components/common/StockUpdater';
 
 export default function DashboardLayout({
   children,
@@ -8,9 +9,10 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="min-h-screen bg-[#0f1419]">
+      <StockUpdater />
       {/* Header - Always visible */}
       <CustomerHeader />
-      
+
       {/* Main Layout with Sidebar */}
       <div className="flex">
         {/* Sidebar - Hidden on mobile (< 1024px), visible on desktop (≥ 1024px) */}

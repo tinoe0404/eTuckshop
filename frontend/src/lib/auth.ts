@@ -1,17 +1,17 @@
-// File: lib/auth.ts - Production Debug Version
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import crypto from "crypto";
 
 // ✅ Get API URL based on environment
 const getApiUrl = () => {
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  
+
   if (process.env.NODE_ENV === 'production') {
     return 'https://etuckshop-backend.onrender.com/api';
   }
-  
+
   return 'http://localhost:5000/api';
 };
 
@@ -84,7 +84,7 @@ export const authOptions: NextAuthOptions = {
           if (!response.ok) {
             const errorData = await response.json().catch(() => null);
             console.error('❌ Auth failed:', response.status, errorData);
-            
+
             // ✅ Return null instead of throwing to show proper error
             return null;
           }
@@ -164,6 +164,16 @@ export const authOptions: NextAuthOptions = {
         session.user.name = token.name as string;
         session.user.role = token.role as "ADMIN" | "CUSTOMER";
         session.user.image = token.picture as string | null;
+
+        // 🔐 Generate HMAC Signature for Backend Verification
+        // Uses QR_SIGNING_SECRET (shared with backend)
+        const signatureSecret = process.env.QR_SIGNING_SECRET || process.env.NEXTAUTH_SECRET;
+        if (signatureSecret && token.id) {
+          session.user.signature = crypto
+            .createHmac("sha256", signatureSecret)
+            .update(token.id.toString())
+            .digest("hex");
+        }
       }
 
       console.log('✅ Session created:', session.user?.email, session.user?.role);
@@ -172,13 +182,13 @@ export const authOptions: NextAuthOptions = {
 
     async redirect({ url, baseUrl }) {
       console.log('🔀 Redirect callback:', { url, baseUrl });
-      
+
       // ✅ Allow relative URLs
       if (url.startsWith("/")) return `${baseUrl}${url}`;
-      
+
       // ✅ Allow same-origin URLs
       if (new URL(url).origin === baseUrl) return url;
-      
+
       // ✅ Default to base URL
       return baseUrl;
     },
