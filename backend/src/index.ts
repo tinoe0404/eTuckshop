@@ -16,7 +16,7 @@ import cartRoutes from "./routes/cart.route";
 import orderRoutes from "./routes/orders.route";
 import analyticsRoutes from "./routes/analytics.route";
 import customerRoutes from "./routes/customer.route";
-import { webhook } from "./chatbot/bot.controller";
+import whatsappRoutes from "./routes/whatsapp.route"; // ✅ NEW: Dedicated WhatsApp routes
 
 const app = new Hono();
 
@@ -118,7 +118,7 @@ api.route("/cart", cartRoutes);
 api.route("/orders", orderRoutes);
 api.route("/analytics", analyticsRoutes);
 api.route("/customers", customerRoutes);
-app.post("/api/whatsapp/webhook", webhook);
+api.route("/whatsapp", whatsappRoutes); // ✅ NEW: WhatsApp webhook routes
 
 // ✅ NEW: SSE Route for real-time updates
 import sseRoutes from './routes/sse.route';
