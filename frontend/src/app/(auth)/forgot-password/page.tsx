@@ -5,11 +5,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useForgotPassword } from '@/lib/hooks/useAuth';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { authService } from '@/lib/api/services/auth.service';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,25 +35,24 @@ export default function ForgotPasswordPage() {
     resolver: zodResolver(forgotPasswordSchema),
   });
 
-  const forgotPasswordMutation = useMutation({
-    mutationFn: async (data: ForgotPasswordFormData) => {
-      return authService.forgotPassword(data.email);
-    },
-    onSuccess: () => {
-      setEmailSent(true);
-      toast.success('Password reset instructions sent to your email');
-    },
-    onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.message ??
-          error.message ??
-          'Failed to send reset email'
-      );
-    },
-  });
+  const forgotPasswordMutation = useForgotPassword();
+
+  // Handle success via effect or callback. 
+  // Since the hook handles success/error toasts, we just need to update local state.
+  // We can attach a separate onSuccess to the mutate call or rely on the hook's mutation state.
+  // Wait, I can't pass options to the hook call directly if I defined them in `useMutation` inside the hook UNLESS I exposed them.
+  // In `useAuth.ts`, I defined onSuccess/onError inside useMutation. 
+  // I should check `forgotPasswordMutation.isSuccess` in the component to set `emailSent`.
+
+  // BETTER: modify the hook usage or just use mutate({ onSuccess: ... }) if useMutation allowed overrides?
+  // React Query `mutate` allows onSuccess overrides.
 
   const onSubmit = (data: ForgotPasswordFormData) => {
-    forgotPasswordMutation.mutate(data);
+    forgotPasswordMutation.mutate(data.email, {
+      onSuccess: () => {
+        setEmailSent(true);
+      }
+    });
   };
 
   if (emailSent) {

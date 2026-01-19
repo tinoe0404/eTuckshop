@@ -6,11 +6,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { authService } from '@/lib/api/services/auth.service';
+import { useResetPassword } from '@/lib/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,31 +52,15 @@ export default function ResetPasswordPage() {
     }
   }, [token, router]);
 
-  const resetPasswordMutation = useMutation({
-    mutationFn: async (data: ResetPasswordFormData) => {
-      if (!token) throw new Error('No reset token');
-      return authService.resetPassword({
-        token,
-        newPassword: data.newPassword,
-      });
-    },
-    onSuccess: () => {
-      toast.success('Password reset successfully! Redirecting to login...');
-      setTimeout(() => {
-        router.push('/login');
-      }, 2000);
-    },
-    onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.message ??
-          error.message ??
-          'Failed to reset password'
-      );
-    },
-  });
+  const resetPasswordMutation = useResetPassword();
 
   const onSubmit = (data: ResetPasswordFormData) => {
-    resetPasswordMutation.mutate(data);
+    if (token) {
+      resetPasswordMutation.mutate({
+        token,
+        newPassword: data.newPassword
+      });
+    }
   };
 
   if (!token) {

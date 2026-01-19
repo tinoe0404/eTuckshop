@@ -7,9 +7,9 @@ import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { updateProfile } from '@/lib/http-service/profile';
-import { signup } from '@/lib/http-service/auth';
+import { signup, forgotPassword, resetPassword } from '@/lib/http-service/auth';
 import { useEffect } from 'react';
-import type { SignupPayload } from '@/lib/http-service/auth/types';
+import type { SignupPayload, ResetPasswordPayload } from '@/lib/http-service/auth/types';
 
 /**
  * Custom hook for authentication
@@ -135,6 +135,49 @@ export function useSignup() {
     },
     onError: (error: any) => {
       const message = error.message || 'Failed to register';
+      toast.error(message);
+    },
+  });
+}
+
+/**
+ * Hook for requesting password reset
+ */
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: async (email: string) => {
+      const response = await forgotPassword(email);
+      return response;
+    },
+    onSuccess: () => {
+      toast.success('Password reset instructions sent to your email');
+    },
+    onError: (error: any) => {
+      const message = error.message || 'Failed to send reset email';
+      toast.error(message);
+    },
+  });
+}
+
+/**
+ * Hook for resetting password using token
+ */
+export function useResetPassword() {
+  const router = useRouter();
+
+  return useMutation({
+    mutationFn: async (data: ResetPasswordPayload) => {
+      const response = await resetPassword(data);
+      return response;
+    },
+    onSuccess: () => {
+      toast.success('Password reset successfully! Redirecting to login...');
+      setTimeout(() => {
+        router.push('/login');
+      }, 2000);
+    },
+    onError: (error: any) => {
+      const message = error.message || 'Failed to reset password';
       toast.error(message);
     },
   });
