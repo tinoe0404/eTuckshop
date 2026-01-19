@@ -46,11 +46,23 @@ export const handleWebhookVerification = async (c: Context) => {
  * Handles incoming WhatsApp messages from Meta Cloud API
  * Implements idempotency and async processing
  */
+/**
+ * Handles incoming WhatsApp messages from Meta Cloud API
+ * Implements idempotency and async processing
+ */
 export const handleWebhookPost = async (c: Context) => {
   try {
-    // 1. IMMEDIATELY return 200 OK (Meta requires response within 3 seconds)
-    // We'll process the message asynchronously
-    c.executionCtx?.waitUntil(processWebhookAsync(c));
+    // 1. Parse body SYNCHRONOUSLY to ensure we have the data before responding
+    // (If we respond first, the request stream closes in Bun)
+    const body = await c.req.json();
+
+    console.log("📥 Webhook received (POST):", JSON.stringify(body, null, 2));
+
+    // 2. IMMEDIATELY return 200 OK (Meta requires response within 3 seconds)
+    // Process the message asynchronously in the background
+    processWebhookAsync(body).catch((error) => {
+      console.error("❌ Background processing error:", error);
+    });
 
     return c.text('OK', 200);
   } catch (error) {
@@ -62,9 +74,12 @@ export const handleWebhookPost = async (c: Context) => {
 /**
  * Async message processing (runs after responding to Meta)
  */
-async function processWebhookAsync(c: Context) {
+/**
+ * Async message processing (runs after responding to Meta)
+ */
+async function processWebhookAsync(body: any) {
   try {
-    const body = await c.req.json();
+    // const body = await c.req.json(); // Data passed directly now
 
     // Parse Meta Cloud API payload
     const webhook = body as MetaWebhookPayload;
