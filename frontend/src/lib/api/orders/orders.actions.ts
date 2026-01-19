@@ -132,26 +132,47 @@ export async function checkoutAction(
 }
 
 /**
+ * Server Action: Get All Orders (Admin)
+ * Fetches all orders with optional filtering
+ * 
+ * @param params - Filter parameters
+ * @returns APIResponse with orders list and pagination
+ */
+export async function getAdminOrdersAction(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    paymentType?: string;
+    search?: string;
+}): Promise<APIResponse<{ orders: Order[]; pagination: any } | null>> {
+    try {
+        const response = await ordersService.getAll(params); // Assuming getAll exists on service
+        return response;
+    } catch (error) {
+        console.error('[getAdminOrdersAction] Error:', error);
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to fetch admin orders',
+            data: null,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
+
+/**
  * Server Action: Update Order Status (Admin)
  * Updates the status of an order
  * 
  * @param id - Order ID
- * @param prevState - Previous state from useActionState
- * @param formData - Form data
+ * @param payload - Status payload
  * @returns APIResponse with updated order or error
  */
 export async function updateOrderStatusAction(
     id: number,
-    prevState: any,
-    formData: FormData
+    payload: UpdateOrderStatusPayload
 ): Promise<APIResponse<Order | null>> {
     try {
         orderIdSchema.parse(id);
-
-        const payload: UpdateOrderStatusPayload = {
-            status: formData.get('status') as 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED',
-        };
-
         const validated = updateOrderStatusSchema.parse(payload);
 
         const response = await ordersService.updateStatus(id, validated);
