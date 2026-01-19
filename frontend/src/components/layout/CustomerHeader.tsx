@@ -33,9 +33,14 @@ import { useRouter } from 'next/navigation';
 import { useLogout } from '@/lib/api/auth/auth.hooks';
 import { useCartCount } from '@/lib/api/cart/cart.hooks';
 
-export default function CustomerHeader() {
+interface CustomerHeaderProps {
+  cartItemCount?: number;
+}
+
+export default function CustomerHeader({ cartItemCount = 0 }: CustomerHeaderProps) {
   const router = useRouter();
-  const totalItems = useCartCount();
+  // const totalItems = useCartCount(); // Removed hook usage
+  const totalItems = cartItemCount;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { data: session } = useSession();

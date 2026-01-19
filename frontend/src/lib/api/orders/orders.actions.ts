@@ -91,20 +91,14 @@ export async function getOrderStatsAction(): Promise<APIResponse<OrderStats | nu
  * Server Action: Checkout
  * Creates an order from the user's cart
  * 
- * @param prevState - Previous state from useActionState
- * @param formData - Form data
+ * @param payload - Checkout payload
  * @returns APIResponse with checkout response or error
  */
 export async function checkoutAction(
-    prevState: any,
-    formData: FormData
+    payload: CheckoutPayload
 ): Promise<APIResponse<CheckoutResponse | null>> {
     try {
-        const payload: CheckoutPayload = {
-            paymentType: formData.get('paymentType') as 'CASH' | 'PAYNOW',
-        };
-
-        // Validate with Zod
+        // Validate with Zod (even if implicit in type, good for runtime safety)
         const validated = createOrderSchema.parse(payload);
 
         // Call service

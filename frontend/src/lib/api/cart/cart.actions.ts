@@ -53,21 +53,13 @@ export async function getCartSummaryAction(): Promise<APIResponse<CartSummary | 
  * Server Action: Add to Cart
  * Adds a product to the cart
  * 
- * @param prevState - Previous state from useActionState
- * @param formData - Form data
+ * @param payload - Add to cart payload
  * @returns APIResponse with updated cart or error
  */
 export async function addToCartAction(
-    prevState: any,
-    formData: FormData
+    payload: AddToCartPayload
 ): Promise<APIResponse<Cart | null>> {
     try {
-        // Extract form data
-        const payload = {
-            productId: parseInt(formData.get('productId') as string, 10),
-            quantity: parseInt(formData.get('quantity') as string, 10) || 1,
-        };
-
         // Validate with Zod
         const validated = addToCartSchema.parse(payload);
 
