@@ -4,18 +4,14 @@ import { z } from 'zod';
  * Schema for creating an order
  */
 export const createOrderSchema = z.object({
-    paymentType: z.enum(['CASH', 'PAYNOW'], {
-        errorMap: () => ('Payment type must be CASH or PAYNOW'),
-    }),
+    paymentType: z.enum(['CASH', 'PAYNOW']),
 });
 
 /**
  * Schema for updating order status (Admin)
  */
 export const updateOrderStatusSchema = z.object({
-    status: z.enum(['PENDING', 'PAID', 'COMPLETED', 'CANCELLED'], {
-        errorMap: () => ('Invalid order status'),
-    }),
+    status: z.enum(['PENDING', 'PAID', 'COMPLETED', 'CANCELLED']),
 });
 
 /**
