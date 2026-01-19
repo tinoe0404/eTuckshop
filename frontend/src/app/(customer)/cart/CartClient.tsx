@@ -1,0 +1,422 @@
+'use client';
+
+import { useCallback, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
+import {
+    ShoppingCart,
+    Trash2,
+    Plus,
+    Minus,
+    ShoppingBag,
+    ArrowRight,
+    ArrowLeft,
+    Package,
+    AlertCircle,
+    AlertTriangle,
+    RefreshCw,
+} from 'lucide-react';
+import { formatCurrency, getStockLevelColor } from '@/lib/utils';
+import Image from 'next/image';
+
+// Legacy type import might need adjusting if types moved
+import { Cart, CartItem } from '@/lib/api/cart/cart.types';
+import { updateCartItemAction, removeFromCartAction, clearCartAction } from '@/lib/api/cart/cart.actions';
+
+interface CartClientProps {
+    initialCart: Cart | null;
+}
+
+export default function CartClient({ initialCart }: CartClientProps) {
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
+    const [quantityInputs, setQuantityInputs] = useState<Record<number, string>>({});
+
+    // Use initialCart from server
+    const cart = initialCart;
+    const items = cart?.items || [];
+    const totalItems = cart?.totalItems || 0;
+    const totalAmount = cart?.totalAmount || 0;
+
+    // ========================
+    // HANDLERS
+    // ========================
+
+    const handleQuantityChange = useCallback(
+        async (productId: number, newQuantity: number, maxStock: number) => {
+            if (newQuantity < 1) return;
+            if (newQuantity > maxStock) {
+                toast.error(`Only ${maxStock} available in stock`);
+                return;
+            }
+
+            startTransition(async () => {
+                const result = await updateCartItemAction({ productId, quantity: newQuantity });
+                if (!result.success) {
+                    toast.error(result.message || 'Failed to update quantity');
+                }
+                // No manual refresh needed if action calls revalidatePath
+            });
+        },
+        []
+    );
+
+    const handleQuantityInputChange = useCallback((productId: number, value: string) => {
+        setQuantityInputs((prev) => ({ ...prev, [productId]: value }));
+    }, []);
+
+    const handleQuantityInputBlur = useCallback(
+        (productId: number, maxStock: number) => {
+            const value = quantityInputs[productId];
+            if (value) {
+                const numValue = parseInt(value);
+                if (!isNaN(numValue) && numValue > 0) {
+                    handleQuantityChange(productId, numValue, maxStock);
+                }
+            }
+            setQuantityInputs((prev) => {
+                const newState = { ...prev };
+                delete newState[productId];
+                return newState;
+            });
+        },
+        [quantityInputs, handleQuantityChange]
+    );
+
+    const handleRemoveItem = (productId: number) => {
+        startTransition(async () => {
+            const result = await removeFromCartAction(productId);
+            if (result.success) {
+                toast.success('Item removed');
+            } else {
+                toast.error(result.message || 'Failed to remove item');
+            }
+        });
+    };
+
+    const handleClearCart = () => {
+        startTransition(async () => {
+            const result = await clearCartAction();
+            if (result.success) {
+                toast.success('Cart cleared');
+            } else {
+                toast.error(result.message || 'Failed to clear cart');
+            }
+        });
+    };
+
+    const handleCheckout = () => {
+        if (items.length === 0) {
+            toast.error('Your cart is empty');
+            return;
+        }
+
+        const stockIssues = items.filter((item) => item.quantity > item.stock);
+        if (stockIssues.length > 0) {
+            toast.error('Please update quantities for out-of-stock items');
+            return;
+        }
+
+        router.push('/checkout');
+    };
+
+    // ========================
+    // MAIN RENDER
+    // ========================
+
+    const hasStockIssues = items.some((item) => item.quantity > item.stock);
+
+    return (
+        <div className="w-full h-full overflow-auto">
+            <div className="p-3 pb-24 sm:p-4 sm:pb-4">
+                {/* Header */}
+                <div className="mb-4">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => router.push('/products')}
+                        className="gap-1 text-gray-300 hover:bg-gray-800 mb-2 px-2 h-8"
+                    >
+                        <ArrowLeft className="w-3 h-3" />
+                        <span className="text-xs">Back</span>
+                    </Button>
+
+                    <div className="flex items-start justify-between gap-2">
+                        <div>
+                            <h1 className="text-xl sm:text-2xl font-bold text-white">Shopping Cart</h1>
+                            <p className="text-xs text-gray-400">{totalItems} items</p>
+                        </div>
+                        {items.length > 0 && (
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-red-400 hover:bg-red-900/20 h-8 px-2"
+                                    >
+                                        <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent className="bg-[#1a2332] border-gray-700 text-white w-[90vw] max-w-sm">
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle className="text-base">Clear cart?</AlertDialogTitle>
+                                        <AlertDialogDescription className="text-sm text-gray-400">
+                                            This will remove all items. This cannot be undone.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
+                                        <AlertDialogCancel className="border-gray-700 mt-0">
+                                            Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={handleClearCart}
+                                            className="bg-red-600 hover:bg-red-700"
+                                            disabled={isPending}
+                                        >
+                                            {isPending ? 'Clearing...' : 'Clear Cart'}
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        )}
+                    </div>
+                </div>
+
+                {/* Empty Cart State */}
+                {items.length === 0 ? (
+                    <Card className="bg-[#1a2332] border-gray-800">
+                        <CardContent className="p-8 text-center space-y-4">
+                            <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto">
+                                <ShoppingCart className="w-10 h-10 text-blue-400" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-bold text-white">Your cart is empty</h2>
+                                <p className="text-sm text-gray-400">Start shopping to add items</p>
+                            </div>
+                            <Button
+                                onClick={() => router.push('/products')}
+                                className="bg-blue-600 hover:bg-blue-700"
+                            >
+                                <ShoppingBag className="w-4 h-4 mr-2" />
+                                Browse Products
+                            </Button>
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <div className="space-y-3">
+                        {/* Stock Issues Warning */}
+                        {hasStockIssues && (
+                            <Card className="bg-red-900/20 border-red-800">
+                                <CardContent className="p-2.5">
+                                    <div className="flex gap-2 items-start">
+                                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                                        <p className="text-xs text-red-300">
+                                            Some items exceed stock. Adjust quantities.
+                                        </p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* Cart Items */}
+                        {items.map((item) => {
+                            const hasIssue = item.quantity > item.stock;
+                            const displayQuantity =
+                                quantityInputs[item.productId] ?? item.quantity.toString();
+
+                            return (
+                                <Card
+                                    key={item.id}
+                                    className={`bg-[#1a2332] ${hasIssue ? 'border-red-800 border-2' : 'border-gray-800'
+                                        }`}
+                                >
+                                    <CardContent className="p-3">
+                                        {/* Product Info */}
+                                        <div className="flex gap-2.5 mb-2.5">
+                                            <div className="relative w-16 h-16 bg-gray-800 rounded overflow-hidden shrink-0">
+                                                {item.product?.image ? (
+                                                    <Image
+                                                        src={item.product.image}
+                                                        alt={item.product.name}
+                                                        fill
+                                                        className="object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <Package className="w-8 h-8 text-gray-600" />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="text-sm font-semibold text-white truncate">
+                                                    {item.product?.name}
+                                                </h3>
+                                                {item.product?.category?.name && (
+                                                    <p className="text-xs text-gray-400 truncate">
+                                                        {item.product.category.name}
+                                                    </p>
+                                                )}
+                                                <div className="flex items-center gap-1.5 mt-1">
+                                                    <Badge
+                                                        className={`${getStockLevelColor(
+                                                            item.stockLevel
+                                                        )} text-xs px-1.5 py-0 h-4`}
+                                                    >
+                                                        {item.stockLevel}
+                                                    </Badge>
+                                                    <span className="text-xs text-gray-500">{item.stock} left</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="text-right">
+                                                <p className="text-xs text-gray-400">Price</p>
+                                                <p className="text-sm font-bold text-white whitespace-nowrap">
+                                                    {formatCurrency(item.price)}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Stock Issue Warning */}
+                                        {hasIssue && (
+                                            <div className="flex gap-1.5 p-2 bg-red-900/20 border border-red-800/30 rounded mb-2.5">
+                                                <AlertCircle className="w-3 h-3 text-red-400 shrink-0 mt-0.5" />
+                                                <p className="text-xs text-red-300">Only {item.stock} available</p>
+                                            </div>
+                                        )}
+
+                                        {/* Quantity Controls */}
+                                        <div className="flex items-center justify-between pt-2.5 border-t border-gray-700">
+                                            <div className="flex items-center gap-1.5">
+                                                <Button
+                                                    variant="outline"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        handleQuantityChange(item.productId, item.quantity - 1, item.stock)
+                                                    }
+                                                    disabled={item.quantity <= 1 || isPending}
+                                                    className="h-7 w-7 border-gray-700"
+                                                >
+                                                    <Minus className="w-3 h-3" />
+                                                </Button>
+                                                <Input
+                                                    type="text"
+                                                    value={displayQuantity}
+                                                    onChange={(e) =>
+                                                        handleQuantityInputChange(item.productId, e.target.value)
+                                                    }
+                                                    onBlur={() => handleQuantityInputBlur(item.productId, item.stock)}
+                                                    className="w-11 h-7 text-center bg-[#0f1419] border-gray-700 text-white text-sm px-1"
+                                                />
+                                                <Button
+                                                    variant="outline"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        handleQuantityChange(item.productId, item.quantity + 1, item.stock)
+                                                    }
+                                                    disabled={item.quantity >= item.stock || isPending}
+                                                    className="h-7 w-7 border-gray-700"
+                                                >
+                                                    <Plus className="w-3 h-3" />
+                                                </Button>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-right">
+                                                    <p className="text-xs text-gray-400">Total</p>
+                                                    <p className="text-sm font-bold text-blue-400 whitespace-nowrap">
+                                                        {formatCurrency(item.subtotal)}
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleRemoveItem(item.productId)}
+                                                    disabled={isPending}
+                                                    className="h-7 w-7 text-red-400 hover:bg-red-900/20"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
+
+                        {/* Order Summary */}
+                        <Card className="bg-[#1a2332] border-gray-800 sticky bottom-0">
+                            <CardHeader className="border-b border-gray-800 p-3">
+                                <CardTitle className="text-base text-white">Order Summary</CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-3 space-y-2.5">
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between text-xs text-gray-300">
+                                        <span>Subtotal ({totalItems} items)</span>
+                                        <span className="font-semibold">{formatCurrency(totalAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-gray-300">
+                                        <span>Tax</span>
+                                        <span className="font-semibold">{formatCurrency(0)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-gray-300">
+                                        <span>Delivery</span>
+                                        <span className="font-semibold text-green-400">FREE</span>
+                                    </div>
+                                    <Separator className="bg-gray-700" />
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-bold text-white text-sm">Total</span>
+                                        <span className="font-bold text-blue-400 text-lg">
+                                            {formatCurrency(totalAmount)}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {hasStockIssues && (
+                                    <div className="flex gap-1.5 p-2 bg-yellow-900/20 border border-yellow-800/30 rounded">
+                                        <AlertCircle className="w-3 h-3 text-yellow-400 shrink-0 mt-0.5" />
+                                        <p className="text-xs text-yellow-300">Resolve stock issues first</p>
+                                    </div>
+                                )}
+
+                                <Button
+                                    className="w-full bg-blue-600 hover:bg-blue-700 h-9 text-sm"
+                                    onClick={handleCheckout}
+                                    disabled={hasStockIssues || items.length === 0}
+                                >
+                                    Proceed to Checkout
+                                    <ArrowRight className="w-4 h-4 ml-2" />
+                                </Button>
+
+                                <Button
+                                    variant="outline"
+                                    className="w-full border-gray-700 h-9 text-sm"
+                                    onClick={() => router.push('/products')}
+                                >
+                                    <ShoppingBag className="w-3 h-3 mr-2" />
+                                    Continue Shopping
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}

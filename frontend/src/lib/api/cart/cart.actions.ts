@@ -104,21 +104,13 @@ export async function addToCartAction(
  * Server Action: Update Cart Item
  * Updates quantity of a cart item
  * 
- * @param prevState - Previous state from useActionState
- * @param formData - Form data
+ * @param payload - Update payload including productId and new quantity
  * @returns APIResponse with updated cart or error
  */
 export async function updateCartItemAction(
-    prevState: any,
-    formData: FormData
+    payload: UpdateCartItemPayload
 ): Promise<APIResponse<Cart | null>> {
     try {
-        // Extract form data
-        const payload = {
-            productId: parseInt(formData.get('productId') as string, 10),
-            quantity: parseInt(formData.get('quantity') as string, 10),
-        };
-
         // Validate with Zod
         const validated = updateCartItemSchema.parse(payload);
 
