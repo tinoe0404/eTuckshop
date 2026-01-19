@@ -1,6 +1,6 @@
 import { apiClient } from '../apiClient';
 import { createCategorySchema, updateCategorySchema, categoryIdSchema } from './schema';
-import type { CreateCategoryPayload, UpdateCategoryPayload, CategoryResponse, CategoryListResponse } from './types';
+import type { CreateCategoryPayload, UpdateCategoryPayload, CategoryResponse, CategoryListResponse, CategoryStatsResponse } from './types';
 import { ZodError } from 'zod';
 import type { ApiResponse } from '@/types';
 
@@ -123,6 +123,24 @@ export async function deleteCategory(id: number): Promise<{ message: string }> {
 
         console.error('Delete category error:', error);
         throw error instanceof Error ? error : new Error('Failed to delete category');
+    }
+}
+
+export async function getCategoryStats(): Promise<CategoryStatsResponse> {
+    try {
+        const response = await apiClient.get<ApiResponse<CategoryStatsResponse>>(
+            '/categories/stats',
+            { signal: AbortSignal.timeout(10000) }
+        );
+
+        if (!response.data.success) {
+            throw new Error(response.data.message || 'Failed to fetch category stats');
+        }
+
+        return response.data.data;
+    } catch (error) {
+        console.error('Get category stats error:', error);
+        throw error instanceof Error ? error : new Error('Failed to fetch category stats');
     }
 }
 

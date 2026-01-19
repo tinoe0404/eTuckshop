@@ -30,14 +30,14 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { Order } from '@/types';
+import { Order } from '@/lib/http-service/orders/types';
 
 type StatusFilter = 'ALL' | 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED';
 
 export default function UserOrdersPage() {
   // ===== ALL HOOKS AT THE TOP =====
   const router = useRouter();
-  
+
   // ✅ UI state only
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
 
@@ -45,13 +45,13 @@ export default function UserOrdersPage() {
   const { data: ordersData, isLoading } = useUserOrders();
 
   // ===== DERIVED STATE =====
-  const orders = ordersData?.data || [];
+  const orders = ordersData?.orders || [];
 
   // ✅ Client-side filtering (OK for user's own orders - small dataset)
   // NOTE: For admin with 1000s of orders, this should be server-side
   const filteredOrders = useMemo(() => {
-    return statusFilter === 'ALL' 
-      ? orders 
+    return statusFilter === 'ALL'
+      ? orders
       : orders.filter((order: Order) => order.status === statusFilter);
   }, [orders, statusFilter]);
 

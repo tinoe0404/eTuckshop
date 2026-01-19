@@ -5,11 +5,11 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { 
-  useOrder, 
-  useOrderQR, 
-  useGenerateCashQR, 
-  useCancelOrder 
+import {
+  useOrder,
+  useOrderQR,
+  useGenerateCashQR,
+  useCancelOrder
 } from '@/lib/hooks/useOrders'; // ✅ Use the hooks
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -60,10 +60,10 @@ export default function OrderDetailPage() {
   const { data: orderData, isLoading } = useOrder(orderId);
 
   // ✅ Fetch QR code separately (only if needed)
-  const order = orderData?.data;
-  const shouldFetchQR = order?.status === 'PAID' || 
+  const order = orderData;
+  const shouldFetchQR = order?.status === 'PAID' ||
     (order?.status === 'PENDING' && order?.paymentType === 'CASH' && order?.paymentQR?.qrCode);
-  
+
   const { data: qrData } = useOrderQR(shouldFetchQR ? orderId : null);
 
   // ✅ Mutations
@@ -71,16 +71,16 @@ export default function OrderDetailPage() {
   const cancelOrderMutation = useCancelOrder();
 
   // ===== DERIVED STATE =====
-  const qrCodeUrl = qrData?.data?.qrCode || order?.paymentQR?.qrCode || null;
+  const qrCodeUrl = qrData?.qrCode || order?.paymentQR?.qrCode || null;
 
   // ===== ALL EFFECTS AFTER HOOKS =====
-  
+
   // Detect payment success from PayNow redirect
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const paymentStatus = params.get('payment');
-      
+
       if (paymentStatus === 'success') {
         toast.success('Payment successful! Your QR code is ready.');
         window.history.replaceState({}, '', `/orders/${orderId}`);
@@ -115,7 +115,7 @@ export default function OrderDetailPage() {
   }, [order, qrCodeUrl]);
 
   // ===== CALLBACKS =====
-  
+
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -164,7 +164,7 @@ export default function OrderDetailPage() {
     try {
       // Get fresh payment URL with new reference
       const response = await orderService.initiatePayNow(orderId);
-      
+
       if (response.success && response.data.paymentUrl) {
         window.location.href = response.data.paymentUrl;
       } else {
@@ -191,14 +191,14 @@ export default function OrderDetailPage() {
   const isQRExpired = timeLeft === 0;
   const canGenerateQR = order?.status === 'PENDING' && order?.paymentType === 'CASH';
   const needsPayment = order?.status === 'PENDING' && order?.paymentType === 'PAYNOW';
-  
-  const hasActiveQR = 
+
+  const hasActiveQR =
     (order?.status === 'PAID' && order?.paymentType === 'PAYNOW' && qrCodeUrl) ||
     (order?.status === 'PAID' && order?.paymentType === 'CASH' && qrCodeUrl) ||
     (order?.paymentType === 'CASH' && qrCodeUrl && !isQRExpired);
 
   // ===== CONDITIONAL RENDERING =====
-  
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0f1419] p-6">
@@ -245,7 +245,7 @@ export default function OrderDetailPage() {
             Back to Orders
           </Button>
         </div>
-  
+
         {/* Order Header */}
         <Card className="bg-[#1a2332] border-gray-800 shadow-lg">
           <CardContent className="p-6">
@@ -319,7 +319,7 @@ export default function OrderDetailPage() {
             </div>
           </CardContent>
         </Card>
-  
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: QR Code & Actions */}
           <div className="lg:col-span-2 space-y-6">
@@ -333,8 +333,8 @@ export default function OrderDetailPage() {
                       {needsPayment
                         ? 'Complete Payment'
                         : canGenerateQR
-                        ? 'Generate QR Code'
-                        : 'QR Code for Pickup'}
+                          ? 'Generate QR Code'
+                          : 'QR Code for Pickup'}
                     </span>
                   </CardTitle>
                 </CardHeader>
@@ -357,7 +357,7 @@ export default function OrderDetailPage() {
                       </Button>
                     </div>
                   )}
-  
+
                   {/* Generate QR (Cash - not yet generated) */}
                   {canGenerateQR && !qrCodeUrl && (
                     <div className="text-center space-y-6">
@@ -396,7 +396,7 @@ export default function OrderDetailPage() {
                       </Button>
                     </div>
                   )}
-  
+
                   {/* Active QR Code */}
                   {hasActiveQR && qrCodeUrl && (
                     <div className="space-y-6">
@@ -404,7 +404,7 @@ export default function OrderDetailPage() {
                       <div className="relative bg-white p-8 rounded-2xl border-4 border-blue-500 mx-auto max-w-md">
                         <img src={qrCodeUrl} alt="Order QR Code" className="w-full h-auto" />
                       </div>
-  
+
                       {/* Timer for Cash Orders ONLY */}
                       {order.paymentType === 'CASH' && timeLeft !== null && (
                         <div className="text-center">
@@ -435,7 +435,7 @@ export default function OrderDetailPage() {
                           )}
                         </div>
                       )}
-  
+
                       {/* No Timer for PayNow */}
                       {order.paymentType === 'PAYNOW' && (
                         <div className="text-center">
@@ -448,7 +448,7 @@ export default function OrderDetailPage() {
                           </p>
                         </div>
                       )}
-  
+
                       {/* Instructions */}
                       <div className="bg-blue-900/20 p-6 rounded-lg space-y-3 border border-blue-800/30">
                         <h4 className="font-semibold text-blue-300 flex items-center space-x-2">
@@ -477,7 +477,7 @@ export default function OrderDetailPage() {
                           </li>
                         </ol>
                       </div>
-  
+
                       {/* Actions */}
                       <div className="flex flex-col sm:flex-row gap-3">
                         <Button variant="outline" className="flex-1 border-gray-700 text-gray-300 hover:bg-gray-800" onClick={handleDownloadQR}>
@@ -501,7 +501,7 @@ export default function OrderDetailPage() {
                 </CardContent>
               </Card>
             )}
-  
+
             {/* Completed/Cancelled Status */}
             {(order.status === 'COMPLETED' || order.status === 'CANCELLED') && (
               <Card className="bg-[#1a2332] border-gray-800 shadow-xl">
@@ -535,7 +535,7 @@ export default function OrderDetailPage() {
                 </CardContent>
               </Card>
             )}
-  
+
             {/* Order Items */}
             <Card className="bg-[#1a2332] border-gray-800 shadow-lg">
               <CardHeader className="border-b border-gray-800">
@@ -575,7 +575,7 @@ export default function OrderDetailPage() {
               </CardContent>
             </Card>
           </div>
-  
+
           {/* Right Column: Summary */}
           <div className="space-y-6">
             <Card className="bg-[#1a2332] border-gray-800 shadow-xl sticky top-20">

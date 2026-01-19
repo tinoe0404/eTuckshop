@@ -127,7 +127,7 @@ export default function ProfilePage() {
 
   // ===== DERIVED STATE =====
   const user = session?.user;
-  const orders = ordersData?.data || [];
+  const orders = ordersData?.orders || [];
 
   const stats = useMemo(() => ({
     totalOrders: orders.length,
@@ -144,7 +144,7 @@ export default function ProfilePage() {
   }), [orders]);
 
   // ===== EFFECTS =====
-  
+
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.replace('/login');
@@ -168,18 +168,18 @@ export default function ProfilePage() {
   const handleUpdateProfile = useCallback(async (data: ProfileFormData) => {
     try {
       const userId = getUserId(user);
-      const response = await updateProfileMutation.mutateAsync({ 
-        userId, 
-        data 
+      const response = await updateProfileMutation.mutateAsync({
+        userId,
+        data
       });
-      
+
       // ✅ Update NextAuth session
       await update({
-        name: response.data.name,
-        email: response.data.email,
-        image: response.data.image,
+        name: response.name,
+        email: response.email,
+        image: response.image,
       });
-      
+
       setIsEditingProfile(false);
     } catch (error) {
       // Error already handled by mutation hook
@@ -189,14 +189,14 @@ export default function ProfilePage() {
   const handleChangePassword = useCallback(async (data: PasswordFormData) => {
     try {
       const userId = getUserId(user);
-      await changePasswordMutation.mutateAsync({ 
-        userId, 
+      await changePasswordMutation.mutateAsync({
+        userId,
         data: {
           currentPassword: data.currentPassword,
           newPassword: data.newPassword,
         }
       });
-      
+
       resetPassword();
     } catch (error) {
       // Error already handled by mutation hook

@@ -72,7 +72,7 @@ export default function AdminQRScannerPage() {
 
   useEffect(() => {
     if (scanQRMutation.isSuccess && scanQRMutation.data) {
-      setScannedOrder(scanQRMutation.data.data as ScannedOrder);
+      setScannedOrder(scanQRMutation.data as ScannedOrder);
       stopCamera();
     }
   }, [scanQRMutation.isSuccess, scanQRMutation.data]);
@@ -110,8 +110,8 @@ export default function AdminQRScannerPage() {
     } catch (error: any) {
       setCameraError(
         error?.name === 'NotAllowedError' ? 'Camera access denied' :
-        error?.name === 'NotFoundError' ? 'No camera found' :
-        'Failed to start camera'
+          error?.name === 'NotFoundError' ? 'No camera found' :
+            'Failed to start camera'
       );
       toast.error('Camera error: ' + (error?.message || 'Unknown'));
     }
@@ -127,8 +127,8 @@ export default function AdminQRScannerPage() {
       streamRef.current = null;
     }
     if (videoRef.current) {
-      try { videoRef.current.pause(); } catch (e) {}
-      try { videoRef.current.srcObject = null; } catch (e) {}
+      try { videoRef.current.pause(); } catch (e) { }
+      try { videoRef.current.srcObject = null; } catch (e) { }
     }
     setIsCameraActive(false);
   };
@@ -192,12 +192,12 @@ export default function AdminQRScannerPage() {
       toast.error('No order to complete');
       return;
     }
-    
+
     // ✅ Generate idempotency key
     const idempotencyKey = generateUUID();
-    
+
     console.log('🔄 Completing order:', scannedOrder.orderInfo.orderId);
-    
+
     completeOrderMutation.mutate(
       { orderId: scannedOrder.orderInfo.orderId, idempotencyKey },
       {

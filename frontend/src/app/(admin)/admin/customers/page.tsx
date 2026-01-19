@@ -60,7 +60,7 @@ import {
   useDeleteCustomer,
 } from '@/lib/hooks/useCustomers';
 import { useCustomerUIStore } from '@/lib/store/useCustomerUIStore';
-import { Customer } from '@/lib/api/services/customer.service';
+import { Customer } from '@/lib/http-service/customers/types';
 
 export default function AdminCustomersPage() {
   const router = useRouter();
@@ -108,10 +108,11 @@ export default function AdminCustomersPage() {
   const deleteCustomerMutation = useDeleteCustomer();
 
   // Data variables
-  const customers: Customer[] = customersResponse?.data?.customers || [];
-  const pagination = customersResponse?.data?.pagination;
-  const stats = statsResponse?.data;
-  const customerDetails: Customer | null = customerDetailsResponse?.data || null;
+  // Note: customersResponse IS the data from the API client (CustomerListResponse)
+  const customers: Customer[] = (customersResponse?.customers as Customer[]) || [];
+  const pagination = customersResponse?.pagination;
+  const stats = statsResponse; // statsResponse IS the data (OrderStats/CustomerStats)
+  const customerDetails: Customer | null = customerDetailsResponse || null;
 
   // Memoized total pages
   const totalPages = useMemo(() => {
@@ -189,7 +190,7 @@ export default function AdminCustomersPage() {
                 {customer.completedOrders || 0} completed
               </p>
             </div>
-            
+
             <div className="bg-[#0f1419] p-3 rounded-lg">
               <div className="flex items-center gap-2 mb-1">
                 <DollarSign className="w-4 h-4 text-green-400" />
@@ -218,15 +219,15 @@ export default function AdminCustomersPage() {
                 <p className="text-gray-500 text-xs mt-1">No orders</p>
               )}
             </div>
-            
+
             <div className="bg-[#0f1419] p-2 rounded">
               <p className="text-xs text-gray-400">Joined</p>
               <div className="flex items-center gap-1 mt-1">
                 <Calendar className="w-3 h-3 text-gray-500" />
                 <span className="text-xs text-white">
-                  {new Date(customer.createdAt).toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    year: 'numeric' 
+                  {new Date(customer.createdAt).toLocaleDateString('en-US', {
+                    month: 'short',
+                    year: 'numeric'
                   })}
                 </span>
               </div>
@@ -244,7 +245,7 @@ export default function AdminCustomersPage() {
               <Eye className="w-4 h-4 mr-2" />
               View Details
             </Button>
-            
+
             <Button
               variant="outline"
               size="icon"
@@ -672,8 +673,8 @@ export default function AdminCustomersPage() {
                                 order.status === 'COMPLETED'
                                   ? 'bg-green-500/20 text-green-400'
                                   : order.status === 'PAID'
-                                  ? 'bg-blue-500/20 text-blue-400'
-                                  : 'bg-yellow-500/20 text-yellow-400'
+                                    ? 'bg-blue-500/20 text-blue-400'
+                                    : 'bg-yellow-500/20 text-yellow-400'
                               }
                             >
                               {order.status}

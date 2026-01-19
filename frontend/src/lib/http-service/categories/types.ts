@@ -15,5 +15,13 @@ export type Category = {
     readonly updatedAt: string;
 };
 
+export type CategoryStats = {
+    readonly totalCategories: number;
+    readonly totalProducts: number;
+    readonly totalStock: number;
+    readonly averagePrice: number;
+};
+
 export type CategoryResponse = Category;
 export type CategoryListResponse = readonly Category[];
+export type CategoryStatsResponse = CategoryStats;

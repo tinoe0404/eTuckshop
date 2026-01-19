@@ -69,6 +69,8 @@ export type Category = {
     readonly id: CategoryId;
     readonly name: string;
     readonly description: string | null;
+    readonly createdAt: string;
+    readonly updatedAt: string;
 };
 
 /**

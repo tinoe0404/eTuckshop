@@ -93,8 +93,8 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
   const [stockFilter, setStockFilter] = useState<string>('all');
 
   // 3. Derived Data (Safe Access)
-  const products = productsData?.data || [];
-  const categories = categoriesData?.data || [];
+  const products = productsData || [];
+  const categories = categoriesData || [];
 
 
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { addToCartSchema, updateCartItemSchema, cartItemIdSchema } from './schema';
+import { UserId } from '../auth/types';
 import type { Product, Category, StockLevel } from '../products/types';
 
 // ============================================
@@ -46,13 +47,19 @@ export type CartItem = {
  */
 export type Cart = {
     readonly id: CartId;
-    readonly userId: number;
-    readonly items: readonly CartItem[];
+    readonly userId: UserId;
+    readonly items: CartItem[];
     readonly totalItems: number;
     readonly totalAmount: number;
     readonly createdAt: string;
     readonly updatedAt: string;
 };
+
+export type CartSummary = {
+    readonly totalItems: number;
+    readonly totalAmount: number;
+};
+
 
 // ============================================
 // RESPONSE TYPES

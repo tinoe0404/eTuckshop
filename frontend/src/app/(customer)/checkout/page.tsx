@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, CreditCard, Wallet, CheckCircle, Clock, 
+  ArrowLeft, CreditCard, Wallet, CheckCircle, Clock,
   Package, User, Mail, MapPin, AlertCircle, Loader2
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
@@ -41,7 +41,7 @@ type PaymentMethod = 'CASH' | 'PAYNOW' | null;
 export default function CheckoutPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  
+
   // ✅ STATE
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -54,7 +54,7 @@ export default function CheckoutPage() {
 
   // ✅ DERIVED STATE
   const user = session?.user;
-  const cart = cartResponse?.data;
+  const cart = cartResponse;
   const items = cart?.items || [];
   const totalItems = cart?.totalItems || 0;
   const totalAmount = cart?.totalAmount || 0;
@@ -86,21 +86,21 @@ export default function CheckoutPage() {
 
   const confirmOrder = () => {
     if (!selectedPayment) return;
-  
+
     checkoutMutation.mutate(
-      { paymentType: selectedPayment }, 
+      { paymentType: selectedPayment },
       {
         onSuccess: (response) => {
           setShowConfirmDialog(false);
-          
+
           // ✅ FIX: Extract orderId from the correct path
-          const orderId = response.data.orderId;
-          
+          const orderId = response.orderId;
+
           console.log('✅ Checkout successful, redirecting to:', orderId);
-          
+
           // ✅ Redirect to order detail page
           router.push(`/orders/${orderId}`);
-          
+
           toast.success('Order placed successfully!');
         },
         onError: (error: any) => {
@@ -231,11 +231,10 @@ export default function CheckoutPage() {
                   <div className="space-y-4">
                     {/* Cash Payment */}
                     <div
-                      className={`relative flex items-start space-x-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
-                        selectedPayment === 'CASH'
+                      className={`relative flex items-start space-x-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${selectedPayment === 'CASH'
                           ? 'border-blue-500 bg-blue-900/20'
                           : 'border-gray-700 hover:border-blue-500'
-                      }`}
+                        }`}
                       onClick={() => setSelectedPayment('CASH')}
                     >
                       <RadioGroupItem value="CASH" id="cash" className="mt-1" />
@@ -268,11 +267,10 @@ export default function CheckoutPage() {
 
                     {/* PayNow Payment */}
                     <div
-                      className={`relative flex items-start space-x-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
-                        selectedPayment === 'PAYNOW'
+                      className={`relative flex items-start space-x-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${selectedPayment === 'PAYNOW'
                           ? 'border-blue-500 bg-blue-900/20'
                           : 'border-gray-700 hover:border-blue-500'
-                      }`}
+                        }`}
                       onClick={() => setSelectedPayment('PAYNOW')}
                     >
                       <RadioGroupItem value="PAYNOW" id="paynow" className="mt-1" />

@@ -67,5 +67,67 @@ export type Order = {
 // RESPONSE TYPES
 // ============================================
 
+export type OrderStats = {
+    orders: {
+        total: number;
+        pending: number;
+        paid: number;
+        completed: number;
+        cancelled: number;
+    };
+    revenue: number;
+};
+
+export type CheckoutPayload = {
+    paymentType: 'CASH' | 'PAYNOW';
+};
+
+export type CheckoutResponse = {
+    orderId: number;
+    orderNumber: string;
+    totalAmount: number;
+    paymentType: string;
+    status: string;
+    nextStep: { action: string; url: string; note: string };
+};
+
+export type PayNowResponse = {
+    orderId: number;
+    paymentUrl: string;
+    paymentRef: string;
+    amount: number;
+    currency: string;
+    instructions: string;
+};
+
+export type OrderQRResponse = {
+    orderId: number;
+    qrCode: string;
+    expiresAt: string | null;
+    isUsed: boolean;
+    paymentStatus: string;
+    orderSummary: { totalItems: number; totalAmount: number };
+};
+
+export type CashQRResponse = {
+    qrCode: string;
+    expiresAt: string;
+    expiresIn: string;
+};
+
+export type ScanQRPayload = {
+    qrData: string;
+};
+
+export type ScanQRResponse = {
+    paymentMethod: { type: string; status: string };
+    customer: { name: string; email: string };
+    orderInfo: { orderId: number; status: string };
+    action: { complete: string };
+};
+
 export type OrderResponse = Order;
-export type OrderListResponse = readonly Order[];
+export type OrderListResponse = {
+    orders: Order[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+};

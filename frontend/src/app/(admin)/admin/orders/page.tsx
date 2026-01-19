@@ -61,15 +61,16 @@ import {
   User,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { Order } from '@/types';
+// ✅ FIXED: Use correct Order type from http-service
+import { Order } from '@/lib/http-service/orders/types'; // Was from '@/types'
 
 // ✅ FIXED: Use correct hook names
-import { 
+import {
   useAdminOrders, // ✅ Was useOrders
-  useOrderStats, 
+  useOrderStats,
   useOrder, // ✅ NEW: Fetch single order
-  useCompleteOrder, 
-  useRejectOrder 
+  useCompleteOrder,
+  useRejectOrder
 } from '@/lib/hooks/useOrders';
 
 import { useOrderUIStore, OrderStatus, PaymentType } from '@/lib/store/useOrderUIStore';
@@ -120,24 +121,24 @@ export default function AdminOrdersPage() {
   });
 
   const { data: statsResponse } = useOrderStats();
-  
+
   // ✅ NEW: Fetch viewing order from React Query (not Zustand)
   const { data: viewingOrderData } = useOrder(viewingOrderId);
-  const viewingOrder = viewingOrderData?.data;
+  const viewingOrder = viewingOrderData; // viewingOrderData IS the order object now
 
   // Mutations
   const completeOrderMutation = useCompleteOrder();
   const rejectOrderMutation = useRejectOrder();
 
-  const orders = ordersResponse?.data?.orders || [];
-  const pagination = ordersResponse?.data?.pagination;
-  const stats = statsResponse?.data;
+  const orders = ordersResponse?.orders || [];
+  const pagination = ordersResponse?.pagination;
+  const stats = statsResponse; // statsResponse IS the stats object
 
   // ✅ FIXED: Client-side search is now cosmetic only
   // For real search, add searchQuery to useAdminOrders params
   const filteredOrders = useMemo(() => {
     if (!searchQuery.trim()) return orders;
-    
+
     const query = searchQuery.toLowerCase();
     return orders.filter(
       (order: Order) =>
@@ -195,11 +196,11 @@ export default function AdminOrdersPage() {
     if (completingOrderId) {
       // ✅ Generate idempotency key
       const idempotencyKey = generateUUID();
-      
+
       // ✅ Pass object with both orderId and idempotencyKey
       completeOrderMutation.mutate(
-        { 
-          orderId: completingOrderId, 
+        {
+          orderId: completingOrderId,
           idempotencyKey
         },
         {
@@ -210,7 +211,7 @@ export default function AdminOrdersPage() {
       );
     }
   };
-  
+
 
   const handleRejectOrder = (orderId: number) => {
     openRejectDialog(orderId);
@@ -248,7 +249,7 @@ export default function AdminOrdersPage() {
                 <p className="text-sm text-gray-400 truncate">{order.user?.name}</p>
               </div>
             </div>
-            
+
             <Badge className={`${getStatusColor(order.status)} gap-1 ml-2`}>
               {getStatusIcon(order.status)}
               {order.status}
@@ -263,14 +264,14 @@ export default function AdminOrdersPage() {
                 {formatCurrency(order.totalAmount)}
               </p>
             </div>
-            
+
             <div className="bg-[#0f1419] p-3 rounded-lg">
               <p className="text-xs text-gray-400">Items</p>
               <p className="text-lg font-bold text-white mt-1">
                 {order.orderItems?.length || 0}
               </p>
             </div>
-            
+
             <div className="bg-[#0f1419] p-3 rounded-lg">
               <p className="text-xs text-gray-400">Payment</p>
               <div className="flex items-center gap-1 mt-1">
@@ -282,13 +283,13 @@ export default function AdminOrdersPage() {
                 <p className="text-sm font-medium text-white">{order.paymentType}</p>
               </div>
             </div>
-            
+
             <div className="bg-[#0f1419] p-3 rounded-lg">
               <p className="text-xs text-gray-400">Date</p>
               <p className="text-sm font-medium text-white mt-1">
-                {new Date(order.createdAt).toLocaleDateString('en-US', { 
-                  month: 'short', 
-                  day: 'numeric' 
+                {new Date(order.createdAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric'
                 })}
               </p>
             </div>
@@ -305,7 +306,7 @@ export default function AdminOrdersPage() {
               <Eye className="w-4 h-4 mr-2" />
               View
             </Button>
-            
+
             {order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
               <>
                 <Button
@@ -317,7 +318,7 @@ export default function AdminOrdersPage() {
                   <CheckCircle className="w-4 h-4 mr-2" />
                   Complete
                 </Button>
-                
+
                 <Button
                   variant="outline"
                   size="icon"
@@ -457,7 +458,7 @@ export default function AdminOrdersPage() {
                   <div className="space-y-1 sm:space-y-2">
                     <p className="text-gray-400 text-xs sm:text-sm font-medium">Revenue</p>
                     <p className="text-xl sm:text-2xl md:text-3xl font-bold text-white">
-                    ${typeof stats.revenue === 'number' ? stats.revenue.toFixed(2) : '0.00'}
+                      ${typeof stats.revenue === 'number' ? stats.revenue.toFixed(2) : '0.00'}
                     </p>
                   </div>
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
@@ -520,7 +521,7 @@ export default function AdminOrdersPage() {
                 </Select>
               </div>
             </div>
-            
+
             {pagination && (
               <div className="mt-4 text-sm text-gray-400">
                 Showing {filteredOrders.length} of {pagination.total} orders

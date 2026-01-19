@@ -4,12 +4,19 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { cartService } from '@/lib/api/services/cart.service';
+import {
+  getCart,
+  getCartSummary,
+  addToCart,
+  updateCartItem,
+  removeFromCart,
+  clearCart
+} from '@/lib/http-service/cart';
 // ✅ Importing your centralized config
 import { queryKeys, invalidateCartQueries } from '@/lib/api/queryKeys';
 import { QUERY_DEFAULTS } from '@/lib/api/queryConfig';
 import { toast } from 'sonner';
-import { CartItem } from '@/types';
+import { CartItem } from '@/lib/http-service/cart/types';
 
 // ========================
 // QUERY HOOKS
@@ -22,7 +29,7 @@ import { CartItem } from '@/types';
 export function useCart() {
   return useQuery({
     queryKey: queryKeys.cart.details(),
-    queryFn: cartService.getCart,
+    queryFn: getCart,
     ...QUERY_DEFAULTS,
   });
 }
@@ -34,7 +41,7 @@ export function useCart() {
 export function useCartSummary() {
   return useQuery({
     queryKey: queryKeys.cart.summary(),
-    queryFn: cartService.getCartSummary,
+    queryFn: getCartSummary,
     ...QUERY_DEFAULTS,
     staleTime: 2 * 60 * 1000, // Override default: refresh faster
   });
@@ -45,7 +52,7 @@ export function useCartSummary() {
  */
 export function useCartCount() {
   const { data } = useCartSummary();
-  return data?.data?.totalItems ?? 0;
+  return data?.totalItems ?? 0;
 }
 
 // ========================
@@ -61,8 +68,12 @@ export function useAddToCart() {
   return useMutation({
     // Wrapper to accept product details but only send necessary data to API
     mutationFn: (variables: { productId: number; quantity?: number; product?: any }) => {
-      const { product, ...apiData } = variables;
-      return cartService.addToCart(apiData);
+      // API expects: { productId, quantity }
+      // We ignore 'product' here as it's for optimistic updates only
+      return addToCart({
+        productId: variables.productId,
+        quantity: variables.quantity ?? 1
+      });
     },
 
     onMutate: async (variables) => {
@@ -76,27 +87,27 @@ export function useAddToCart() {
       // 3. Optimistic Update (Badge Count)
       // 3. Optimistic Update (Badge Count)
       queryClient.setQueryData(queryKeys.cart.summary(), (old: any) => {
-        const currentData = old?.data || { totalItems: 0, totalAmount: 0 };
+        // old structure: { totalItems: 0, totalAmount: 0 } from getCartSummary
+        // or it might be wrapped in ApiResponse? My new client returns data directly.
+        // The old client returned response.data. My new client returns response.data.data.
+        // So checking 'old' structure is important.
+        const currentData = old || { totalItems: 0, totalAmount: 0 };
         const qtyToAdd = variables.quantity ?? 1;
         const price = variables.product?.price || 0;
 
         return {
-          ...old,
-          success: true,
-          data: {
-            ...currentData,
-            totalItems: (currentData.totalItems || 0) + qtyToAdd,
-            totalAmount: (currentData.totalAmount || 0) + (price * qtyToAdd),
-          },
+          totalItems: (currentData.totalItems || 0) + qtyToAdd,
+          totalAmount: (currentData.totalAmount || 0) + (price * qtyToAdd),
         };
       });
 
       // 4. Optimistic Update (Cart List)
       if (previousCart && variables.product) {
         queryClient.setQueryData(queryKeys.cart.details(), (old: any) => {
-          if (!old?.data) return old;
+          // old is now strict Cart type (not { data: Cart })
+          if (!old?.items) return old;
 
-          const existingItemIndex = old.data.items.findIndex(
+          const existingItemIndex = old.items.findIndex(
             (item: CartItem) => item.productId === variables.productId
           );
 
@@ -105,7 +116,7 @@ export function useAddToCart() {
 
           if (existingItemIndex >= 0) {
             // Update existing item
-            newItems = [...old.data.items];
+            newItems = [...old.items];
             const item = newItems[existingItemIndex];
             newItems[existingItemIndex] = {
               ...item,
@@ -115,24 +126,25 @@ export function useAddToCart() {
           } else {
             // Add new item
             // Construct a temporary ID (negative to avoid collision, or just use timestamp)
+            // Use 'as any' or strict cast because CartItem structure might differ slightly
+            // during optimistic update compared to server response
             const newItem: CartItem = {
-              id: -Date.now(),
-              cartId: old.data.id || 0,
-              productId: variables.productId,
-              name: variables.product.name,
-              description: variables.product.description,
+              id: -Date.now() as any,
+              cartId: old.id || 0 as any,
+              productId: variables.productId as any,
               quantity: qtyToAdd,
               price: variables.product.price,
               subtotal: variables.product.price * qtyToAdd,
-              product: variables.product,
-              stock: variables.product.stock,
-              stockLevel: variables.product.stockLevel || (variables.product.stock > 10 ? 'HIGH' : 'LOW'),
-              category: variables.product.category,
-              image: variables.product.image,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
-            };
-            newItems = [newItem, ...old.data.items];
+              // These optional fields might need to be added to CartItem type if used in UI
+              // or UI should safely handle missing fields
+              product: {
+                ...variables.product,
+                id: variables.productId as any
+              },
+            } as any;
+            newItems = [newItem, ...old.items];
           }
 
           // Recalculate totals
@@ -141,12 +153,9 @@ export function useAddToCart() {
 
           return {
             ...old,
-            data: {
-              ...old.data,
-              items: newItems,
-              totalItems: newTotalItems,
-              totalAmount: newTotalAmount,
-            },
+            items: newItems,
+            totalItems: newTotalItems,
+            totalAmount: newTotalAmount,
           };
         });
       }
@@ -166,7 +175,8 @@ export function useAddToCart() {
       if (context?.previousCart) {
         queryClient.setQueryData(queryKeys.cart.details(), context.previousCart);
       }
-      toast.error(error?.response?.data?.message || 'Failed to add to cart');
+      const message = error?.message || 'Failed to add to cart';
+      toast.error(message);
     },
   });
 }
@@ -178,7 +188,8 @@ export function useUpdateCartItem() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: cartService.updateCartItem,
+    mutationFn: ({ productId, quantity }: { productId: number; quantity: number }) =>
+      updateCartItem({ productId, quantity }),
 
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.cart.all });
@@ -190,9 +201,9 @@ export function useUpdateCartItem() {
 
         // 1. Update Details
         queryClient.setQueryData(queryKeys.cart.details(), (old: any) => {
-          if (!old?.data?.items) return old;
+          if (!old?.items) return old;
 
-          const updatedItems = old.data.items.map((item: CartItem) =>
+          const updatedItems = old.items.map((item: CartItem) =>
             item.productId === variables.productId
               ? {
                 ...item,
@@ -213,23 +224,17 @@ export function useUpdateCartItem() {
 
           return {
             ...old,
-            data: {
-              ...old.data,
-              items: updatedItems,
-              totalAmount: newTotalAmount,
-              totalItems: newTotalItems,
-            },
+            items: updatedItems,
+            totalAmount: newTotalAmount,
+            totalItems: newTotalItems,
           };
         });
 
         // 2. Update Summary (Badge)
         queryClient.setQueryData(queryKeys.cart.summary(), (old: any) => ({
           ...old,
-          data: {
-            ...old?.data,
-            totalItems: newTotalItems,
-            totalAmount: newTotalAmount,
-          },
+          totalItems: newTotalItems,
+          totalAmount: newTotalAmount,
         }));
       }
 
@@ -256,7 +261,7 @@ export function useRemoveFromCart() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: cartService.removeFromCart,
+    mutationFn: removeFromCart,
 
     onMutate: async (productId) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.cart.all });
@@ -268,9 +273,9 @@ export function useRemoveFromCart() {
 
         // 1. Update Details
         queryClient.setQueryData(queryKeys.cart.details(), (old: any) => {
-          if (!old?.data?.items) return old;
+          if (!old?.items) return old;
 
-          const filteredItems = old.data.items.filter(
+          const filteredItems = old.items.filter(
             (item: CartItem) => item.productId !== productId
           );
 
@@ -285,23 +290,17 @@ export function useRemoveFromCart() {
 
           return {
             ...old,
-            data: {
-              ...old.data,
-              items: filteredItems,
-              totalItems: newTotalItems,
-              totalAmount: newTotalAmount,
-            },
+            items: filteredItems,
+            totalItems: newTotalItems,
+            totalAmount: newTotalAmount,
           };
         });
 
         // 2. Update Summary (Badge)
         queryClient.setQueryData(queryKeys.cart.summary(), (old: any) => ({
           ...old,
-          data: {
-            ...old?.data,
-            totalItems: newTotalItems,
-            totalAmount: newTotalAmount,
-          },
+          totalItems: newTotalItems,
+          totalAmount: newTotalAmount,
         }));
       }
 
@@ -329,7 +328,7 @@ export function useClearCart() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: cartService.clearCart,
+    mutationFn: clearCart,
 
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.cart.all });
@@ -338,12 +337,12 @@ export function useClearCart() {
       // Optimistic wipe
       queryClient.setQueryData(queryKeys.cart.details(), (old: any) => ({
         ...old,
-        data: { ...old?.data, items: [], totalItems: 0, totalAmount: 0 },
+        items: [], totalItems: 0, totalAmount: 0
       }));
 
       queryClient.setQueryData(queryKeys.cart.summary(), (old: any) => ({
         ...old,
-        data: { totalItems: 0, totalAmount: 0 },
+        totalItems: 0, totalAmount: 0
       }));
 
       return { previousCart };

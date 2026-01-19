@@ -62,7 +62,8 @@ import {
   Download
 } from 'lucide-react';
 import { formatCurrency, getStockLevelColor } from '@/lib/utils';
-import { Product, Category } from '@/types';
+// ✅ FIXED: Use correct Product type from http-service
+import { Product, Category } from '@/lib/http-service/products/types';
 
 // ✅ FIXED: Use proper hooks instead of raw queries/mutations
 import {
@@ -133,8 +134,9 @@ export default function AdminProductsPage() {
     refetch: refetchCategories
   } = useCategories();
 
-  const products = productsData?.data || [];
-  const categories = categoriesData?.data || [];
+  // ✅ FIXED: productsData IS the array (ProductListResponse = readonly Product[])
+  const products = (productsData as unknown as Product[]) || [];
+  const categories = (categoriesData as unknown as Category[]) || [];
 
   /* =========================
      ✅ FIXED: Use mutation hooks
@@ -751,7 +753,7 @@ export default function AdminProductsPage() {
 
                   <TableHeader>
                     <TableRow className="border-gray-800 hover:bg-transparent">
-                      
+
                       <TableHead className="w-12">
                         <Checkbox
                           checked={

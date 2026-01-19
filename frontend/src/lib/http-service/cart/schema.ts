@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { productIdSchema } from '../products/schema';
 
 /**
  * Schema for adding item to cart
@@ -20,11 +21,12 @@ export const addToCartSchema = z.object({
  * Schema for updating cart item quantity
  */
 export const updateCartItemSchema = z.object({
+    productId: productIdSchema,
     quantity: z
         .number()
         .int('Quantity must be a whole number')
         .min(1, 'Quantity must be at least 1')
-        .max(999, 'Quantity cannot exceed 999'),
+        .max(99, 'Quantity must not exceed 99'),
 });
 
 /**

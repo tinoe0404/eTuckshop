@@ -29,3 +29,21 @@ export async function getAnalytics(params?: AnalyticsDateRangePayload): Promise<
     }
 }
 
+
+export async function getDashboardStats(): Promise<any> { // TODO: Define strict type for dashboard stats
+    try {
+        const response = await apiClient.get<ApiResponse<any>>(
+            '/analytics/dashboard',
+            { signal: AbortSignal.timeout(10000) }
+        );
+
+        if (!response.data.success) {
+            throw new Error(response.data.message || 'Failed to fetch dashboard stats');
+        }
+
+        return response.data.data;
+    } catch (error) {
+        console.error('Get dashboard stats error:', error);
+        throw error instanceof Error ? error : new Error('Failed to fetch dashboard stats');
+    }
+}

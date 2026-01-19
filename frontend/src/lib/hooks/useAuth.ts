@@ -6,18 +6,10 @@ import { useSession, signOut } from 'next-auth/react';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { profileService } from '@/lib/api/services/profile.service';
+import { updateProfile } from '@/lib/http-service/profile';
+import { signup } from '@/lib/http-service/auth';
 import { useEffect } from 'react';
-
-/**
- * Helper to safely convert user.id to number
- */
-function getUserIdAsNumber(userId: any): number {
-  if (!userId) throw new Error('User ID not found');
-  const id = typeof userId === 'string' ? parseInt(userId, 10) : userId;
-  if (isNaN(id)) throw new Error('Invalid user ID');
-  return id;
-}
+import type { SignupPayload } from '@/lib/http-service/auth/types';
 
 /**
  * Custom hook for authentication
@@ -25,7 +17,7 @@ function getUserIdAsNumber(userId: any): number {
  */
 export function useAuth() {
   const { data: session, status, update } = useSession({ required: false });
-  
+
   return {
     user: session?.user,
     session,
@@ -42,7 +34,7 @@ export function useAuth() {
  */
 export function useLogout() {
   const router = useRouter();
-  
+
   return useMutation({
     mutationFn: async () => {
       await signOut({ redirect: false });
@@ -62,25 +54,24 @@ export function useLogout() {
  * Hook for updating user profile
  */
 export function useUpdateProfile() {
-  const { user, updateSession } = useAuth();
-  
+  const { updateSession } = useAuth();
+
   return useMutation({
     mutationFn: async (data: { name: string; email: string; image?: string }) => {
-      if (!user?.id) throw new Error('User not authenticated');
-      const userId = getUserIdAsNumber(user.id);
-      return profileService.updateProfile(userId, data);
+      // API client now handles Zod validation internally
+      return updateProfile(data);
     },
     onSuccess: async (response) => {
       await updateSession({
-        name: response.data.name,
-        email: response.data.email,
-        image: response.data.image,
+        name: response.name,
+        email: response.email,
+        image: response.image || undefined,
       });
       toast.success('Profile updated successfully');
-      return response.data;
+      return response;
     },
     onError: (error: any) => {
-      const message = error?.response?.data?.message || 'Failed to update profile';
+      const message = error?.message || 'Failed to update profile';
       toast.error(message);
     },
   });
@@ -93,7 +84,7 @@ export function useUpdateProfile() {
 export function useRequireRole(requiredRole: 'ADMIN' | 'CUSTOMER') {
   const { user, isLoading, isAuthenticated } = useAuth();
   const router = useRouter();
-  
+
   useEffect(() => {
     // Only redirect if loading is finished
     if (!isLoading) {
@@ -131,22 +122,12 @@ export function useIsCustomer() {
  */
 export function useSignup() {
   const router = useRouter();
-  
+
   return useMutation({
-    mutationFn: async (data: { name: string; email: string; password: string; role?: string }) => {
-      // Ensure this URL matches your backend route
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Registration failed');
-      }
-      return result;
+    mutationFn: async (data: SignupPayload) => {
+      // Uses the new validation-enabled API client
+      const response = await signup(data);
+      return response;
     },
     onSuccess: () => {
       toast.success('Registration successful! Please login.');

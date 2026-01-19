@@ -58,7 +58,7 @@ export default function CartPage() {
   const is404Error = error && (error as any)?.response?.status === 404;
 
   // If 404, we assume empty cart. Otherwise, use real data.
-  const cart = is404Error ? null : cartData?.data;
+  const cart = is404Error ? null : cartData;
   const items = cart?.items || [];
   const totalItems = cart?.totalItems || 0;
   const totalAmount = cart?.totalAmount || 0;
@@ -299,9 +299,8 @@ export default function CartPage() {
               return (
                 <Card
                   key={item.id}
-                  className={`bg-[#1a2332] ${
-                    hasIssue ? 'border-red-800 border-2' : 'border-gray-800'
-                  }`}
+                  className={`bg-[#1a2332] ${hasIssue ? 'border-red-800 border-2' : 'border-gray-800'
+                    }`}
                 >
                   <CardContent className="p-3">
                     {/* Product Info */}

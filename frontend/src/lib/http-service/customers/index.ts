@@ -53,3 +53,47 @@ export async function getCustomerById(id: number): Promise<CustomerResponse> {
     }
 }
 
+// ... imports ...
+
+
+export async function getCustomerStats(): Promise<import('./types').CustomerStats> {
+    try {
+        const response = await apiClient.get<ApiResponse<import('./types').CustomerStats>>(
+            '/customers/stats',
+            { signal: AbortSignal.timeout(10000) }
+        );
+
+        if (!response.data.success) {
+            throw new Error(response.data.message || 'Failed to fetch customer stats');
+        }
+
+        return response.data.data;
+    } catch (error) {
+        console.error('Get customer stats error:', error);
+        throw error instanceof Error ? error : new Error('Failed to fetch customer stats');
+    }
+}
+
+export async function deleteCustomer(id: number): Promise<{ message: string }> {
+    try {
+        const validatedId = customerIdSchema.parse(id);
+
+        const response = await apiClient.delete<ApiResponse<{ message: string }>>(
+            `/customers/${validatedId}`,
+            { signal: AbortSignal.timeout(10000) }
+        );
+
+        if (!response.data.success) {
+            throw new Error(response.data.message || 'Failed to delete customer');
+        }
+
+        return response.data.data;
+    } catch (error) {
+        if (error instanceof ZodError) {
+            throw new Error('Invalid customer ID');
+        }
+
+        console.error('Delete customer error:', error);
+        throw error instanceof Error ? error : new Error('Failed to delete customer');
+    }
+}
