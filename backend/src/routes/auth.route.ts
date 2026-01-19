@@ -42,13 +42,14 @@ router.post("/user/email", getUserByEmail);
 router.get("/user/:id", getUserById);
 
 // Password Reset Endpoints
-router.post('/forgot-password', forgotPassword);  
+router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 
 // ========== NEXTAUTH PROTECTED ENDPOINTS ==========
 // Uses requireAuth middleware (validates NextAuth session via X-User-Id header)
 
 // Profile Management (NextAuth users)
+router.get("/me", requireAuth, getProfile); // ✅ Added for frontend sync
 router.post("/profile/by-id", requireAuth, getProfileById);
 router.put("/profile/update", requireAuth, updateUserProfile);
 router.put('/password', requireAuth, changePassword);

@@ -7,6 +7,7 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  bulkDeleteProducts,
 } from "../controllers/product.controller";
 
 import {
@@ -21,8 +22,6 @@ const router = new Hono();
  * PUBLIC ROUTES
  * ======================================================
  */
-
-// Anyone can view products
 router.get("/", getAllProducts);
 router.get("/category/:categoryId", getProductsByCategory);
 router.get("/:id", getProductById);
@@ -30,29 +29,11 @@ router.get("/:id", getProductById);
 /**
  * ======================================================
  * ADMIN ROUTES (NextAuth)
- * X-User-Id header REQUIRED
  * ======================================================
  */
-
-router.post(
-  "/",
-  requireAuth,
-  requireAdmin,
-  createProduct
-);
-
-router.put(
-  "/:id",
-  requireAuth,
-  requireAdmin,
-  updateProduct
-);
-
-router.delete(
-  "/:id",
-  requireAuth,
-  requireAdmin,
-  deleteProduct
-);
+router.post("/", requireAuth, requireAdmin, createProduct);
+router.put("/:id", requireAuth, requireAdmin, updateProduct);
+router.delete("/:id", requireAuth, requireAdmin, deleteProduct);
+router.post("/bulk-delete", requireAuth, requireAdmin, bulkDeleteProducts);
 
 export default router;

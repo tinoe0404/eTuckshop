@@ -9,20 +9,31 @@ import type {
     CheckoutResponse,
     UpdateOrderStatusPayload,
     OrderStats,
+    OrderListResponse,
+    ScanQRResponse,
 } from './orders.types';
 import type { APIResponse } from '../client/types';
 import { ZodError } from 'zod';
 
 /**
  * Server Action: Get User Orders
- * Fetches all orders for the authenticated user
- * 
- * @returns APIResponse with orders array or error
  */
-export async function getUserOrdersAction(): Promise<APIResponse<Order[] | null>> {
+export async function getUserOrdersAction(): Promise<APIResponse<OrderListResponse | null>> {
     try {
         const response = await ordersService.getUserOrders();
-        return response;
+
+        if (response.success && response.data) {
+            const orders = Array.isArray(response.data) ? response.data : [];
+            return {
+                ...response,
+                data: {
+                    orders,
+                    pagination: { page: 1, limit: orders.length, total: orders.length, totalPages: 1 }
+                }
+            };
+        }
+
+        return { ...response, data: null };
     } catch (error) {
         console.error('[getUserOrdersAction] Error:', error);
         return {
@@ -36,10 +47,6 @@ export async function getUserOrdersAction(): Promise<APIResponse<Order[] | null>
 
 /**
  * Server Action: Get Order By ID
- * Fetches a single order by ID
- * 
- * @param id - Order ID
- * @returns APIResponse with order or error
  */
 export async function getOrderByIdAction(id: number): Promise<APIResponse<Order | null>> {
     try {
@@ -68,9 +75,6 @@ export async function getOrderByIdAction(id: number): Promise<APIResponse<Order 
 
 /**
  * Server Action: Get Order Stats (Admin)
- * Fetches order statistics
- * 
- * @returns APIResponse with stats or error
  */
 export async function getOrderStatsAction(): Promise<APIResponse<OrderStats | null>> {
     try {
@@ -89,22 +93,14 @@ export async function getOrderStatsAction(): Promise<APIResponse<OrderStats | nu
 
 /**
  * Server Action: Checkout
- * Creates an order from the user's cart
- * 
- * @param payload - Checkout payload
- * @returns APIResponse with checkout response or error
  */
 export async function checkoutAction(
     payload: CheckoutPayload
 ): Promise<APIResponse<CheckoutResponse | null>> {
     try {
-        // Validate with Zod (even if implicit in type, good for runtime safety)
         const validated = createOrderSchema.parse(payload);
-
-        // Call service
         const response = await ordersService.checkout(validated);
 
-        // Revalidate relevant pages
         revalidatePath('/orders');
         revalidatePath('/cart');
         revalidatePath('/dashboard');
@@ -133,10 +129,6 @@ export async function checkoutAction(
 
 /**
  * Server Action: Get All Orders (Admin)
- * Fetches all orders with optional filtering
- * 
- * @param params - Filter parameters
- * @returns APIResponse with orders list and pagination
  */
 export async function getAdminOrdersAction(params?: {
     page?: number;
@@ -146,7 +138,7 @@ export async function getAdminOrdersAction(params?: {
     search?: string;
 }): Promise<APIResponse<{ orders: Order[]; pagination: any } | null>> {
     try {
-        const response = await ordersService.getAll(params); // Assuming getAll exists on service
+        const response = await ordersService.getAll(params);
         return response;
     } catch (error) {
         console.error('[getAdminOrdersAction] Error:', error);
@@ -161,11 +153,6 @@ export async function getAdminOrdersAction(params?: {
 
 /**
  * Server Action: Update Order Status (Admin)
- * Updates the status of an order
- * 
- * @param id - Order ID
- * @param payload - Status payload
- * @returns APIResponse with updated order or error
  */
 export async function updateOrderStatusAction(
     id: number,
@@ -174,10 +161,8 @@ export async function updateOrderStatusAction(
     try {
         orderIdSchema.parse(id);
         const validated = updateOrderStatusSchema.parse(payload);
-
         const response = await ordersService.updateStatus(id, validated);
 
-        // Revalidate orders pages
         revalidatePath('/orders');
         revalidatePath(`/orders/${id}`);
         revalidatePath('/admin/orders');
@@ -206,18 +191,12 @@ export async function updateOrderStatusAction(
 
 /**
  * Server Action: Cancel Order
- * Cancels an order
- * 
- * @param id - Order ID
- * @returns APIResponse with updated order or error
  */
 export async function cancelOrderAction(id: number): Promise<APIResponse<Order | null>> {
     try {
         orderIdSchema.parse(id);
-
         const response = await ordersService.cancel(id);
 
-        // Revalidate orders pages
         revalidatePath('/orders');
         revalidatePath(`/orders/${id}`);
 
@@ -236,6 +215,43 @@ export async function cancelOrderAction(id: number): Promise<APIResponse<Order |
         return {
             success: false,
             message: error instanceof Error ? error.message : 'Failed to cancel order',
+            data: null,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
+
+/**
+ * Server Action: Scan QR Code
+ */
+export async function scanQRCodeAction(qrData: string): Promise<APIResponse<ScanQRResponse | null>> {
+    try {
+        return await ordersService.scanQR({ qrData });
+    } catch (error) {
+        console.error('[scanQRCodeAction] Error:', error);
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : 'Scan failed',
+            data: null,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
+
+/**
+ * Server Action: Complete Pickup
+ */
+export async function completePickupAction(payload: { orderId: number; idempotencyKey: string }): Promise<APIResponse<void>> {
+    try {
+        const response = await ordersService.completePickup(payload);
+        revalidatePath('/orders');
+        revalidatePath('/admin/orders');
+        return response;
+    } catch (error) {
+        console.error('[completePickupAction] Error:', error);
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : 'Pickup completion failed',
             data: null,
             error: error instanceof Error ? error.message : 'Unknown error',
         };

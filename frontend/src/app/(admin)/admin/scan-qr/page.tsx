@@ -1,14 +1,6 @@
-// Replace src/app/admin/qr-scanner/page.tsx with this file
-// KEY FIXES:
-// 1. Removed undefined setShowDetails() call (line 275 - runtime error fixed)
-// 2. Added UUID idempotency key generation
-// 3. Fixed error handling in handleCompleteOrder
-// 4. Added button disable during request
-
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useCompleteOrder, useScanQRCode } from '@/lib/api/orders/orders.hooks';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,6 +22,7 @@ import {
   AlertCircle, Loader2, ShoppingBag, Camera, X, SwitchCamera, Keyboard,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { scanQRCodeAction, completePickupAction } from '@/lib/api/orders/orders.actions';
 
 // ✅ Helper to generate UUID v4 for idempotency
 function generateUUID() {
@@ -62,31 +55,37 @@ export default function AdminQRScannerPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
 
+  // Loading states
+  const [isScanning, setIsScanning] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const isScanningRef = useRef(false); // Ref for interval loop
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const scanQRMutation = useScanQRCode();
-  const completeOrderMutation = useCompleteOrder();
+  const performScan = async (qrData: string) => {
+    if (isScanningRef.current) return;
+    isScanningRef.current = true;
+    setIsScanning(true);
 
-  useEffect(() => {
-    if (scanQRMutation.isSuccess && scanQRMutation.data) {
-      setScannedOrder(scanQRMutation.data as ScannedOrder);
+    const res = await scanQRCodeAction(qrData);
+
+    if (res.success && res.data) {
+      setScannedOrder(res.data as ScannedOrder);
       stopCamera();
+      toast.success('Order found!');
+    } else {
+      // Only show error toast for manual scan or specific errors, 
+      // to avoid spamming toast in camera mode? 
+      // For now, simple error.
+      if (scanMode === 'manual') toast.error(res.message);
     }
-  }, [scanQRMutation.isSuccess, scanQRMutation.data]);
 
-  useEffect(() => {
-    if (completeOrderMutation.isSuccess) {
-      setShowCompleteDialog(false);
-      setTimeout(() => {
-        setScannedOrder(null);
-        setQrInput('');
-        if (scanMode === 'camera') startCamera();
-      }, 2000);
-    }
-  }, [completeOrderMutation.isSuccess, scanMode]);
+    setIsScanning(false);
+    isScanningRef.current = false;
+  };
 
   const startCamera = async (facing?: 'user' | 'environment') => {
     const useFacing = facing || facingMode;
@@ -144,7 +143,7 @@ export default function AdminQRScannerPage() {
     if (scanIntervalRef.current) return;
 
     scanIntervalRef.current = setInterval(() => {
-      if (!videoRef.current || !canvasRef.current || scanQRMutation.isPending) return;
+      if (!videoRef.current || !canvasRef.current || isScanningRef.current) return;
 
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -160,11 +159,14 @@ export default function AdminQRScannerPage() {
 
       try {
         const code = (window as any).jsQR?.(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-        if (code && code.data) scanQRMutation.mutate(code.data);
+        if (code && code.data && code.data.trim().length > 0) {
+          // Found a code
+          performScan(code.data);
+        }
       } catch (error) {
         console.error('QR decode error:', error);
       }
-    }, 300);
+    }, 500); // Increased interval slightly to reduce load
   };
 
   useEffect(() => {
@@ -183,43 +185,42 @@ export default function AdminQRScannerPage() {
   const handleManualScan = () => {
     const trimmed = qrInput.trim();
     if (!trimmed) { toast.error('Enter QR data'); return; }
-    scanQRMutation.mutate(trimmed);
+    performScan(trimmed);
   };
 
-  // ✅ FIX: Added UUID idempotency key + proper error handling
-  const handleCompleteOrder = () => {
+  const handleCompleteOrder = async () => {
     if (!scannedOrder?.orderInfo?.orderId) {
       toast.error('No order to complete');
       return;
     }
 
-    // ✅ Generate idempotency key
     const idempotencyKey = generateUUID();
+    setIsCompleting(true);
 
-    console.log('🔄 Completing order:', scannedOrder.orderInfo.orderId);
+    const res = await completePickupAction({
+      orderId: scannedOrder.orderInfo.orderId,
+      idempotencyKey
+    });
 
-    completeOrderMutation.mutate(
-      { orderId: scannedOrder.orderInfo.orderId, idempotencyKey },
-      {
-        onSuccess: () => {
-          setShowCompleteDialog(false);
-          setScannedOrder(null);
-          console.log('✅ Order completed');
-        },
-        onError: (error: any) => {
-          console.error('❌ Failed:', error);
-          // Error toast already shown by hook
-        }
-      }
-    );
+    if (res.success) {
+      setShowCompleteDialog(false);
+      toast.success('Order completed successfully');
+
+      setTimeout(() => {
+        setScannedOrder(null);
+        setQrInput('');
+      }, 2000); // Keep success message visible briefly
+    } else {
+      toast.error(res.message);
+    }
+
+    setIsCompleting(false);
   };
 
   const handleReset = () => {
     setScannedOrder(null);
     setQrInput('');
-    scanQRMutation.reset();
-    completeOrderMutation.reset();
-    if (scanMode === 'camera') startCamera();
+    isScanningRef.current = false;
   };
 
   const toggleScanMode = () => {
@@ -285,7 +286,7 @@ export default function AdminQRScannerPage() {
                         <div className="absolute top-4 left-4">
                           <Badge className="bg-red-500 text-white gap-2">
                             <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                            {scanQRMutation.isPending ? 'Processing...' : 'Scanning...'}
+                            {isScanning ? 'Processing...' : 'Scanning...'}
                           </Badge>
                         </div>
                         <Button size="sm" variant="secondary" onClick={switchCamera} className="absolute top-4 right-4">
@@ -331,11 +332,11 @@ export default function AdminQRScannerPage() {
                       value={qrInput}
                       onChange={(e) => setQrInput(e.target.value)}
                       className="bg-[#0f1419] border-gray-700 text-white min-h-[120px] font-mono text-sm"
-                      disabled={scanQRMutation.isPending}
+                      disabled={isScanning}
                     />
                   </div>
-                  <Button size="lg" className="w-full bg-blue-600 hover:bg-blue-700" onClick={handleManualScan} disabled={scanQRMutation.isPending || !qrInput.trim()}>
-                    {scanQRMutation.isPending ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Scanning...</> : <><Scan className="w-5 h-5 mr-2" />Scan QR Code</>}
+                  <Button size="lg" className="w-full bg-blue-600 hover:bg-blue-700" onClick={handleManualScan} disabled={isScanning || !qrInput.trim()}>
+                    {isScanning ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Scanning...</> : <><Scan className="w-5 h-5 mr-2" />Scan QR Code</>}
                   </Button>
                 </div>
               )}
@@ -360,7 +361,7 @@ export default function AdminQRScannerPage() {
               </CardContent>
             </Card>
 
-            {/* Payment, Customer, Order Summary cards - keeping your existing UI */}
+            {/* Payment, Customer, Order Summary cards */}
             <Card className="bg-[#1a2332] border-gray-800">
               <CardHeader className="border-b border-gray-800">
                 <CardTitle className="flex items-center space-x-2 text-white">
@@ -435,7 +436,7 @@ export default function AdminQRScannerPage() {
             )}
 
             <div className="flex space-x-4">
-              <Button size="lg" className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => setShowCompleteDialog(true)} disabled={completeOrderMutation.isPending}>
+              <Button size="lg" className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => setShowCompleteDialog(true)} disabled={isCompleting}>
                 <CheckCircle className="w-5 h-5 mr-2" />Complete Pickup
               </Button>
               <Button size="lg" variant="outline" onClick={handleReset} className="border-gray-700 text-gray-300 hover:bg-gray-800">
@@ -464,9 +465,9 @@ export default function AdminQRScannerPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel className="border-gray-700 text-gray-300 hover:bg-gray-800" disabled={completeOrderMutation.isPending}>Go Back</AlertDialogCancel>
-              <AlertDialogAction onClick={handleCompleteOrder} disabled={completeOrderMutation.isPending} className="bg-green-600 hover:bg-green-700">
-                {completeOrderMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Completing...</> : 'Confirm Pickup'}
+              <AlertDialogCancel className="border-gray-700 text-gray-300 hover:bg-gray-800" disabled={isCompleting}>Go Back</AlertDialogCancel>
+              <AlertDialogAction onClick={handleCompleteOrder} disabled={isCompleting} className="bg-green-600 hover:bg-green-700">
+                {isCompleting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Completing...</> : 'Confirm Pickup'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

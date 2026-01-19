@@ -108,7 +108,7 @@ export class CartService extends BaseAPIRequests {
      * ```
      */
     async clear(): Promise<APIResponse<Cart>> {
-        return this.delete<Cart>('/cart/clear');
+        return this.post<Cart>('/cart/clear');
     }
 }
 

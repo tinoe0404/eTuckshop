@@ -20,8 +20,8 @@ export default async function CustomerDashboard() {
   return (
     <DashboardClient
       cartData={cartResponse.data}
-      ordersData={ordersResponse.data}
-      productsData={productsResponse.data}
+      ordersData={ordersResponse.data?.orders || []}
+      productsData={Array.from(productsResponse.data || [])}
     />
   );
 }

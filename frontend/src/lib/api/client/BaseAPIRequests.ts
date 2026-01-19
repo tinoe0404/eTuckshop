@@ -67,35 +67,35 @@ export class BaseAPIRequests {
     /**
      * Make a GET request
      */
-    protected async get<T>(url: string, params?: any): Promise<APIResponse<T>> {
-        return this.makeRequest<T>({ method: 'GET', url, params });
+    protected async get<T>(url: string, params?: any, config?: AxiosRequestConfig): Promise<APIResponse<T>> {
+        return this.makeRequest<T>({ ...config, method: 'GET', url, params });
     }
 
     /**
      * Make a POST request
      */
-    protected async post<T>(url: string, data?: any): Promise<APIResponse<T>> {
-        return this.makeRequest<T>({ method: 'POST', url, data });
+    protected async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<APIResponse<T>> {
+        return this.makeRequest<T>({ ...config, method: 'POST', url, data });
     }
 
     /**
      * Make a PUT request
      */
-    protected async put<T>(url: string, data?: any): Promise<APIResponse<T>> {
-        return this.makeRequest<T>({ method: 'PUT', url, data });
+    protected async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<APIResponse<T>> {
+        return this.makeRequest<T>({ ...config, method: 'PUT', url, data });
     }
 
     /**
      * Make a PATCH request
      */
-    protected async patch<T>(url: string, data?: any): Promise<APIResponse<T>> {
-        return this.makeRequest<T>({ method: 'PATCH', url, data });
+    protected async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<APIResponse<T>> {
+        return this.makeRequest<T>({ ...config, method: 'PATCH', url, data });
     }
 
     /**
      * Make a DELETE request
      */
-    protected async delete<T>(url: string): Promise<APIResponse<T>> {
-        return this.makeRequest<T>({ method: 'DELETE', url });
+    protected async delete<T>(url: string, config?: AxiosRequestConfig): Promise<APIResponse<T>> {
+        return this.makeRequest<T>({ ...config, method: 'DELETE', url });
     }
 }

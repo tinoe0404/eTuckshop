@@ -410,12 +410,24 @@ export const processPayNowPayment = async (c: Context) => {
 
 export const getUserOrdersGet = async (c: Context) => {
   try {
-    const userId = Number(c.req.query('userId') || (c.get('user') as any)?.id);
-    if (!userId) return c.json({ success: false, message: 'User ID required' }, 400);
+    const user = c.get('user');
+    if (!user) return c.json({ success: false, message: "Authentication required" }, 401);
 
-    const orders = await getOrSetCache(`orders:user:${userId}`, async () => {
+    let targetUserId = user.id;
+
+    // strict check: Only Admin can request other users' orders
+    if (user.role === 'ADMIN') {
+      const queryUserId = c.req.query('userId');
+      if (queryUserId) {
+        targetUserId = Number(queryUserId);
+      }
+    }
+
+    if (!targetUserId) return c.json({ success: false, message: 'User ID required' }, 400);
+
+    const orders = await getOrSetCache(`orders:user:${targetUserId}`, async () => {
       return await prisma.order.findMany({
-        where: { userId },
+        where: { userId: targetUserId },
         include: { orderItems: { include: { product: true } } },
         orderBy: { createdAt: "desc" },
       });
@@ -432,12 +444,18 @@ export const getUserOrders = async (c: Context) => getUserOrdersGet(c);
 export const getOrderById = async (c: Context) => {
   try {
     const orderId = Number(c.req.param("id"));
-    const userId = c.req.query("userId");
-    if (!userId) return c.json({ success: false, message: "User ID required" }, 400);
+    const user = c.get("user");
+
+    if (!user) return c.json({ success: false, message: "Authentication required" }, 401);
+
+    // Cache key depends on who is asking. 
+    // If Admin, they see the order regardless of owner. 
+    // If Customer, they only see if it's theirs.
+    // We'll cache by orderId, but verify ownership after fetch if not Admin.
 
     const order = await getOrSetCache(`orders:detail:${orderId}`, async () => {
-      return await prisma.order.findFirst({
-        where: { id: orderId, userId: parseInt(userId) },
+      return await prisma.order.findUnique({
+        where: { id: orderId },
         include: {
           orderItems: { include: { product: true } },
           paymentQR: {
@@ -448,11 +466,19 @@ export const getOrderById = async (c: Context) => {
               paymentType: true
             }
           },
+          // Admin needs user details. Customer might want to know their own details (redundant but harmless)
+          user: { select: { id: true, name: true, email: true } }
         },
       });
     }, TTL.ORDER_DETAIL);
 
     if (!order) return c.json({ success: false, message: "Order not found" }, 404);
+
+    // Access Control
+    if (user.role !== 'ADMIN' && order.userId !== user.id) {
+      return c.json({ success: false, message: "Unauthorized access to this order" }, 403);
+    }
+
     return c.json({ success: true, data: order });
   } catch (error) {
     return serverError(c, error);

@@ -34,7 +34,7 @@ export class AuthService extends BaseAPIRequests {
      * ```
      */
     async signup(payload: SignupPayload): Promise<APIResponse<AuthResponse>> {
-        return this.post<AuthResponse>('/auth/signup', payload);
+        return this.post<AuthResponse>('/auth/register', payload);
     }
 
     /**

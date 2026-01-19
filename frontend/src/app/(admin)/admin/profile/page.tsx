@@ -1,14 +1,11 @@
-// File: src/app/(admin)/admin/profile/page.tsx (NEXTAUTH FIXED)
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useSession, signOut } from 'next-auth/react';
-import { profileService } from '@/lib/api/services/profile.service';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,24 +40,20 @@ import {
   Loader2,
   Crown,
 } from 'lucide-react';
+import { updateProfile, changePassword } from '@/lib/api/profile/profile.actions';
 
-  // Add this helper at the top of the file (after imports)
-  function getUserId(user: any): number {
-    if (!user?.id) throw new Error('User ID not found');
-    const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
-    if (isNaN(userId)) throw new Error('Invalid user ID');
-    return userId;
-  }
-
-// Validation schemas
+// Validation schemas (Aligned with server rules)
 const profileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
 });
 
 const passwordSchema = z.object({
-  currentPassword: z.string().min(6, 'Password must be at least 6 characters'),
-  newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Must contain at least one number'),
   confirmPassword: z.string(),
 }).refine((data) => data.newPassword === data.confirmPassword, {
   message: "Passwords don't match",
@@ -72,48 +65,18 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 
 export default function AdminProfilePage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { data: session, status, update } = useSession();
   const user = session?.user;
-  
+
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // ✅ Guard: Check authentication
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0f1724]">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
+  // Loading states for actions
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  // Show loading if not authenticated (middleware will redirect)
-if (status === 'unauthenticated') {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0f1724]">
-      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-    </div>
-  );
-}
-
-// Role check - only for authenticated users
-if (status === 'authenticated' && user?.role !== 'ADMIN') {
-  toast.error('Access denied. Admin only.');
-  router.replace('/dashboard');
-  return null;
-}
-
-// Safety check
-if (!user) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0f1724]">
-      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-    </div>
-  );
-}
   // Profile form
   const {
     register: registerProfile,
@@ -148,65 +111,66 @@ if (!user) {
     }
   }, [user, resetProfile]);
 
-
-// Then in your component, update the mutations:
-
-/* -------------------- Mutations -------------------- */
-
-const updateProfileMutation = useMutation({
-  mutationFn: async (data: ProfileFormData) => {
-    const userId = getUserId(user); // 👈 Fixed
-    return profileService.updateProfile(userId, data);
-  },
-  onSuccess: async (response) => {
-    await update({
-      name: response.data.name,
-      email: response.data.email,
-      image: response.data.image,
-    });
-    toast.success('Profile updated successfully');
-    setIsEditingProfile(false);
-  },
-  onError: (error: any) => {
-    toast.error(
-      error?.response?.data?.message ??
-        error.message ??
-        'Failed to update profile'
+  // Loading / Auth Guards
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0f1724]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
     );
-  },
-});
+  }
 
-// If you have password change in admin profile too:
-const changePasswordMutation = useMutation({
-  mutationFn: async (data: PasswordFormData) => {
-    const userId = getUserId(user); // 👈 Fixed
-    return profileService.changePassword(userId, {
+  if (status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0f1724]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (user?.role !== 'ADMIN') {
+    // Should be handled by middleware, but extra safety
+    router.replace('/dashboard');
+    return null;
+  }
+
+  // Handlers
+  const handleUpdateProfile = async (data: ProfileFormData) => {
+    setIsUpdatingProfile(true);
+    const res = await updateProfile(data);
+
+    if (res.success && res.data) {
+      // Update session
+      await update({
+        name: res.data.name,
+        email: res.data.email,
+        image: res.data.image,
+      });
+      toast.success('Profile updated successfully');
+      setIsEditingProfile(false);
+    } else {
+      toast.error(res.message);
+    }
+    setIsUpdatingProfile(false);
+  };
+
+  const handleChangePassword = async (data: PasswordFormData) => {
+    setIsChangingPassword(true);
+    const res = await changePassword({
       currentPassword: data.currentPassword,
       newPassword: data.newPassword,
     });
-  },
-  onSuccess: async () => {
-    toast.success('Password changed successfully. Please login again.');
-    resetPassword();
-    setTimeout(async () => {
-      await signOut({ redirect: true, callbackUrl: '/login' });
-    }, 2000);
-  },
-  onError: (error: any) => {
-    toast.error(
-      error?.response?.data?.message ??
-        error.message ??
-        'Failed to change password'
-    );
-  },
-});
 
-  const handleUpdateProfile = (data: ProfileFormData) => {
-    updateProfileMutation.mutate(data);
-  };
-  
-  const handleChangePassword = (data: PasswordFormData) => {
-    changePasswordMutation.mutate(data);
+    if (res.success) {
+      toast.success('Password changed successfully. Please login again.');
+      resetPassword();
+      setTimeout(async () => {
+        await signOut({ redirect: true, callbackUrl: '/login' });
+      }, 2000);
+    } else {
+      toast.error(res.message);
+    }
+    setIsChangingPassword(false);
   };
 
   const handleCancelEdit = () => {
@@ -276,21 +240,21 @@ const changePasswordMutation = useMutation({
                 {/* Avatar */}
                 <div className="w-24 h-24 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-full flex items-center justify-center mx-auto ring-4 ring-yellow-500/30">
                   <span className="text-4xl font-bold text-white">
-                    {user.name?.charAt(0).toUpperCase() || 'A'}
+                    {user?.name?.charAt(0).toUpperCase() || 'A'}
                   </span>
                 </div>
 
                 {/* User Info */}
                 <div>
                   <h2 className="text-2xl font-bold text-white">
-                    {user.name}
+                    {user?.name}
                   </h2>
-                  <p className="text-gray-400">{user.email}</p>
+                  <p className="text-gray-400">{user?.email}</p>
                 </div>
 
                 <Badge className="bg-yellow-500/20 text-yellow-500 border border-yellow-500/30">
                   <Crown className="w-3 h-3 mr-1" />
-                  {user.role}
+                  {user?.role}
                 </Badge>
 
                 <Separator className="bg-gray-700" />
@@ -393,9 +357,9 @@ const changePasswordMutation = useMutation({
                           <Button
                             onClick={handleSubmitProfile(handleUpdateProfile)}
                             className="flex-1 bg-blue-600 hover:bg-blue-700"
-                            disabled={updateProfileMutation.isPending}
+                            disabled={isUpdatingProfile}
                           >
-                            {updateProfileMutation.isPending ? (
+                            {isUpdatingProfile ? (
                               <>
                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                 Saving...
@@ -410,7 +374,7 @@ const changePasswordMutation = useMutation({
                           <Button
                             variant="outline"
                             onClick={handleCancelEdit}
-                            disabled={updateProfileMutation.isPending}
+                            disabled={isUpdatingProfile}
                             className="border-gray-700 text-gray-300 hover:bg-gray-700"
                           >
                             <X className="w-4 h-4 mr-2" />
@@ -512,9 +476,9 @@ const changePasswordMutation = useMutation({
                     <Button
                       onClick={handleSubmitPassword(handleChangePassword)}
                       className="w-full bg-blue-600 hover:bg-blue-700"
-                      disabled={changePasswordMutation.isPending}
+                      disabled={isChangingPassword}
                     >
-                      {changePasswordMutation.isPending ? (
+                      {isChangingPassword ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           Changing Password...

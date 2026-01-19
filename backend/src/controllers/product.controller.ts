@@ -17,11 +17,11 @@ const TTL = {
  */
 const invalidateProductCaches = async (productId?: number, categoryId?: number) => {
   const tasks = [deleteCache("products:all")];
-  
+
   if (productId) {
     tasks.push(deleteCache(`products:detail:${productId}`));
   }
-  
+
   if (categoryId) {
     tasks.push(deleteCache(`products:category:${categoryId}`));
   }
@@ -37,7 +37,7 @@ export const getAllProducts = async (c: Context) => {
     // ⚡ One-liner cache implementation
     const products = await getOrSetCache("products:all", async () => {
       console.log('📦 Fetching all products from DB');
-      
+
       const data = await prisma.product.findMany({
         include: { category: true },
         orderBy: { createdAt: 'desc' }
@@ -70,7 +70,7 @@ export const getProductById = async (c: Context) => {
 
     const product = await getOrSetCache(cacheKey, async () => {
       console.log(`🔍 Fetching product ${id} from DB`);
-      
+
       const data = await prisma.product.findUnique({
         where: { id },
         include: { category: true },
@@ -108,7 +108,7 @@ export const getProductsByCategory = async (c: Context) => {
 
     const products = await getOrSetCache(cacheKey, async () => {
       console.log(`📂 Fetching category ${categoryId} from DB`);
-      
+
       const data = await prisma.product.findMany({
         where: { categoryId },
         include: { category: true },
@@ -207,12 +207,7 @@ export const updateProduct = async (c: Context) => {
     });
 
     // 🔄 INVALIDATE CACHE
-    // We clear the specific product, the all-products list, and both old/new category lists 
-    // (Simplification: we definitely clear the CURRENT category list)
     await invalidateProductCaches(id, updated.categoryId);
-    
-    // If category changed, we should technically clear the old category cache too, 
-    // but for simplicity, we let TTL handle the old list or you can explicitly clear it here if critical.
 
     return c.json({
       success: true,
@@ -268,6 +263,66 @@ export const deleteProduct = async (c: Context) => {
       message: "Product deleted successfully",
       data: { id, name: product.name },
     });
+  } catch (error) {
+    return serverError(c, error);
+  }
+};
+
+// ==============================
+// BULK DELETE PRODUCTS (Admin Only)
+// ==============================
+export const bulkDeleteProducts = async (c: Context) => {
+  try {
+    const user = c.get("user");
+    if (!user) return c.json({ success: false, message: "Authentication required" }, 401);
+
+    const { ids } = await c.req.json();
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return c.json({ success: false, message: "Invalid or empty IDs array" }, 400);
+    }
+
+    // 1. Check for active orders to prevent breaking data
+    const productsWithOrders = await prisma.orderItem.findMany({
+      where: {
+        productId: { in: ids },
+        order: { status: { in: ["PENDING", "PAID"] } }
+      },
+      select: { productId: true }
+    });
+
+    const protectedIds = new Set(productsWithOrders.map(i => i.productId).filter((id): id is number => id !== null));
+    const deletableIds = ids.filter(id => !protectedIds.has(id));
+
+    if (deletableIds.length === 0) {
+      return c.json({
+        success: false,
+        message: "No products could be deleted due to active orders",
+        data: { failedIds: ids }
+      }, 400);
+    }
+
+    // 2. Clean up cart items for these products
+    await prisma.cartItem.deleteMany({ where: { productId: { in: deletableIds } } });
+
+    // 3. Delete products
+    const result = await prisma.product.deleteMany({
+      where: { id: { in: deletableIds } }
+    });
+
+    // 4. Invalidate Cache (Broad sweep)
+    await deleteCache("products:all");
+
+    return c.json({
+      success: true,
+      message: `Successfully deleted ${result.count} products.`,
+      data: {
+        deletedCount: result.count,
+        deletedIds: deletableIds,
+        failedIds: Array.from(protectedIds)
+      }
+    });
+
   } catch (error) {
     return serverError(c, error);
   }
