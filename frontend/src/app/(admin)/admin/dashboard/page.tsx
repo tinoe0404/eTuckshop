@@ -15,9 +15,9 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-import { analyticsService } from '@/lib/api/services/analytics.service';
-import { orderService } from '@/lib/api/services/order.service';
-import { productService } from '@/lib/api/services/product.service';
+import { useDashboardStats } from '@/lib/hooks/useAnalytics';
+import { useAdminOrders, useOrderStats, useCompleteOrder, useRejectOrder } from '@/lib/hooks/useOrders';
+import { useAdminProducts } from '@/lib/hooks/useProducts';
 
 import { toast } from 'sonner';
 
@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 
 import { formatCurrency } from '@/lib/utils';
-import { Order } from '@/types';
+import { Order } from '@/lib/http-service/orders/types';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -46,91 +46,46 @@ export default function AdminDashboard() {
   /* =========================
      QUERIES - MOVE TO TOP ✅
   ========================= */
-  const { data: statsResponse, isLoading: statsLoading, isError: statsError, error: statsErrorData, refetch: refetchStats } =
-    useQuery({
-      queryKey: ['admin-dashboard-stats'],
-      queryFn: analyticsService.getDashboardStats,
-      staleTime: 10000,
-      refetchInterval: 30000,
-      enabled: status === 'authenticated' && session?.user?.role === 'ADMIN',
-      retry: 1,
-      retryDelay: 1000,
-    });
+  const {
+    data: statsResponse,
+    isLoading: statsLoading,
+    isError: statsError,
+    error: statsErrorData,
+    refetch: refetchStats
+  } = useDashboardStats();
 
-  const { data: ordersResponse, isLoading: ordersLoading, refetch: refetchOrders } =
-    useQuery({
-      queryKey: ['admin-recent-orders'],
-      queryFn: () => orderService.getAllOrders({ page: 1, limit: 5 }),
-      staleTime: 5000,
-      refetchInterval: 20000,
-      enabled: status === 'authenticated' && session?.user?.role === 'ADMIN',
-      retry: 1,
-      retryDelay: 1000,
-    });
+  const {
+    data: ordersData,
+    isLoading: ordersLoading,
+    refetch: refetchOrders
+  } = useAdminOrders({ page: 1, limit: 5 });
 
-  const { data: orderStatsResponse, isLoading: orderStatsLoading, refetch: refetchOrderStats } =
-    useQuery({
-      queryKey: ['admin-order-stats'],
-      queryFn: orderService.getOrderStats,
-      staleTime: 5000,
-      refetchInterval: 15000,
-      enabled: status === 'authenticated' && session?.user?.role === 'ADMIN',
-      retry: 1,
-      retryDelay: 1000,
-    });
+  const {
+    data: orderStatsResponse,
+    isLoading: orderStatsLoading,
+    refetch: refetchOrderStats
+  } = useOrderStats();
 
-  const { data: productsResponse, isLoading: productsLoading, refetch: refetchProducts } =
-    useQuery({
-      queryKey: ['admin-products-summary'],
-      queryFn: () => productService.getAll({ limit: 6, sort: 'desc' }),
-      staleTime: 30000,
-      refetchInterval: 60000,
-      enabled: status === 'authenticated' && session?.user?.role === 'ADMIN',
-      retry: 1,
-      retryDelay: 1000,
-    });
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    refetch: refetchProducts
+  } = useAdminProducts();
 
 
   /* =========================
      DERIVED DATA
   ========================= */
-  const stats = statsResponse?.data;
-  const recentOrders: Order[] = ordersResponse?.data?.orders ?? [];
-  const orderStats = orderStatsResponse?.data;
+  const stats = statsResponse;
+  // useAdminOrders returns OrderListResponse (object)
+  const recentOrders: Order[] = ordersData?.orders ?? [];
+  const orderStats = orderStatsResponse;
 
   /* =========================
      MUTATIONS
   ========================= */
-  const completeOrderMutation = useMutation({
-    mutationFn: (orderId: number) => orderService.completeOrder(orderId),
-    onSuccess: async () => {
-      toast.success('Order completed');
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-recent-orders'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-order-stats'] }),
-      ]);
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message ?? 'Failed to complete order');
-    },
-  });
-
-  const rejectOrderMutation = useMutation({
-    mutationFn: ({ orderId }: { orderId: number }) =>
-      orderService.rejectOrder(orderId),
-    onSuccess: async () => {
-      toast.success('Order rejected');
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-recent-orders'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-order-stats'] }),
-      ]);
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message ?? 'Failed to reject order');
-    },
-  });
+  const completeOrderMutation = useCompleteOrder();
+  const rejectOrderMutation = useRejectOrder();
 
   const handleRefreshAll = async () => {
     toast.promise(
@@ -319,7 +274,7 @@ export default function AdminDashboard() {
                         size="sm"
                         className="bg-green-600 hover:bg-green-700 text-white"
                         onClick={() =>
-                          completeOrderMutation.mutate(order.id)
+                          completeOrderMutation.mutate({ orderId: order.id })
                         }
                       >
                         Complete

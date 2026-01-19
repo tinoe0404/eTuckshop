@@ -3,7 +3,7 @@
 // ============================================
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { profileService } from '@/lib/api/services/profile.service';
+import { updateProfile, changePassword } from '@/lib/http-service/profile';
 import { toast } from 'sonner';
 import { signOut } from 'next-auth/react';
 
@@ -18,22 +18,21 @@ import { signOut } from 'next-auth/react';
  */
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: ({ userId, data }: { userId: number; data: { name: string; email: string } }) =>
-      profileService.updateProfile(userId, data),
-    
+      updateProfile({ ...data }),
+
     onSuccess: (response) => {
       toast.success('Profile updated successfully');
-      
+
       // Invalidate user-related queries
       queryClient.invalidateQueries({ queryKey: ['user-orders'] });
     },
-    
+
     onError: (error: any) => {
       toast.error(
-        error?.response?.data?.message ??
-        error.message ??
+        error?.message ??
         'Failed to update profile'
       );
     },
@@ -47,20 +46,20 @@ export function useUpdateProfile() {
  */
 export function useChangePassword() {
   return useMutation({
-    mutationFn: ({ userId, data }: { 
-      userId: number; 
-      data: { currentPassword: string; newPassword: string } 
-    }) => profileService.changePassword(userId, data),
-    
+    mutationFn: ({ userId, data }: {
+      userId: number;
+      data: { currentPassword: string; newPassword: string }
+    }) => changePassword({ currentPassword: data.currentPassword, newPassword: data.newPassword }),
+
     onSuccess: async () => {
       toast.success('Password changed successfully. Logging out...');
-      
+
       // Log out after 2 seconds
       setTimeout(async () => {
         await signOut({ redirect: true, callbackUrl: '/login' });
       }, 2000);
     },
-    
+
     onError: (error: any) => {
       toast.error(
         error?.response?.data?.message ??
