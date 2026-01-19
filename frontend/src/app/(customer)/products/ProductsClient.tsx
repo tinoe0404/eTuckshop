@@ -1,28 +1,76 @@
-// ============================================
-// FILE: src/app/products/page.tsx
-// ============================================
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
-
 // Custom Hooks
 import { useAddToCart } from '@/lib/api/cart/cart.hooks';
 
-// ... other imports
+// UI Components
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+// Icons
+import {
+  Search,
+  Filter,
+  ShoppingBag,
+  Plus,
+  Eye,
+  Star,
+  Heart,
+  Grid3x3,
+  List,
+  SlidersHorizontal,
+  TrendingUp,
+  Package,
+} from 'lucide-react';
 
 // Types
 import { Product, Category } from '@/types';
 
-// ... helper functions
+// ==========================================
+// HELPER FUNCTIONS (Local to avoid import errors)
+// ==========================================
+const formatPrice = (price: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(price);
+};
+
+const getStockColor = (level: 'LOW' | 'MEDIUM' | 'HIGH') => {
+  switch (level) {
+    case 'HIGH':
+      return 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20';
+    case 'MEDIUM':
+      return 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20';
+    case 'LOW':
+      return 'bg-red-500/10 text-red-500 hover:bg-red-500/20';
+    default:
+      return 'bg-gray-500/10 text-gray-500';
+  }
+};
 
 interface ProductsClientProps {
   initialProducts: Product[];
   initialCategories: Category[];
 }
 
+// ==========================================
+// COMPONENT
+// ==========================================
 export default function ProductsClient({ initialProducts, initialCategories }: ProductsClientProps) {
   const router = useRouter();
 
@@ -40,15 +88,10 @@ export default function ProductsClient({ initialProducts, initialCategories }: P
   const [priceRange, setPriceRange] = useState<string>('all');
   const [stockFilter, setStockFilter] = useState<string>('all');
 
-  // Loading state handling - Since we have initial data, we aren't "loading" in the traditional sense initially.
-  // We can treat loading as false unless we add client-side refetching later.
+  // Loading state (using props now, so false)
   const productsLoading = false;
 
-
-
-
-
-  // 4. Filtering Logic
+  // 3. Filtering Logic
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
@@ -100,7 +143,7 @@ export default function ProductsClient({ initialProducts, initialCategories }: P
     return result;
   }, [products, searchQuery, selectedCategory, sortBy, priceRange, stockFilter]);
 
-  // 5. Handlers
+  // 4. Handlers
   const resetFilters = useCallback(() => {
     setSearchQuery('');
     setSelectedCategory('all');
