@@ -9,7 +9,7 @@ import {
   useUpdateCartItem,
   useRemoveFromCart,
   useClearCart,
-} from '@/lib/hooks/useCart';
+} from '@/lib/api/cart/cart.hooks';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';

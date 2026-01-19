@@ -1,5 +1,5 @@
 // ============================================
-// FILE: src/lib/store/useOrderUIStore.ts (REFACTORED)
+// FILE: src/lib/api/orders/orders.store.ts (REFACTORED)
 // ============================================
 
 import { create } from 'zustand';

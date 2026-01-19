@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUserOrders } from '@/lib/hooks/useOrders'; // ✅ Use the hook
+import { useUserOrders } from '@/lib/api/orders/orders.hooks'; // ✅ Use the hook
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

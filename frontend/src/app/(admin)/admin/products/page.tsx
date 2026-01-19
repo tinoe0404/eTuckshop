@@ -72,9 +72,9 @@ import {
   useUpdateProduct,
   useDeleteProduct,
   useBulkDeleteProducts
-} from '@/lib/hooks/useProducts';
+} from '@/lib/api/products/products.hooks';
 
-import { useCategories } from '@/lib/hooks/useCategories';
+import { useCategories } from '@/lib/api/categories/categories.hooks';
 
 type SortField = 'name' | 'price' | 'stock' | 'category';
 type SortOrder = 'asc' | 'desc';

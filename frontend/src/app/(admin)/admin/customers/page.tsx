@@ -58,8 +58,8 @@ import {
   useCustomerStats,
   useCustomer,
   useDeleteCustomer,
-} from '@/lib/hooks/useCustomers';
-import { useCustomerUIStore } from '@/lib/store/useCustomerUIStore';
+} from '@/lib/api/customers/customers.hooks';
+import { useCustomerUIStore } from '@/lib/api/customers/customers.store';
 import { Customer } from '@/lib/http-service/customers/types';
 
 export default function AdminCustomersPage() {
@@ -750,3 +750,4 @@ export default function AdminCustomersPage() {
     </div>
   );
 }
+

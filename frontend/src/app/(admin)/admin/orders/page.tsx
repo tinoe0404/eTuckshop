@@ -71,9 +71,9 @@ import {
   useOrder, // ✅ NEW: Fetch single order
   useCompleteOrder,
   useRejectOrder
-} from '@/lib/hooks/useOrders';
+} from '@/lib/api/orders/orders.hooks';
 
-import { useOrderUIStore, OrderStatus, PaymentType } from '@/lib/store/useOrderUIStore';
+import { useOrderUIStore, OrderStatus, PaymentType } from '@/lib/api/orders/orders.store';
 
 export default function AdminOrdersPage() {
   const router = useRouter();
@@ -906,3 +906,5 @@ export default function AdminOrdersPage() {
 function generateUUID() {
   throw new Error('Function not implemented.');
 }
+
+

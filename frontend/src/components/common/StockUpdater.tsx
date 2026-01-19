@@ -1,6 +1,6 @@
 'use client';
 
-import { useStockUpdates } from '@/lib/hooks/useStockUpdates';
+import { useStockUpdates } from '@/lib/api/products/stock.hooks';
 
 /**
  * Global component to handle real-time stock updates
@@ -10,3 +10,4 @@ export default function StockUpdater() {
     useStockUpdates();
     return null; // Renderless component
 }
+

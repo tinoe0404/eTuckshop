@@ -8,7 +8,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useCompleteOrder, useScanQRCode } from '@/lib/hooks/useOrders';
+import { useCompleteOrder, useScanQRCode } from '@/lib/api/orders/orders.hooks';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';

@@ -1,5 +1,5 @@
 // ============================================
-// FILE: src/lib/store/cartStore.ts (REFACTORED)
+// FILE: src/lib/api/cart/cart.store.ts (REFACTORED)
 // ============================================
 
 import { create } from 'zustand';
@@ -72,6 +72,7 @@ export const useCartStore = create<CartUIState>()(
  * const { totalItems, setTotalItems } = useCartStore();
  * 
  * NEW (CORRECT):
- * import { useCartCount } from '@/lib/hooks/useCart';
+ * import { useCartCount } from '@/lib/api/cart/cart.hooks';
  * const totalItems = useCartCount();
  */
+

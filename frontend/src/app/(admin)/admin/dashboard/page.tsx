@@ -15,9 +15,9 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-import { useDashboardStats } from '@/lib/hooks/useAnalytics';
-import { useAdminOrders, useOrderStats, useCompleteOrder, useRejectOrder } from '@/lib/hooks/useOrders';
-import { useAdminProducts } from '@/lib/hooks/useProducts';
+import { useDashboardStats } from '@/lib/api/analytics/analytics.hooks';
+import { useAdminOrders, useOrderStats, useCompleteOrder, useRejectOrder } from '@/lib/api/orders/orders.hooks';
+import { useAdminProducts } from '@/lib/api/products/products.hooks';
 
 import { toast } from 'sonner';
 

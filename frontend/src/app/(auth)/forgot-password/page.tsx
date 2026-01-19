@@ -5,7 +5,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useForgotPassword } from '@/lib/hooks/useAuth';
+import { useForgotPassword } from '@/lib/api/auth/auth.hooks';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';

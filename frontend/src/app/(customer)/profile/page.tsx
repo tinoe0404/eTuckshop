@@ -9,8 +9,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useSession, signOut } from 'next-auth/react';
-import { useUserOrders } from '@/lib/hooks/useOrders'; // ✅ Use the hook
-import { useUpdateProfile, useChangePassword } from '@/lib/hooks/useProfile'; // ✅ New hooks
+import { useUserOrders } from '@/lib/api/orders/orders.hooks'; // ✅ Use the hook
+import { useUpdateProfile, useChangePassword } from '@/lib/api/profile/profile.hooks'; // ✅ New hooks
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

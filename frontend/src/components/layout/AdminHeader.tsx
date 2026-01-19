@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/sheet';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useLogout } from '@/lib/hooks/useAuth';
+import { useLogout } from '@/lib/api/auth/auth.hooks';
 
 export default function AdminHeader() {
   const router = useRouter();

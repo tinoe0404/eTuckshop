@@ -9,9 +9,9 @@ import Image from 'next/image';
 
 
 // Custom Hooks
-import { useProducts } from '@/lib/hooks/useProducts';
-import { useCategories } from '@/lib/hooks/useCategories';
-import { useAddToCart } from '@/lib/hooks/useCart';
+import { useProducts } from '@/lib/api/products/products.hooks';
+import { useCategories } from '@/lib/api/categories/categories.hooks';
+import { useAddToCart } from '@/lib/api/cart/cart.hooks';
 
 // UI Components
 import { Card, CardContent } from '@/components/ui/card';

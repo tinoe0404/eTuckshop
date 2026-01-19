@@ -9,8 +9,8 @@ import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 
 // ✅ Custom Hooks
-import { useCart } from '@/lib/hooks/useCart';
-import { useCheckout } from '@/lib/hooks/useOrders';
+import { useCart } from '@/lib/api/cart/cart.hooks';
+import { useCheckout } from '@/lib/api/orders/orders.hooks';
 
 // UI Components
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
