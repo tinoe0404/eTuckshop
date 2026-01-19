@@ -16,9 +16,10 @@ export default withAuth(
       }
     }
 
-    // 2. Protect Customer Dashboard: ADMINs should be redirected to /admin
-    // (Assuming admins shouldn't see the customer view)
-    if (path.startsWith('/dashboard') && !path.startsWith('/admin')) {
+    // 2. Protect Customer Routes: ADMINs should be redirected to /admin
+    // (Admins shouldn't be managing their own 'customer' profile/orders via the customer UI)
+    const customerRoutes = ['/dashboard', '/orders', '/profile', '/checkout'];
+    if (customerRoutes.some(route => path.startsWith(route))) {
       if (userRole === 'ADMIN') {
         return NextResponse.redirect(new URL('/admin/dashboard', req.url));
       }
@@ -45,8 +46,11 @@ export const config = {
   // ✅ FIX: Only run middleware on these specific protected paths.
   // This ensures /register and /login are completely ignored by NextAuth.
   matcher: [
-    "/dashboard/:path*", 
+    "/dashboard/:path*",
     "/admin/:path*",
+    "/orders/:path*",
+    "/profile/:path*",
+    "/checkout/:path*",
     "/api/user/:path*" // Optional: Add any protected API routes
   ],
 };
