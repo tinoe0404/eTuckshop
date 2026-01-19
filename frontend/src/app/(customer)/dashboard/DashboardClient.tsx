@@ -16,6 +16,7 @@ import type { Product } from '@/lib/api/products/products.types';
 import type { Order } from '@/lib/api/orders/orders.types';
 import type { CartSummary } from '@/lib/api/cart/cart.types';
 import { useSession } from 'next-auth/react';
+import { useAddToCart } from '@/lib/api/cart/cart.hooks';
 
 // Product Card Component
 const ProductCard = ({
@@ -171,6 +172,7 @@ export default function DashboardClient({
 }) {
     const router = useRouter();
     const { data: session } = useSession();
+    const addToCartMutation = useAddToCart();
 
     const stats = {
         cartItems: cartData?.totalItems || 0,
@@ -186,27 +188,12 @@ export default function DashboardClient({
     const recentOrders = (ordersData || []).slice(0, 3);
     const featuredProducts = productsData || [];
 
-    const handleAddToCart = useCallback(async (productId: number) => {
-        try {
-            const formData = new FormData();
-            formData.append('productId', productId.toString());
-            formData.append('quantity', '1');
-
-            const response = await fetch('/api/cart/add', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (response.ok) {
-                toast.success('Added to cart!', { description: 'Product added successfully' });
-                router.refresh();
-            } else {
-                toast.error('Failed to add to cart');
-            }
-        } catch (error) {
-            toast.error('Failed to add to cart');
-        }
-    }, [router]);
+    const handleAddToCart = useCallback((productId: number) => {
+        addToCartMutation.mutate({
+            productId,
+            quantity: 1,
+        });
+    }, [addToCartMutation]);
 
     const handleViewProduct = useCallback((productId: number) => {
         router.push(`/products/${productId}`);
