@@ -39,7 +39,7 @@ export async function updateProfile(payload: UpdateProfilePayload): Promise<Prof
         return response.data.data;
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid profile data');
         }
 
@@ -65,7 +65,7 @@ export async function changePassword(payload: ChangePasswordPayload): Promise<{ 
         return response.data.data;
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid password data');
         }
 
@@ -73,3 +73,4 @@ export async function changePassword(payload: ChangePasswordPayload): Promise<{ 
         throw error instanceof Error ? error : new Error('Failed to change password');
     }
 }
+

@@ -60,7 +60,7 @@ export async function signup(payload: SignupPayload): Promise<AuthResponse> {
         return response.data.data;
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid input data');
         }
 
@@ -109,7 +109,7 @@ export async function forgotPassword(
         };
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid email address');
         }
 
@@ -161,7 +161,7 @@ export async function resetPassword(
         };
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid input data');
         }
 

@@ -72,7 +72,7 @@ export async function createOrder(payload: CreateOrderPayload): Promise<OrderRes
         return response.data.data;
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid order data');
         }
 
@@ -105,7 +105,7 @@ export async function updateOrderStatus(
         return response.data.data;
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid data');
         }
 
@@ -157,3 +157,4 @@ export async function getOrderQR(id: number): Promise<{ qrCode: string }> {
         throw error instanceof Error ? error : new Error('Failed to get QR code');
     }
 }
+

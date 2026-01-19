@@ -6,43 +6,31 @@ import { z } from 'zod';
  */
 export const signupSchema = z.object({
     name: z
-        .string({ required_error: 'Name is required' })
+        .string()
         .trim()
-        .min(2, { message: 'Name must be at least 2 characters' })
-        .max(50, { message: 'Name must not exceed 50 characters' })
-        .regex(/^[a-zA-Z\s'-]+$/, {
-            message: 'Name can only contain letters, spaces, hyphens, and apostrophes'
-        }),
+        .min(2, 'Name must be at least 2 characters')
+        .max(50, 'Name must not exceed 50 characters')
+        .regex(/^[a-zA-Z\s'-]+$/, 'Name can only contain letters, spaces, hyphens, and apostrophes'),
 
     email: z
-        .string({ required_error: 'Email is required' })
+        .string()
         .trim()
-        .min(1, { message: 'Email is required' })
-        .max(100, { message: 'Email must not exceed 100 characters' })
-        .email({ message: 'Enter a valid email address' })
-        .refine((val) => !val.includes(' '), {
-            message: 'Email must not contain spaces',
-        })
+        .min(1, 'Email is required')
+        .max(100, 'Email must not exceed 100 characters')
+        .email('Enter a valid email address')
+        .refine((val) => !val.includes(' '), 'Email must not contain spaces')
         .transform((val) => val.toLowerCase()),
 
     password: z
-        .string({ required_error: 'Password is required' })
-        .min(8, { message: 'Password must be at least 8 characters' })
-        .max(128, { message: 'Password must not exceed 128 characters' })
-        .regex(/[A-Z]/, {
-            message: 'Password must contain at least one uppercase letter',
-        })
-        .regex(/[a-z]/, {
-            message: 'Password must contain at least one lowercase letter',
-        })
-        .regex(/[0-9]/, {
-            message: 'Password must contain at least one number',
-        }),
+        .string()
+        .min(8, 'Password must be at least 8 characters')
+        .max(128, 'Password must not exceed 128 characters')
+        .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+        .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+        .regex(/[0-9]/, 'Password must contain at least one number'),
 
     role: z
-        .enum(['CUSTOMER', 'ADMIN'], {
-            errorMap: () => ({ message: 'Role must be CUSTOMER or ADMIN' }),
-        })
+        .enum(['CUSTOMER', 'ADMIN'])
         .optional()
         .default('CUSTOMER'),
 });
@@ -53,10 +41,10 @@ export const signupSchema = z.object({
  */
 export const forgotPasswordSchema = z.object({
     email: z
-        .string({ required_error: 'Email is required' })
+        .string()
         .trim()
-        .min(1, { message: 'Email is required' })
-        .email({ message: 'Enter a valid email address' })
+        .min(1, 'Email is required')
+        .email('Enter a valid email address')
         .transform((val) => val.toLowerCase()),
 });
 
@@ -66,22 +54,16 @@ export const forgotPasswordSchema = z.object({
  */
 export const resetPasswordSchema = z.object({
     token: z
-        .string({ required_error: 'Reset token is required' })
-        .min(1, { message: 'Reset token is required' }),
+        .string()
+        .min(1, 'Reset token is required'),
 
     newPassword: z
-        .string({ required_error: 'New password is required' })
-        .min(8, { message: 'Password must be at least 8 characters' })
-        .max(128, { message: 'Password must not exceed 128 characters' })
-        .regex(/[A-Z]/, {
-            message: 'Password must contain at least one uppercase letter',
-        })
-        .regex(/[a-z]/, {
-            message: 'Password must contain at least one lowercase letter',
-        })
-        .regex(/[0-9]/, {
-            message: 'Password must contain at least one number',
-        }),
+        .string()
+        .min(8, 'Password must be at least 8 characters')
+        .max(128, 'Password must not exceed 128 characters')
+        .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+        .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+        .regex(/[0-9]/, 'Password must contain at least one number'),
 });
 
 /**
@@ -90,13 +72,15 @@ export const resetPasswordSchema = z.object({
  */
 export const loginSchema = z.object({
     email: z
-        .string({ required_error: 'Email is required' })
+        .string()
         .trim()
-        .min(1, { message: 'Email is required' })
-        .email({ message: 'Enter a valid email address' })
+        .min(1, 'Email is required')
+        .email('Enter a valid email address')
         .transform((val) => val.toLowerCase()),
 
     password: z
-        .string({ required_error: 'Password is required' })
-        .min(1, { message: 'Password is required' }),
+        .string()
+        .min(1, 'Password is required'),
 });
+
+

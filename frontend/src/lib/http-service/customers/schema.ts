@@ -8,6 +8,8 @@ export const customerListSchema = z.object({
 });
 
 export const customerIdSchema = z
-    .number({ required_error: 'Customer ID is required' })
+    .number()
     .int()
     .positive();
+
+

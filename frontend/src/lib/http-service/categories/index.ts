@@ -63,7 +63,7 @@ export async function createCategory(payload: CreateCategoryPayload): Promise<Ca
         return response.data.data;
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid category data');
         }
 
@@ -93,7 +93,7 @@ export async function updateCategory(
         return response.data.data;
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid category data');
         }
 
@@ -125,3 +125,4 @@ export async function deleteCategory(id: number): Promise<{ message: string }> {
         throw error instanceof Error ? error : new Error('Failed to delete category');
     }
 }
+

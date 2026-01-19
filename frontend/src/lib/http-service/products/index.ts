@@ -63,7 +63,7 @@ export async function getAllProducts(
         return response.data.data;
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid search parameters');
         }
 
@@ -222,7 +222,7 @@ export async function createProduct(
         return response.data.data;
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid product data');
         }
 
@@ -271,7 +271,7 @@ export async function updateProduct(
         return response.data.data;
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid product data');
         }
 
@@ -324,3 +324,4 @@ export async function deleteProduct(id: number): Promise<DeleteProductResponse> 
             : new Error('Failed to delete product. Please try again.');
     }
 }
+

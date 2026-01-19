@@ -45,7 +45,7 @@ export async function addToCart(payload: AddToCartPayload): Promise<CartResponse
         return response.data.data;
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid cart data');
         }
 
@@ -78,7 +78,7 @@ export async function updateCartItem(
         return response.data.data;
     } catch (error) {
         if (error instanceof ZodError) {
-            const firstError = error.errors[0];
+            const firstError = error.issues[0];
             throw new Error(firstError?.message || 'Invalid data');
         }
 
@@ -134,3 +134,4 @@ export async function clearCart(): Promise<{ message: string }> {
         throw error instanceof Error ? error : new Error('Failed to clear cart');
     }
 }
+

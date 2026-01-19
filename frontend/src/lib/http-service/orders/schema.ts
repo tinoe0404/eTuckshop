@@ -5,7 +5,7 @@ import { z } from 'zod';
  */
 export const createOrderSchema = z.object({
     paymentType: z.enum(['CASH', 'PAYNOW'], {
-        errorMap: () => ({ message: 'Payment type must be CASH or PAYNOW' }),
+        errorMap: () => ('Payment type must be CASH or PAYNOW'),
     }),
 });
 
@@ -14,7 +14,7 @@ export const createOrderSchema = z.object({
  */
 export const updateOrderStatusSchema = z.object({
     status: z.enum(['PENDING', 'PAID', 'COMPLETED', 'CANCELLED'], {
-        errorMap: () => ({ message: 'Invalid order status' }),
+        errorMap: () => ('Invalid order status'),
     }),
 });
 
@@ -22,6 +22,8 @@ export const updateOrderStatusSchema = z.object({
  * Order ID schema
  */
 export const orderIdSchema = z
-    .number({ required_error: 'Order ID is required' })
-    .int({ message: 'Order ID must be a whole number' })
-    .positive({ message: 'Invalid order ID' });
+    .number()
+    .int('Order ID must be a whole number')
+    .positive('Invalid order ID');
+
+
