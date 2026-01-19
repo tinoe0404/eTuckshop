@@ -257,3 +257,10 @@ export async function deleteProductAction(id: number): Promise<APIResponse<{ id:
         };
     }
 }
+/**
+ * Server Action: Get Admin Products
+ * Wrapper for getting products for admin view
+ */
+export async function getAdminProductsAction(params?: Partial<ProductSearchPayload>): Promise<APIResponse<ProductListResponse>> {
+    return getProductsAction(params);
+}

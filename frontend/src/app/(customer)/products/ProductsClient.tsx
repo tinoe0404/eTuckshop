@@ -9,79 +9,27 @@ import Image from 'next/image';
 
 
 // Custom Hooks
-import { useProducts } from '@/lib/api/products/products.hooks';
-import { useCategories } from '@/lib/api/categories/categories.hooks';
 import { useAddToCart } from '@/lib/api/cart/cart.hooks';
 
-// UI Components
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-
-// Icons
-import {
-  Search,
-  Filter,
-  ShoppingBag,
-  Plus,
-  Eye,
-  Star,
-  Heart,
-  Grid3x3,
-  List,
-  SlidersHorizontal,
-  TrendingUp,
-  Package,
-} from 'lucide-react';
+// ... other imports
 
 // Types
 import { Product, Category } from '@/types';
 
-// ==========================================
-// HELPER FUNCTIONS (Local to avoid import errors)
-// ==========================================
-const formatPrice = (price: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(price);
-};
-
-const getStockColor = (level: 'LOW' | 'MEDIUM' | 'HIGH') => {
-  switch (level) {
-    case 'HIGH':
-      return 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20';
-    case 'MEDIUM':
-      return 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20';
-    case 'LOW':
-      return 'bg-red-500/10 text-red-500 hover:bg-red-500/20';
-    default:
-      return 'bg-gray-500/10 text-gray-500';
-  }
-};
+// ... helper functions
 
 interface ProductsClientProps {
   initialProducts: Product[];
+  initialCategories: Category[];
 }
 
-// ==========================================
-// COMPONENT
-// ==========================================
-export default function ProductsClient({ initialProducts }: ProductsClientProps) {
+export default function ProductsClient({ initialProducts, initialCategories }: ProductsClientProps) {
   const router = useRouter();
 
-  // 1. Data Fetching
-  const { data: productsData, isLoading: productsLoading } = useProducts();
-  const { data: categoriesData } = useCategories();
+  // 1. Data (From Props)
+  const products = initialProducts;
+  const categories = initialCategories;
+
   const addToCartMutation = useAddToCart();
 
   // 2. Local State
@@ -92,9 +40,11 @@ export default function ProductsClient({ initialProducts }: ProductsClientProps)
   const [priceRange, setPriceRange] = useState<string>('all');
   const [stockFilter, setStockFilter] = useState<string>('all');
 
-  // 3. Derived Data (Safe Access)
-  const products = productsData || [];
-  const categories = categoriesData || [];
+  // Loading state handling - Since we have initial data, we aren't "loading" in the traditional sense initially.
+  // We can treat loading as false unless we add client-side refetching later.
+  const productsLoading = false;
+
+
 
 
 
