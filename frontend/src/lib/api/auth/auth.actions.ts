@@ -1,5 +1,6 @@
 'use server';
 
+import { z } from 'zod';
 import { authService } from './auth.client';
 import { signupSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schemas';
 import type { SignupPayload, ResetPasswordPayload, AuthResponse } from './auth.types';
@@ -140,5 +141,38 @@ export async function resetPasswordAction(
             data: null,
             error: error instanceof Error ? error.message : 'Unknown error',
         };
+    }
+}
+
+/**
+ * Object-based actions for direct usage (e.g. from hooks with react-query)
+ */
+export async function signupRawAction(payload: z.infer<typeof signupSchema>): Promise<APIResponse<AuthResponse | null>> {
+    try {
+        const validated = signupSchema.parse(payload);
+        return await authService.signup(validated);
+    } catch (error) {
+        console.error('[signupRawAction] Error:', error);
+        return { success: false, message: 'Signup failed', data: null };
+    }
+}
+
+export async function forgotPasswordRawAction(email: string): Promise<APIResponse<null>> {
+    try {
+        const validated = forgotPasswordSchema.parse({ email });
+        return await authService.forgotPassword(validated.email);
+    } catch (error) {
+        console.error('[forgotPasswordRawAction] Error:', error);
+        return { success: false, message: 'Failed to send reset email', data: null };
+    }
+}
+
+export async function resetPasswordRawAction(payload: z.infer<typeof resetPasswordSchema>): Promise<APIResponse<null>> {
+    try {
+        const validated = resetPasswordSchema.parse(payload);
+        return await authService.resetPassword(validated);
+    } catch (error) {
+        console.error('[resetPasswordRawAction] Error:', error);
+        return { success: false, message: 'Failed to reset password', data: null };
     }
 }

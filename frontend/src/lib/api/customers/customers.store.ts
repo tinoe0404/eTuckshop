@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Customer } from '@/lib/http-service/customers/types';
+import { Customer } from './customers.types';
 
 interface CustomerUIStore {
   // Search & Pagination

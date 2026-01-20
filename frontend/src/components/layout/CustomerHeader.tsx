@@ -31,7 +31,6 @@ import {
 } from '@/components/ui/sheet';
 import { useRouter } from 'next/navigation';
 import { useLogout } from '@/lib/api/auth/auth.hooks';
-import { useCartCount } from '@/lib/api/cart/cart.hooks';
 
 interface CustomerHeaderProps {
   cartItemCount?: number;

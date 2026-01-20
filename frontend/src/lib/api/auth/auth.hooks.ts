@@ -4,6 +4,12 @@ import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { useMutation } from '@tanstack/react-query';
+import {
+    signupRawAction,
+    forgotPasswordRawAction,
+    resetPasswordRawAction
+} from './auth.actions';
 
 // ==========================================
 // SESSION HOOKS
@@ -56,7 +62,6 @@ export function useRequireRole(requiredRole: 'ADMIN' | 'CUSTOMER') {
 export function useLogout() {
     const router = useRouter();
 
-    // Return a mutation-like object for compatibility
     return {
         mutate: async () => {
             await signOut({ redirect: false });
@@ -67,13 +72,58 @@ export function useLogout() {
     };
 }
 
-// Stubs for removed auth hooks (pages should use Server Actions now)
+// ==========================================
+// AUTH MUTATION HOOKS
+// ==========================================
+
 export function useSignup() {
-    return { mutate: () => console.warn('Use server action'), isPending: false };
+    const router = useRouter();
+    return useMutation({
+        mutationFn: signupRawAction,
+        onSuccess: (res) => {
+            if (res.success) {
+                toast.success('Account created successfully');
+                router.push('/login');
+            } else {
+                toast.error(res.message || 'Signup failed');
+            }
+        },
+        onError: (err: any) => {
+            toast.error(err.message || 'Signup failed');
+        }
+    });
 }
+
 export function useForgotPassword() {
-    return { mutate: () => console.warn('Use server action'), isPending: false };
+    return useMutation({
+        mutationFn: forgotPasswordRawAction,
+        onSuccess: (res) => {
+            if (res.success) {
+                toast.success('Reset email sent successfully');
+            } else {
+                toast.error(res.message || 'Failed to send reset email');
+            }
+        },
+        onError: (err: any) => {
+            toast.error(err.message || 'Failed to send reset email');
+        }
+    });
 }
+
 export function useResetPassword() {
-    return { mutate: () => console.warn('Use server action'), isPending: false };
+    const router = useRouter();
+    return useMutation({
+        mutationFn: resetPasswordRawAction,
+        onSuccess: (res) => {
+            if (res.success) {
+                toast.success('Password reset successfully');
+                router.push('/login');
+            } else {
+                toast.error(res.message || 'Reset failed');
+            }
+        },
+        onError: (err: any) => {
+            toast.error(err.message || 'Reset failed');
+        }
+    });
 }

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { getUserOrdersAction } from '@/lib/api/orders/orders.actions';
 import CustomerProfileClient from './CustomerProfileClient';
 

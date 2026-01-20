@@ -5,6 +5,7 @@ export type AnalyticsDateRange = z.infer<typeof analyticsDateRangeSchema>;
 
 export type DashboardStats = {
     totalRevenue: number;
+    todayRevenue: number;
     totalOrders: number;
     totalCustomers: number;
     totalProducts: number;

@@ -64,8 +64,8 @@ const getStockColor = (level: 'LOW' | 'MEDIUM' | 'HIGH') => {
 };
 
 interface ProductsClientProps {
-  initialProducts: Product[];
-  initialCategories: Category[];
+  initialProducts: Product[] | readonly Product[];
+  initialCategories: Category[] | readonly Category[];
 }
 
 // ==========================================

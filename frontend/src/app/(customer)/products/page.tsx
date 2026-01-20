@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { getProductsAction } from '@/lib/api/products/products.actions';
 import { getCategoriesAction } from '@/lib/api/categories/categories.actions';
 import ProductsClient from './ProductsClient';

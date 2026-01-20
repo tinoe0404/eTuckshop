@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { orderService } from '@/lib/api/services/order.service';
+import { ordersService } from '@/lib/api/orders/orders.client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +26,7 @@ export default function PayNowPaymentPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
-  
+
   const orderId = Number(params.orderId);
   const paymentRef = searchParams.get('ref');
 
@@ -40,19 +40,19 @@ export default function PayNowPaymentPage() {
   // Fetch order details
   const { data: orderData, isLoading } = useQuery({
     queryKey: ['order', orderId],
-    queryFn: () => orderService.getOrderById(orderId),
+    queryFn: () => ordersService.getById(orderId),
   });
 
   // If no payment ref or invalid, get a fresh one
   useEffect(() => {
     const initializePayment = async () => {
       if (!paymentRef || !orderData?.data) return;
-      
+
       // If order is pending and PayNow, but ref might be stale
       if (orderData.data.status === 'PENDING' && orderData.data.paymentType === 'PAYNOW') {
         try {
           // Get fresh payment info
-          const response = await orderService.initiatePayNow(orderId);
+          const response = await ordersService.initiatePayNow(orderId);
           if (response.success) {
             // Extract ref from URL
             const url = new URL(response.data.paymentUrl);
@@ -120,7 +120,7 @@ export default function PayNowPaymentPage() {
     } catch (err: any) {
       console.error('Payment error:', err);
       setError(
-        err.response?.data?.message || 
+        err.response?.data?.message ||
         'Payment processing failed. Please try again.'
       );
     } finally {
@@ -210,11 +210,11 @@ export default function PayNowPaymentPage() {
                       {order.orderItems?.length || 0} items
                     </span>
                   </div>
-                  
+
                   <Separator />
 
                   <div className="space-y-2">
-                    {order.orderItems?.map((item) => (
+                    {order.orderItems?.map((item: any) => (
                       <div key={item.id} className="flex justify-between items-center text-sm">
                         <div className="flex items-center space-x-2">
                           <Package className="w-4 h-4 text-gray-400" />

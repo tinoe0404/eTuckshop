@@ -50,9 +50,26 @@ export class OrdersService extends BaseAPIRequests {
         return this.post<Order>(`/orders/cancel/${id}`);
     }
 
+    async generateCashQR(orderId: number): Promise<APIResponse<{ qrCode: string; expiresAt: string }>> {
+        return this.post(`/orders/generate-qr/${orderId}`);
+    }
+
+    async initiatePayNow(orderId: number): Promise<APIResponse<{ paymentUrl: string; paymentRef: string }>> {
+        return this.get(`/orders/pay/paynow/${orderId}`);
+    }
+
+    async getOrderQR(orderId: number): Promise<APIResponse<{ qrCode: string; expiresAt: string }>> {
+        return this.get(`/orders/qr/${orderId}`);
+    }
+
     // Backend: router.post("/admin/scan-qr", requireAuth, requireAdmin, scanQRCode);
     async scanQR(payload: ScanQRPayload): Promise<APIResponse<ScanQRResponse>> {
         return this.post<ScanQRResponse>('/orders/admin/scan-qr', payload);
+    }
+
+    // Backend: router.patch("/admin/reject/:orderId", requireAuth, requireAdmin, rejectOrder);
+    async rejectOrder(orderId: number): Promise<APIResponse<void>> {
+        return this.patch<void>(`/orders/admin/reject/${orderId}`, {});
     }
 
     // Backend: router.patch("/admin/complete/:orderId", requireAuth, requireAdmin, completeOrder);

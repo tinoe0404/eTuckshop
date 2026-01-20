@@ -6,7 +6,7 @@ import {
     useOrderQR,
     useGenerateCashQR,
     useCancelOrder
-} from '@/lib/hooks/useOrders';
+} from '@/lib/api/orders/orders.hooks';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,8 +41,8 @@ import {
     QrCode,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { orderService } from '@/lib/api/services/order.service';
-import { Order } from '@/lib/http-service/orders/types'; // Using shared type
+import { ordersService } from '@/lib/api/orders/orders.client';
+import { Order } from '@/lib/api/orders/orders.types';
 
 interface OrderDetailClientProps {
     order: Order;
@@ -159,7 +159,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
 
     const handlePayNow = useCallback(async () => {
         try {
-            const response = await orderService.initiatePayNow(orderId);
+            const response = await ordersService.initiatePayNow(orderId);
             if (response.success && response.data.paymentUrl) {
                 window.location.href = response.data.paymentUrl;
             } else {

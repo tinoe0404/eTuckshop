@@ -155,6 +155,111 @@ export async function getAdminOrdersAction(params?: {
  * Server Action: Update Order Status (Admin)
  */
 /**
+ * Server Action: Cancel Order
+ */
+export async function cancelOrderAction(id: number): Promise<APIResponse<Order | null>> {
+    try {
+        orderIdSchema.parse(id);
+        const response = await ordersService.cancel(id);
+
+        revalidatePath('/orders');
+        revalidatePath(`/orders/${id}`);
+
+        return response;
+    } catch (error) {
+        if (error instanceof ZodError) {
+            return {
+                success: false,
+                message: 'Invalid order ID',
+                data: null,
+                error: 'Invalid order ID',
+            };
+        }
+
+        console.error('[cancelOrderAction] Error:', error);
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to cancel order',
+            data: null,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
+
+/**
+ * Server Action: Generate Cash QR
+ */
+export async function generateCashQRAction(orderId: number): Promise<APIResponse<{ qrCode: string; expiresAt: string } | null>> {
+    try {
+        orderIdSchema.parse(orderId);
+        const response = await ordersService.generateCashQR(orderId);
+        revalidatePath(`/orders/${orderId}`);
+        return response;
+    } catch (error) {
+        console.error('[generateCashQRAction] Error:', error);
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to generate QR',
+            data: null,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
+
+/**
+ * Server Action: Initiate PayNow
+ */
+export async function initiatePayNowAction(orderId: number): Promise<APIResponse<{ paymentUrl: string; paymentRef: string } | null>> {
+    try {
+        orderIdSchema.parse(orderId);
+        return await ordersService.initiatePayNow(orderId);
+    } catch (error) {
+        console.error('[initiatePayNowAction] Error:', error);
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to initiate PayNow',
+            data: null,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
+
+/**
+ * Server Action: Get Order QR
+ */
+export async function getOrderQRAction(orderId: number): Promise<APIResponse<{ qrCode: string; expiresAt: string } | null>> {
+    try {
+        orderIdSchema.parse(orderId);
+        return await ordersService.getOrderQR(orderId);
+    } catch (error) {
+        console.error('[getOrderQRAction] Error:', error);
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to fetch QR',
+            data: null,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
+
+/**
+ * Server Action: Scan QR Code
+ */
+export async function scanQRCodeAction(qrData: string): Promise<APIResponse<ScanQRResponse | null>> {
+    try {
+        return await ordersService.scanQR({ qrData });
+    } catch (error) {
+        console.error('[scanQRCodeAction] Error:', error);
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : 'Scan failed',
+            data: null,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
+
+/**
  * Server Action: Complete Pickup
  */
 export async function completePickupAction(payload: { orderId: number; idempotencyKey: string }): Promise<APIResponse<void>> {
@@ -168,6 +273,26 @@ export async function completePickupAction(payload: { orderId: number; idempoten
         return {
             success: false,
             message: error instanceof Error ? error.message : 'Pickup completion failed',
+            data: undefined,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
+/**
+ * Server Action: Reject Order (Admin)
+ */
+export async function rejectOrderAction(orderId: number): Promise<APIResponse<void>> {
+    try {
+        orderIdSchema.parse(orderId);
+        const response = await ordersService.rejectOrder(orderId);
+        revalidatePath('/orders');
+        revalidatePath('/admin/orders');
+        return response;
+    } catch (error) {
+        console.error('[rejectOrderAction] Error:', error);
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : 'Order rejection failed',
             data: undefined,
             error: error instanceof Error ? error.message : 'Unknown error',
         };

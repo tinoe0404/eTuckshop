@@ -25,7 +25,7 @@ import {
     DollarSign,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { Order } from '@/lib/http-service/orders/types';
+import { Order } from '@/lib/api/orders/orders.types';
 
 type StatusFilter = 'ALL' | 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED';
 

@@ -25,9 +25,9 @@ import { toast } from 'sonner';
 
 interface AdminDashboardClientProps {
     stats: DashboardStats | null;
-    recentOrders: Order[];
+    recentOrders: Order[] | readonly Order[];
     orderStats: OrderStats | null;
-    products: Product[];
+    products: Product[] | readonly Product[];
 }
 
 export default function AdminDashboardClient({

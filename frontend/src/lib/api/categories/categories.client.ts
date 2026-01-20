@@ -21,8 +21,8 @@ export class CategoriesService extends BaseAPIRequests {
         return this.put<Category>(`/categories/${id}`, payload);
     }
 
-    async delete(id: number): Promise<APIResponse<{ id: number }>> {
-        return this.delete<{ id: number }>(`/categories/${id}`);
+    async deleteCategory(id: number): Promise<APIResponse<{ id: number }>> {
+        return this.makeRequest<{ id: number }>({ method: 'DELETE', url: `/categories/${id}` });
     }
 }
 
