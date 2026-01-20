@@ -115,7 +115,7 @@ export async function updateProduct(id: number, payload: UpdateProductPayload): 
 export async function deleteProductAction(id: number): Promise<APIResponse<{ id: number; message: string } | null>> {
     try {
         productIdSchema.parse(id);
-        const response = await productsService.delete(id);
+        const response = await productsService.deleteProduct(id);
         revalidatePath('/products');
         revalidatePath('/admin/products');
         return response;

@@ -55,7 +55,7 @@ import { Customer, CustomerStats, CustomerListResponse } from '@/lib/api/custome
 import { deleteCustomerAction, getCustomerByIdAction } from '@/lib/api/customers/customers.actions';
 
 interface AdminCustomersClientProps {
-    initialCustomers: Customer[];
+    initialCustomers: Customer[] | readonly Customer[];
     stats: CustomerStats | null;
 }
 

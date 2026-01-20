@@ -29,8 +29,8 @@ export class CustomersService extends BaseAPIRequests {
     /**
      * Delete customer
      */
-    async delete(id: number): Promise<APIResponse<void>> {
-        return this.deleteKey<void>(`/customers/${id}`);
+    async deleteCustomer(id: number): Promise<APIResponse<void>> {
+        return super.delete<void>(`/customers/${id}`);
     }
 }
 

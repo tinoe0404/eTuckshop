@@ -14,7 +14,7 @@ export default async function CustomerDashboard() {
   const [cartResponse, ordersResponse, productsResponse] = await Promise.all([
     getCartSummaryAction(),
     getUserOrdersAction(),
-    getProductsAction({ limit: 6, sort: 'desc' }),
+    getProductsAction({ limit: 6, sort: 'createdAt', order: 'desc' }),
   ]);
 
   return (

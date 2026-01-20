@@ -154,90 +154,6 @@ export async function getAdminOrdersAction(params?: {
 /**
  * Server Action: Update Order Status (Admin)
  */
-export async function updateOrderStatusAction(
-    id: number,
-    payload: UpdateOrderStatusPayload
-): Promise<APIResponse<Order | null>> {
-    try {
-        orderIdSchema.parse(id);
-        const validated = updateOrderStatusSchema.parse(payload);
-        const response = await ordersService.updateStatus(id, validated);
-
-        revalidatePath('/orders');
-        revalidatePath(`/orders/${id}`);
-        revalidatePath('/admin/orders');
-
-        return response;
-    } catch (error) {
-        if (error instanceof ZodError) {
-            const firstError = error.issues[0];
-            return {
-                success: false,
-                message: firstError?.message || 'Invalid order status',
-                data: null,
-                error: firstError?.message,
-            };
-        }
-
-        console.error('[updateOrderStatusAction] Error:', error);
-        return {
-            success: false,
-            message: error instanceof Error ? error.message : 'Failed to update order status',
-            data: null,
-            error: error instanceof Error ? error.message : 'Unknown error',
-        };
-    }
-}
-
-/**
- * Server Action: Cancel Order
- */
-export async function cancelOrderAction(id: number): Promise<APIResponse<Order | null>> {
-    try {
-        orderIdSchema.parse(id);
-        const response = await ordersService.cancel(id);
-
-        revalidatePath('/orders');
-        revalidatePath(`/orders/${id}`);
-
-        return response;
-    } catch (error) {
-        if (error instanceof ZodError) {
-            return {
-                success: false,
-                message: 'Invalid order ID',
-                data: null,
-                error: 'Invalid order ID',
-            };
-        }
-
-        console.error('[cancelOrderAction] Error:', error);
-        return {
-            success: false,
-            message: error instanceof Error ? error.message : 'Failed to cancel order',
-            data: null,
-            error: error instanceof Error ? error.message : 'Unknown error',
-        };
-    }
-}
-
-/**
- * Server Action: Scan QR Code
- */
-export async function scanQRCodeAction(qrData: string): Promise<APIResponse<ScanQRResponse | null>> {
-    try {
-        return await ordersService.scanQR({ qrData });
-    } catch (error) {
-        console.error('[scanQRCodeAction] Error:', error);
-        return {
-            success: false,
-            message: error instanceof Error ? error.message : 'Scan failed',
-            data: null,
-            error: error instanceof Error ? error.message : 'Unknown error',
-        };
-    }
-}
-
 /**
  * Server Action: Complete Pickup
  */
@@ -252,7 +168,7 @@ export async function completePickupAction(payload: { orderId: number; idempoten
         return {
             success: false,
             message: error instanceof Error ? error.message : 'Pickup completion failed',
-            data: null,
+            data: undefined,
             error: error instanceof Error ? error.message : 'Unknown error',
         };
     }

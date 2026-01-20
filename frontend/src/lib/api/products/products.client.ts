@@ -63,7 +63,7 @@ export class ProductsService extends BaseAPIRequests {
     /**
      * Delete a product (Admin only)
      */
-    async delete(id: number): Promise<APIResponse<DeleteProductResponse>> {
+    async deleteProduct(id: number): Promise<APIResponse<DeleteProductResponse>> {
         const response = await this.makeRequest<{ id: number }>({
             method: 'DELETE',
             url: `/products/${id}`,

@@ -78,7 +78,7 @@ export async function getCustomerStatsAction(): Promise<APIResponse<CustomerStat
 export async function deleteCustomerAction(id: number): Promise<APIResponse<void>> {
     try {
         customerIdSchema.parse(id);
-        const response = await customersService.delete(id);
+        const response = await customersService.deleteCustomer(id);
         revalidatePath('/admin/customers');
         return response;
     } catch (error) {
@@ -86,7 +86,7 @@ export async function deleteCustomerAction(id: number): Promise<APIResponse<void
         return {
             success: false,
             message: error instanceof Error ? error.message : 'Failed to delete customer',
-            data: null,
+            data: undefined, // void data should be undefined
             error: error instanceof Error ? error.message : 'Unknown error',
         };
     }
